@@ -129,10 +129,16 @@ If you can't check all boxes, revisit your goals before proceeding.
            │                     │                    │
            ▼                     ▼                    ▼
     ┌──────────┐          ┌───────────┐       ┌─────────────┐
-    │   FMP    │          │  Claude   │       │ localStorage│
+    │ Finnhub  │          │  Claude   │       │ localStorage│
     │   API    │          │  API w/   │       │  +Optional  │
-    │(Filtered)│          │  Caching  │       │   Supabase  │
+    │  (Free)  │          │  Caching  │       │   Supabase  │
     └──────────┘          └───────────┘       └─────────────┘
+         │
+         ▼
+    ┌──────────┐
+    │   FMP    │ ← Optional (paid plan required)
+    │   API    │
+    └──────────┘
 ```
 
 ### Core Data Flow
@@ -150,7 +156,7 @@ If you can't check all boxes, revisit your goals before proceeding.
    ↓
 5. Check cache: Last analysis <6hrs? → Return cached
    ↓
-6. If stale: Fetch FMP data (price, fundamentals, news)
+6. If stale: Fetch market data (via Finnhub or FMP)
    ↓
 7. Send to Claude API (with prompt caching)
    ↓
@@ -186,7 +192,8 @@ If you can't check all boxes, revisit your goals before proceeding.
 | **Charts** | TradingView Lightweight | Latest | Stock price charts |
 | **UI** | shadcn/ui | Latest | Component library |
 | **Testing** | Jest + RTL | Latest | Unit & component tests |
-| **Market Data** | FMP API | Free tier | Stock quotes & fundamentals |
+| **Market Data** | Finnhub API | Free tier | Stock quotes & fundamentals (primary) |
+| **Market Data** | FMP API | Paid tier | Stock quotes & fundamentals (optional) |
 | **AI** | Claude Sonnet 4 | Latest | Analysis & insights |
 | **Storage (Phase 1)** | localStorage | Native | Client-side persistence |
 | **Storage (Phase 2)** | Supabase | Free tier | Cross-device sync + backup |
@@ -196,10 +203,13 @@ If you can't check all boxes, revisit your goals before proceeding.
 
 | Service | Cost | Usage |
 |---------|------|-------|
-| FMP API | $0 | 250 calls/day (free tier) |
+| Finnhub API | $0 | 60 calls/min (free tier) |
+| FMP API (optional) | $19+/mo | If additional data needed |
 | Claude API | $5-10 | With caching optimization |
 | Supabase (Phase 2) | $0 | Free tier (500MB) |
 | **Total** | **$5-10** | Sustainable for personal use |
+
+> **Note**: As of September 2025, FMP's free tier has limited endpoint access. Finnhub is recommended as the primary data provider for free-tier users.
 
 ### Key Dependencies
 
@@ -237,9 +247,15 @@ If you can't check all boxes, revisit your goals before proceeding.
 ### Environment Variables
 
 ```bash
-# Required (Phase 1)
-FMP_API_KEY=your_key_here
-ANTHROPIC_API_KEY=your_key_here
+# Required (Phase 1) - Market Data
+FINNHUB_API_KEY=your_key_here    # Free: https://finnhub.io/
+
+# Required (Phase 1) - AI Analysis
+ANTHROPIC_API_KEY=your_key_here  # https://console.anthropic.com/
+
+# Optional - Use FMP instead of Finnhub (requires paid plan)
+# FMP_API_KEY=your_key_here
+# USE_FMP=true
 
 # Optional (Phase 2)
 SUPABASE_URL=your_url_here

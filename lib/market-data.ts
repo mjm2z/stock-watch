@@ -108,3 +108,32 @@ export function isApproachingRateLimit(state: RateLimitState): boolean {
 export function isRateLimitExceeded(state: RateLimitState): boolean {
   return state.dailyCalls >= state.maxDailyCalls
 }
+
+/**
+ * Available data providers
+ */
+export type DataProviderType = 'finnhub' | 'fmp'
+
+/**
+ * Get the configured data provider
+ * Finnhub is the default (free tier friendly)
+ * FMP can be used if user has a paid subscription
+ */
+export function getActiveProvider(): DataProviderType {
+  // Check if FMP is explicitly enabled (for paid users)
+  if (process.env.USE_FMP === 'true' && process.env.FMP_API_KEY) {
+    return 'fmp'
+  }
+  // Default to Finnhub (free tier)
+  return 'finnhub'
+}
+
+/**
+ * Check which providers are available based on environment
+ */
+export function getAvailableProviders(): { finnhub: boolean; fmp: boolean } {
+  return {
+    finnhub: !!process.env.FINNHUB_API_KEY,
+    fmp: !!process.env.FMP_API_KEY,
+  }
+}

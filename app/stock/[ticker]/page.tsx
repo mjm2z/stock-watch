@@ -1,3 +1,10 @@
+import Link from 'next/link'
+import { ArrowLeft } from 'lucide-react'
+import { StockQuote } from '@/components/StockQuote'
+import { StockChart } from '@/components/StockChart'
+import { StockAnalysis } from '@/components/StockAnalysis'
+import { QuickActions } from '@/components/QuickActions'
+
 interface StockPageProps {
   params: Promise<{
     ticker: string
@@ -6,36 +13,31 @@ interface StockPageProps {
 
 export default async function StockPage({ params }: StockPageProps) {
   const { ticker } = await params
+  const upperTicker = ticker.toUpperCase()
 
   return (
-    <main className="container mx-auto p-8">
+    <main className="container mx-auto p-4 sm:p-8">
+      {/* Back link */}
+      <Link
+        href="/"
+        className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground mb-6"
+      >
+        <ArrowLeft className="h-4 w-4" />
+        Back to Search
+      </Link>
+
       <div className="space-y-6">
-        <h1 className="text-3xl font-bold">{ticker.toUpperCase()}</h1>
-        <p className="text-muted-foreground">
-          Stock details and chart will be implemented in Phase 1A
-        </p>
+        {/* Quote and key metrics */}
+        <StockQuote ticker={upperTicker} />
 
-        <div className="grid gap-6 md:grid-cols-2">
-          {/* Chart placeholder */}
-          <div className="rounded-lg border bg-card p-6">
-            <h2 className="text-lg font-semibold mb-4">Price Chart</h2>
-            <div className="h-64 bg-muted rounded flex items-center justify-center">
-              <span className="text-muted-foreground">
-                TradingView chart coming soon
-              </span>
-            </div>
-          </div>
+        {/* Price chart */}
+        <StockChart ticker={upperTicker} />
 
-          {/* Analysis placeholder */}
-          <div className="rounded-lg border bg-card p-6">
-            <h2 className="text-lg font-semibold mb-4">AI Analysis</h2>
-            <div className="h-64 bg-muted rounded flex items-center justify-center">
-              <span className="text-muted-foreground">
-                Claude analysis coming soon
-              </span>
-            </div>
-          </div>
-        </div>
+        {/* AI Analysis */}
+        <StockAnalysis ticker={upperTicker} />
+
+        {/* Quick actions */}
+        <QuickActions ticker={upperTicker} />
       </div>
     </main>
   )

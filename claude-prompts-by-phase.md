@@ -33,7 +33,7 @@ Create the following directory structure:
 - /tests (Jest test files)
 
 **Configuration Files:**
-- Create .env.example with placeholders for FMP_API_KEY and ANTHROPIC_API_KEY
+- Create .env.example with placeholders for FINNHUB_API_KEY and ANTHROPIC_API_KEY (FMP_API_KEY optional for paid users)
 - Configure Jest with React Testing Library
 - Set up ESLint and Prettier
 
@@ -89,11 +89,15 @@ Do not implement any features yet - just set up the foundation.
 ```
 Building on the existing project, implement the Quality Stock Search feature:
 
-**FMP API Integration (/lib/fmp.ts):**
-- Implement the MarketDataProvider interface for FMP API
-- Create a searchStocks function that queries FMP's search endpoint
-- Implement server-side rate limiting (track calls, max 250/day for free tier)
+**Finnhub API Integration (/lib/finnhub.ts):** (Primary - free tier)
+- Implement the MarketDataProvider interface for Finnhub API
+- Create a searchStocks function that queries Finnhub's search endpoint
+- Implement server-side rate limiting (track calls, max 60/min for free tier)
 - Add 5-minute cache for search results
+
+**FMP API Integration (/lib/fmp.ts):** (Optional - for paid users)
+- Keep as alternative provider for users with paid FMP subscriptions
+- Same interface, configurable via USE_FMP=true environment variable
 
 **Quality Filters (apply automatically to all search results):**
 - Market Cap >= $500M
