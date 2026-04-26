@@ -4,7 +4,8 @@
   "description": "AI-powered stock analysis dashboard",
   "private": true,
   "scripts": {
-    "dev": "next dev",
+    "dev": "next dev -p 3001",
+    "stop": "lsof -ti :3001 | xargs kill -9 2>/dev/null; echo 'Stopped stock-watch (port 3001)'",
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
