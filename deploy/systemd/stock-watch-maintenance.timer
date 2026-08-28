@@ -1,0 +1,12 @@
+[Unit]
+Description=Reconcile paper fills, broker state, exits, and outcomes twice per trading weekday
+
+[Timer]
+OnCalendar=Mon..Fri *-*-* 10:15:00 America/New_York
+OnCalendar=Mon..Fri *-*-* 17:15:00 America/New_York
+Persistent=true
+AccuracySec=1s
+Unit=stock-watch-maintenance.service
+
+[Install]
+WantedBy=timers.target

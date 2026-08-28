@@ -7,8 +7,8 @@ import { Navigation } from '@/components/Navigation'
 const inter = Inter({ subsets: ['latin'], variable: '--font-geist-sans' })
 
 export const metadata: Metadata = {
-  title: 'Stock Watch - AI-Powered Stock Analysis',
-  description: 'AI-powered stock analysis dashboard for informed investment decisions',
+  title: 'Stock Watch - Market Intelligence',
+  description: 'Transparent S&P 500 signals, paper trading, and backtest analytics',
 }
 
 export default function RootLayout({

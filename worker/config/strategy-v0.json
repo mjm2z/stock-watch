@@ -1,0 +1,45 @@
+{
+  "id": "sp500-long-v0",
+  "name": "S&P 500 long-only heuristic v0",
+  "status": "development",
+  "universe": "sp500",
+  "direction": "long",
+  "scan_windows": [
+    {"name": "open", "time": "09:45", "timezone": "America/New_York"},
+    {"name": "close", "time": "16:15", "timezone": "America/New_York"}
+  ],
+  "horizons_trading_days": [5, 21, 63, 105],
+  "minimum_hold_trading_days": 1,
+  "qualification": {
+    "minimum_score": 75.0,
+    "minimum_data_completeness": 80.0,
+    "allowed_risk_levels": ["low", "medium"]
+  },
+  "weights": {
+    "momentum": 0.25,
+    "quality": 0.20,
+    "valuation": 0.15,
+    "news": 0.15,
+    "market_regime": 0.10,
+    "risk_liquidity": 0.15
+  },
+  "sizing": {
+    "base_notional_usd": 10.0,
+    "minimum_notional_usd": 5.0,
+    "maximum_notional_usd": 15.0,
+    "maximum_open_notional_per_ticker_usd": 30.0,
+    "medium_risk_multiplier": 0.85,
+    "rounding_increment_usd": 0.5,
+    "bands": [
+      {"minimum_score": 75.0, "notional_usd": 7.5},
+      {"minimum_score": 80.0, "notional_usd": 10.0},
+      {"minimum_score": 88.0, "notional_usd": 12.5},
+      {"minimum_score": 94.0, "notional_usd": 15.0}
+    ]
+  },
+  "execution": {
+    "mode": "paper",
+    "alpaca_base_url": "https://paper-api.alpaca.markets",
+    "one_open_lot_per_ticker_horizon": true
+  }
+}

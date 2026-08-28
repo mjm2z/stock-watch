@@ -3,6 +3,9 @@ import { getActiveProvider } from '@/lib/market-data'
 import { searchStocks as finnhubSearch, getRateLimitUsage as getFinnhubUsage } from '@/lib/finnhub'
 import { searchStocks as fmpSearch, getRateLimitUsage as getFmpUsage } from '@/lib/fmp'
 
+// Query-dependent API routes should not be considered for static generation.
+export const dynamic = 'force-dynamic'
+
 export async function GET(request: NextRequest) {
   try {
     const searchParams = request.nextUrl.searchParams

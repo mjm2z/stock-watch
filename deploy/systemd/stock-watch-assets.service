@@ -1,0 +1,22 @@
+[Unit]
+Description=Refresh Stock Watch Alpaca asset eligibility
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=stock-watch
+Group=stock-watch
+WorkingDirectory=/opt/stock-watch/worker
+EnvironmentFile=/etc/stock-watch/stock-watch.env
+Environment=PYTHONUNBUFFERED=1
+ExecStart=/opt/stock-watch/.venv/bin/stock-watch-worker refresh-assets --database ${STOCK_WATCH_DATABASE_PATH}
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=stock-watch-assets
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=strict
+ReadWritePaths=/var/lib/stock-watch

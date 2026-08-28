@@ -39,5 +39,14 @@ Thumbs.db
 # TypeScript
 *.tsbuildinfo
 
+# Python worker
+__pycache__/
+*.py[cod]
+.venv/
+/worker/data/
+/worker/*.db
+/worker/*.db-shm
+/worker/*.db-wal
+
 # Vercel
 .vercel

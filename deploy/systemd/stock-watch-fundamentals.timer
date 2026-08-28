@@ -1,0 +1,11 @@
+[Unit]
+Description=Refresh Stock Watch SEC fundamentals daily
+
+[Timer]
+OnCalendar=*-*-* 06:15:00 UTC
+Persistent=true
+RandomizedDelaySec=10m
+Unit=stock-watch-fundamentals.service
+
+[Install]
+WantedBy=timers.target

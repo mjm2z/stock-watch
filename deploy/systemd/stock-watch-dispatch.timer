@@ -1,0 +1,11 @@
+[Unit]
+Description=Check for opening and closing scans every five minutes
+
+[Timer]
+OnCalendar=*-*-* *:00/5:00
+Persistent=true
+AccuracySec=1s
+Unit=stock-watch-dispatch.service
+
+[Install]
+WantedBy=timers.target

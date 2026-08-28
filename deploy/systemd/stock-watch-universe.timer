@@ -1,0 +1,11 @@
+[Unit]
+Description=Check the approved S&P 500 universe daily before the market opens
+
+[Timer]
+OnCalendar=Mon..Fri *-*-* 05:30:00 America/New_York
+Persistent=true
+RandomizedDelaySec=5m
+Unit=stock-watch-universe.service
+
+[Install]
+WantedBy=timers.target

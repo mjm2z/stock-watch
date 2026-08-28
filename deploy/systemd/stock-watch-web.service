@@ -1,0 +1,31 @@
+[Unit]
+Description=Stock Watch dashboard
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=stock-watch
+Group=stock-watch
+WorkingDirectory=/opt/stock-watch
+EnvironmentFile=/etc/stock-watch/stock-watch.env
+Environment=NODE_ENV=production
+Environment=PATH=/usr/local/bin:/usr/bin:/bin
+# Listen on the host network so trusted LAN clients can reach the dashboard.
+# Stock Watch has no application authentication; perimeter access must remain
+# restricted to the trusted local network.
+ExecStart=/usr/local/bin/npm start -- --hostname 0.0.0.0 --port 3001
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=stock-watch-web
+Restart=on-failure
+RestartSec=5
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=strict
+ReadWritePaths=/opt/stock-watch/.next/cache /var/lib/stock-watch
+
+[Install]
+WantedBy=multi-user.target

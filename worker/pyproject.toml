@@ -1,0 +1,25 @@
+[build-system]
+requires = ["setuptools>=69"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "stock-watch-worker"
+version = "0.1.0"
+description = "Research, scanning, backtesting, and paper trading worker for Stock Watch"
+requires-python = ">=3.12"
+dependencies = []
+
+[project.scripts]
+stock-watch-worker = "stock_watch_worker.cli:main"
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+stock_watch_worker = ["strategy-v0.json"]
+
+[tool.setuptools.data-files]
+"share/stock-watch-worker/migrations" = ["migrations/*.sql"]

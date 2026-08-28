@@ -1,0 +1,11 @@
+[Unit]
+Description=Back up Stock Watch daily
+
+[Timer]
+OnCalendar=*-*-* 04:30:00 UTC
+Persistent=true
+RandomizedDelaySec=10m
+Unit=stock-watch-backup.service
+
+[Install]
+WantedBy=timers.target
