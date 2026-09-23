@@ -203,7 +203,12 @@ class BacktestRunnerTests(unittest.TestCase):
         )
         self.connection.execute("INSERT INTO universe_memberships VALUES (1, 2)")
         self.connection.commit()
-        dataset = self._load(self._calibration_manifest())
+        manifest = self._calibration_manifest()
+        manifest["walk_forward"]["validation_sessions"] = 8
+        for signal in manifest["signals"]:
+            if signal["signal_session"] == "2026-01-13":
+                signal["signal_session"] = "2026-01-17"
+        dataset = self._load(manifest)
 
         result = run_backtest(
             self.connection,
@@ -249,6 +254,30 @@ class BacktestRunnerTests(unittest.TestCase):
             (result.run_id,),
         ).fetchone()
         self.assertEqual(tuple(rejection), ("AAPL", "score_below_threshold"))
+
+    def test_future_test_prices_cannot_change_validation_threshold(self) -> None:
+        self.connection.execute("INSERT INTO instruments(id, symbol) VALUES (2, 'MSFT')")
+        self.connection.execute("INSERT INTO universe_memberships VALUES (1, 2)")
+        manifest = self._calibration_manifest()
+        thresholds = []
+        for perturb in (False, True):
+            if perturb:
+                for bar in manifest["bars"]["AAPL"]:
+                    if bar["session"] >= "2026-01-13":
+                        for field in ("open", "high", "low", "close"):
+                            bar[field] *= 2
+            result = run_backtest(
+                self.connection, dataset=self._load(manifest),
+                strategy_version_id="sp500-long-v0", universe_snapshot_id=1,
+                minimum_validation_trades=1, now=NOW,
+            )
+            row = self.connection.execute(
+                "SELECT selected_threshold, validation_metrics_json FROM backtest_splits "
+                "WHERE backtest_run_id=? AND split_index=0", (result.run_id,),
+            ).fetchone()
+            thresholds.append(row[0])
+            self.assertTrue(json.loads(row[1])["underpowered"])
+        self.assertEqual(thresholds, [75, 75])
 
     def test_manifest_rejects_open_scans_and_overlapping_test_windows(self) -> None:
         manifest = self._manifest()

@@ -6,6 +6,7 @@ import hashlib
 import json
 import sqlite3
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from typing import Iterable, Mapping
 
 from .providers.alpaca import AlpacaAsset, MarketBar, NewsArticle
@@ -21,6 +22,7 @@ class PersistResult:
     inserted: int
     unchanged: int
     skipped_unknown_symbols: tuple[str, ...] = ()
+    revised: int = 0
 
 
 @dataclass(frozen=True, slots=True)
@@ -158,6 +160,7 @@ def persist_market_bars(
     adjustment: str,
     provider: str,
     ingestion_id: int | None = None,
+    allow_revisions: bool = False,
 ) -> PersistResult:
     values = tuple(bars)
     symbol_ids = _instrument_ids(connection, {bar.symbol for bar in values})
@@ -167,6 +170,7 @@ def persist_market_bars(
 
     inserted = 0
     unchanged = 0
+    revised = 0
     with connection:
         for bar in values:
             _validate_bar(bar)
@@ -201,7 +205,7 @@ def persist_market_bars(
 
             stored = connection.execute(
                 """
-                SELECT open, high, low, close, volume, trade_count, vwap
+                SELECT open, high, low, close, volume, trade_count, vwap, ingestion_id
                 FROM market_bars
                 WHERE instrument_id = ? AND timestamp = ? AND timeframe = ?
                   AND adjustment = ? AND provider = ?
@@ -223,14 +227,48 @@ def persist_market_bars(
                 bar.trade_count,
                 bar.vwap,
             )
-            existing = tuple(stored) if stored else None
+            existing = tuple(stored)[:7] if stored else None
             if existing != observed:
-                raise DataConflictError(
-                    f"immutable bar changed for {bar.symbol} at {bar.timestamp}"
+                if not allow_revisions or stored is None:
+                    raise DataConflictError(
+                        f"immutable bar changed for {bar.symbol} at {bar.timestamp}"
+                    )
+                key = (symbol_ids[bar.symbol], bar.timestamp, timeframe, adjustment, provider)
+                fields = ("open", "high", "low", "close", "volume", "trade_count", "vwap")
+                connection.execute(
+                    """INSERT INTO market_bar_revisions(
+                        instrument_id, timestamp, timeframe, adjustment, provider,
+                        ingestion_id, previous_ingestion_id, previous_json, revised_json
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                    (*key, ingestion_id, stored["ingestion_id"],
+                     json.dumps(dict(zip(fields, existing))),
+                     json.dumps(dict(zip(fields, observed)))),
                 )
+                connection.execute(
+                    """UPDATE market_bars SET open=?, high=?, low=?, close=?,
+                        volume=?, trade_count=?, vwap=?, ingestion_id=?
+                        WHERE instrument_id=? AND timestamp=? AND timeframe=?
+                          AND adjustment=? AND provider=?""",
+                    (*observed, ingestion_id, *key),
+                )
+                revised += 1
+                continue
             unchanged += 1
 
-    return PersistResult(inserted=inserted, unchanged=unchanged)
+        # The request start is a conservative lower bound on observation time.
+        # Refresh this even when prices did not change; an old partial bar can
+        # legitimately have the same close as the finished session.
+        if ingestion_id is not None:
+            connection.executemany(
+                """UPDATE market_bars SET last_observed_at = (
+                    SELECT started_at FROM data_ingestions WHERE id = ?)
+                    WHERE instrument_id=? AND timestamp=? AND timeframe=?
+                      AND adjustment=? AND provider=?""",
+                ((ingestion_id, symbol_ids[bar.symbol], bar.timestamp,
+                  timeframe, adjustment, provider) for bar in values),
+            )
+
+    return PersistResult(inserted=inserted, unchanged=unchanged, revised=revised)
 
 
 def persist_news_articles(
@@ -246,6 +284,8 @@ def persist_news_articles(
     unknown_symbols = tuple(sorted(all_symbols - set(symbol_ids)))
     inserted = 0
     unchanged = 0
+    revised = 0
+    observed_at = datetime.now(timezone.utc).isoformat()
 
     with connection:
         for article in values:
@@ -276,42 +316,72 @@ def persist_news_articles(
                     ingestion_id,
                 ),
             )
-            if cursor.rowcount == 1:
+            original_inserted = cursor.rowcount == 1
+            available_at = article.updated_at or article.created_at
+            # A changed payload without a provider update timestamp must never
+            # masquerade as text available at its original publication time.
+            if not original_inserted and article.updated_at is None:
+                available_at = observed_at
+            same_timestamp = connection.execute(
+                "SELECT 1 FROM news_revisions WHERE article_id=? AND julianday(available_at)=julianday(?) "
+                "AND content_hash!=? LIMIT 1", (article_id,available_at,content_hash),
+            ).fetchone()
+            if same_timestamp:
+                available_at = observed_at
+            revision = connection.execute(
+                """INSERT INTO news_revisions(article_id,content_hash,published_at,
+                    available_at,first_observed_at,headline,summary,raw_json)
+                    VALUES (?,?,?,?,?,?,?,?) ON CONFLICT(article_id,content_hash) DO NOTHING""",
+                (article_id,content_hash,article.created_at,available_at,observed_at,
+                 article.headline,article.summary,canonical),
+            )
+            revision_inserted = revision.rowcount == 1
+            revision_id = connection.execute(
+                "SELECT id FROM news_revisions WHERE article_id=? AND content_hash=?",
+                (article_id,content_hash),
+            ).fetchone()[0]
+            if original_inserted:
                 inserted += 1
+            elif revision_inserted:
+                revised += 1
             else:
-                stored = connection.execute(
-                    "SELECT content_hash FROM news_articles WHERE id = ?",
-                    (article_id,),
-                ).fetchone()
-                if not stored or stored["content_hash"] != content_hash:
-                    raise DataConflictError(f"immutable news article changed: {article_id}")
                 unchanged += 1
+            if ingestion_id is not None:
+                connection.execute("INSERT INTO news_revision_observations VALUES (?,?) ON CONFLICT DO NOTHING",
+                                   (ingestion_id,revision_id))
 
             for symbol in article.symbols:
                 instrument_id = symbol_ids.get(symbol)
                 if instrument_id is None:
                     continue
-                connection.execute(
-                    """
-                    INSERT INTO news_instruments(
-                        news_id, instrument_id, sentiment, sentiment_model
-                    ) VALUES (?, ?, ?, ?)
-                    ON CONFLICT(news_id, instrument_id) DO UPDATE SET
-                        sentiment = excluded.sentiment,
-                        sentiment_model = excluded.sentiment_model
-                    """,
-                    (
-                        article_id,
-                        instrument_id,
-                        calculate_news_sentiment(article.headline, article.summary),
-                        MODEL_VERSION,
-                    ),
-                )
+                if original_inserted:
+                    connection.execute(
+                        """
+                        INSERT INTO news_instruments(
+                            news_id, instrument_id, sentiment, sentiment_model
+                        ) VALUES (?, ?, ?, ?)
+                        ON CONFLICT(news_id, instrument_id) DO NOTHING
+                        """,
+                        (
+                            article_id,
+                            instrument_id,
+                            calculate_news_sentiment(article.headline, article.summary),
+                            MODEL_VERSION,
+                        ),
+                    )
+                if revision_inserted:
+                    connection.execute(
+                        "INSERT INTO news_revision_instruments VALUES (?,?,?,?)",
+                        (revision_id,instrument_id,
+                         calculate_news_sentiment(article.headline,article.summary),MODEL_VERSION),
+                    )
+
 
     return PersistResult(
         inserted=inserted,
         unchanged=unchanged,
         skipped_unknown_symbols=unknown_symbols,
+        revised=revised,
     )
 
 

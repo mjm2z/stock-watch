@@ -26,7 +26,9 @@ def connect(database: str | Path) -> sqlite3.Connection:
     connection.row_factory = sqlite3.Row
     connection.execute("PRAGMA foreign_keys = ON")
     connection.execute("PRAGMA journal_mode = WAL")
-    connection.execute("PRAGMA busy_timeout = 5000")
+    # SEC documents and scan batches can briefly overlap; allow the other
+    # writer to commit before failing the entire daily refresh.
+    connection.execute("PRAGMA busy_timeout = 30000")
     return connection
 
 
@@ -58,11 +60,23 @@ def apply_migrations(
         if version in applied:
             continue
         script = migration.read_text(encoding="utf-8")
-        with connection:
-            connection.executescript(script)
-            connection.execute(
-                "INSERT INTO schema_migrations(version) VALUES (?)", (version,)
+        # Migration 013 already supplies this outer transaction. Fold its
+        # version stamp into that same transaction without nesting BEGIN.
+        stripped = script.strip()
+        if stripped.startswith("BEGIN IMMEDIATE;") and stripped.endswith("COMMIT;"):
+            script = stripped[len("BEGIN IMMEDIATE;"):-len("COMMIT;")]
+        # executescript commits a pending transaction before it starts. Put the
+        # DDL and its version stamp inside the script's own explicit transaction
+        # so an interrupted additive release cannot leave half a migration.
+        escaped_version = version.replace("'", "''")
+        try:
+            connection.executescript(
+                "BEGIN IMMEDIATE;\n" + script +
+                "\nINSERT INTO schema_migrations(version) VALUES ('" + escaped_version + "');\nCOMMIT;"
             )
+        except Exception:
+            connection.rollback()
+            raise
         newly_applied.append(version)
     return newly_applied
 

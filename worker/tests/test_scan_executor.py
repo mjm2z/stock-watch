@@ -249,7 +249,7 @@ class ScanExecutorTests(unittest.TestCase):
             revenue_growth=0.20,
             net_margin=0.18,
             free_cash_flow_margin=0.15,
-            debt_to_equity=0.5,
+            liabilities_to_equity=0.5,
             price_to_earnings=18,
             free_cash_flow_yield=0.06,
         )

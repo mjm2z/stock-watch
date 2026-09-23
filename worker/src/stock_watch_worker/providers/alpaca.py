@@ -282,6 +282,16 @@ class AlpacaPaperTradingClient:
         self._base_url = ALPACA_PAPER_BASE_URL
         self._response_observer = response_observer
 
+    def get_entry_context(self, symbol: str) -> Mapping[str, Any]:
+        clock = self._get("/v2/clock", {})
+        account = self._get("/v2/account", {})
+        quote = None
+        if clock.get("is_open"):
+            client = AlpacaMarketDataClient(self._credentials, transport=self._transport, response_observer=self._response_observer)
+            snapshot = client.get_snapshots([symbol], feed="iex").get(symbol, {})
+            quote = snapshot.get("latestQuote")
+        return {"clock": clock, "account": account, "quote": quote}
+
     def submit_notional_market_buy(
         self,
         *,
@@ -389,6 +399,12 @@ class AlpacaPaperTradingClient:
         if not isinstance(data, list) or any(not isinstance(item, dict) for item in data):
             raise ValueError("Alpaca assets response is malformed")
         return [_parse_asset(item) for item in data]
+
+    def get_clock(self) -> Mapping[str, Any]:
+        data = self._get("/v2/clock", {})
+        if not isinstance(data, dict) or not isinstance(data.get("is_open"), bool):
+            raise ValueError("Alpaca clock response is malformed")
+        return data
 
     def get_account(self) -> AlpacaAccount:
         data = self._get("/v2/account", {})

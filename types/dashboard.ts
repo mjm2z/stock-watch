@@ -20,12 +20,22 @@ export interface DashboardSignal {
   reasons: string[]
   pillars: DashboardPillar[]
   orderStatus: string | null
+  orderError: string | null
   notionalUsd: number | null
   lotStatus: string | null
   netReturn: number | null
   excessReturn: number | null
   beatSpy: boolean | null
   currentPrice: number | null
+  priceAsOf: string | null
+  strategyId: string
+  scanRunId: string
+  evaluationState: string | null
+  evaluationReason: string | null
+  evaluationCheckedAt: string | null
+  outcomeVersion: string | null
+  qualityReview?: { coverage: number; blockers: string[]; warnings: string[]; anomalies: number }
+  events: { at: string; type: string; detail: string }[]
 }
 
 export interface DashboardScan {
@@ -77,14 +87,20 @@ export interface DashboardPortfolioLot {
   realizedReturn: number | null
   orderStatus: string
   exitOrderStatus: string | null
+  exitOrderError?: string | null
 }
 
 export interface DashboardPortfolio {
+  snapshotAt?: string | null
+  performanceAvailable?: boolean
+  generatedAt?: string
   lots: DashboardPortfolioLot[]
   totals: {
     lots: number
     openLots: number
     deployedNotionalUsd: number
+    pendingLots?: number
+    reservedNotionalUsd?: number
     contributedCapitalUsd: number
     equityUsd: number
     realizedPnlUsd: number

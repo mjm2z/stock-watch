@@ -1,3 +1,4 @@
+import { DashboardRefresh } from '@/components/dashboard/DashboardRefresh'
 import type { Metadata } from 'next'
 import { Inter } from 'next/font/google'
 import './globals.css'
@@ -11,18 +12,25 @@ export const metadata: Metadata = {
   description: 'Transparent S&P 500 signals, paper trading, and backtest analytics',
 }
 
-export default function RootLayout({
-  children,
-}: {
-  children: React.ReactNode
-}) {
+export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en" suppressHydrationWarning>
       <body className={`${inter.variable} font-sans antialiased`}>
         <Providers>
           <div className="min-h-screen bg-background">
+            <a href="#main-content" className="sr-only focus:not-sr-only focus:block focus:p-3">
+              Skip to main content
+            </a>
             <Navigation />
-            {children}
+            <div id="main-content" tabIndex={-1}>
+              {children}
+            </div>
+            <footer className="container mx-auto flex flex-wrap items-center justify-between gap-3 border-t px-4 py-3 text-xs text-muted-foreground">
+              <span>
+                Paper trading · Times shown in Eastern · Saved results refresh every minute
+              </span>
+              <DashboardRefresh />
+            </footer>
           </div>
         </Providers>
       </body>

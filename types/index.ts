@@ -6,10 +6,10 @@
 export interface Stock {
   ticker: string
   name: string
-  price: number
-  change: number
-  changePercent: number
-  marketCap: number
+  price: number | null
+  change: number | null
+  changePercent: number | null
+  marketCap: number | null
   sector: string
   exchange: string
   volume?: number

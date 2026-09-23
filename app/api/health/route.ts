@@ -17,6 +17,9 @@ export function GET() {
   const recentFailure = operations.runs.find(
     run =>
       run.status === 'failed' &&
+      operations.runs.find(candidate => candidate.command === run.command)?.id === run.id &&
+      !(run.command === 'work-once' && overview.latestScan?.status === 'succeeded' &&
+        new Date(overview.latestScan.scheduledFor).getTime() > new Date(run.startedAt).getTime()) &&
       Date.now() - new Date(run.startedAt).getTime() < 24 * 60 * 60 * 1000
   )
   const staleOperation = operations.runs.find(
@@ -31,7 +34,6 @@ export function GET() {
         new Date(reconciliation.capturedAt).getTime() <
           new Date(overview.latestScan.scheduledFor).getTime()))
   const degraded =
-    overview.metrics.failedJobs > 0 ||
     overview.latestScan?.status === 'failed' ||
     recentFailure !== undefined ||
     staleOperation !== undefined ||

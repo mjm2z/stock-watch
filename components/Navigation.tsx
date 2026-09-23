@@ -25,31 +25,38 @@ export function Navigation() {
   const pathname = usePathname()
 
   return (
-    <nav className="border-b bg-card">
-      <div className="container mx-auto px-3 sm:px-4">
-        <div className="flex h-14 items-center gap-3">
+    <nav aria-label="Main navigation" className="border-b bg-card">
+      <div className="container mx-auto px-3 lg:px-4">
+        <div className="flex flex-col items-stretch gap-2 py-2 lg:flex-row lg:items-center">
           <Link href="/" className="shrink-0 font-bold text-lg">
-            <span className="sm:hidden">SW</span>
-            <span className="hidden sm:inline">StockWatch</span>
+            <span className="lg:hidden">SW</span>
+            <span className="hidden lg:inline">StockWatch</span>
           </Link>
 
-          <div className="ml-auto flex items-center gap-0.5 overflow-x-auto sm:gap-1">
+          <div className="grid grid-cols-6 gap-0.5 lg:ml-auto lg:flex lg:items-center lg:gap-1">
             {navItems.map(({ href, label, icon: Icon }) => {
-              const isActive = href === '/' ? pathname === href : pathname.startsWith(href)
+              const isActive =
+                href === '/'
+                  ? pathname === href
+                  : pathname.startsWith(href) ||
+                    (href === '/research' &&
+                      (pathname.startsWith('/stock/') || pathname === '/watchlist'))
 
               return (
                 <Link
                   key={href}
                   href={href}
+                  aria-label={label === 'Ops' ? 'Operations' : label}
+                  aria-current={isActive ? 'page' : undefined}
                   className={cn(
-                    'inline-flex shrink-0 items-center gap-2 rounded-md px-2 py-2 text-sm transition-colors sm:px-3',
+                    'inline-flex min-h-11 flex-col items-center justify-center gap-1 rounded-md px-1 py-2 text-[11px] transition-colors lg:flex-row lg:gap-2 lg:px-3 lg:text-sm',
                     isActive
                       ? 'bg-primary/10 text-primary'
                       : 'text-muted-foreground hover:text-foreground hover:bg-muted'
                   )}
                 >
                   <Icon className="h-4 w-4" />
-                  <span className="hidden sm:inline">{label}</span>
+                  <span>{label}</span>
                 </Link>
               )
             })}

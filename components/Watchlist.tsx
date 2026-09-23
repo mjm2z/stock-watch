@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import { useAtom, useSetAtom } from 'jotai'
+import { useSharedWatchlist } from '@/lib/use-shared-watchlist'
 import Link from 'next/link'
 import {
   RefreshCw,
@@ -14,7 +14,6 @@ import {
   Eye,
   ListPlus,
 } from 'lucide-react'
-import { watchlistAtom, removeFromWatchlistAtom } from '@/lib/atoms'
 import { cn, formatCurrency, formatPercent } from '@/lib/utils'
 import type { WatchlistItem } from '@/types'
 
@@ -34,9 +33,9 @@ interface WatchlistItemWithPrice extends WatchlistItem {
 }
 
 export function Watchlist() {
-  const [watchlist] = useAtom(watchlistAtom)
-  const removeFromWatchlist = useSetAtom(removeFromWatchlistAtom)
+  const { watchlist, ready, error, refresh, remove: removeFromWatchlist } = useSharedWatchlist()
 
+  const [priceError, setPriceError] = useState(false)
   const [prices, setPrices] = useState<Record<string, WatchlistPrice>>({})
   const [isLoading, setIsLoading] = useState(false)
   const [sortField, setSortField] = useState<SortField>('addedAt')
@@ -51,16 +50,18 @@ export function Watchlist() {
     try {
       const response = await fetch('/api/watchlist/prices', {
         method: 'POST',
+        signal: AbortSignal.timeout(10000),
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ tickers: watchlist.map(w => w.ticker) }),
+        body: JSON.stringify({ tickers: watchlist.map((w) => w.ticker) }),
       })
 
       if (response.ok) {
         const data = await response.json()
         setPrices(data.prices)
-      }
+        setPriceError(false)
+      } else setPriceError(true)
     } catch (error) {
-      console.error('Failed to fetch watchlist prices:', error)
+      setPriceError(true)
     } finally {
       setIsLoading(false)
     }
@@ -72,7 +73,7 @@ export function Watchlist() {
   }, [fetchPrices])
 
   // Combine watchlist with prices
-  const itemsWithPrices: WatchlistItemWithPrice[] = watchlist.map(item => ({
+  const itemsWithPrices: WatchlistItemWithPrice[] = watchlist.map((item) => ({
     ...item,
     currentPrice: prices[item.ticker]?.price,
     priceChange: prices[item.ticker]?.change,
@@ -104,7 +105,7 @@ export function Watchlist() {
   // Handle sort click
   const handleSort = (field: SortField) => {
     if (sortField === field) {
-      setSortDirection(prev => prev === 'asc' ? 'desc' : 'asc')
+      setSortDirection((prev) => (prev === 'asc' ? 'desc' : 'asc'))
     } else {
       setSortField(field)
       setSortDirection('desc')
@@ -136,6 +137,16 @@ export function Watchlist() {
   }
 
   // Empty state
+  if (error && !ready)
+    return (
+      <p role="alert" className="rounded-xl border p-4 text-destructive">
+        {error}{' '}
+        <button onClick={() => void refresh()} className="min-h-11 underline">
+          Retry
+        </button>
+      </p>
+    )
+  if (!ready) return <p className="p-4 text-muted-foreground">Loading shared watchlist…</p>
   if (watchlist.length === 0) {
     return (
       <div className="rounded-lg border bg-card p-8 text-center">
@@ -156,6 +167,20 @@ export function Watchlist() {
 
   return (
     <div className="rounded-lg border bg-card">
+      {(priceError || error) && (
+        <p role="alert" className="p-3 text-sm text-amber-700">
+          Refresh failed. Previously loaded data remains visible.{' '}
+          <button
+            className="min-h-11 underline"
+            onClick={() => {
+              void refresh()
+              void fetchPrices()
+            }}
+          >
+            Retry
+          </button>
+        </p>
+      )}
       {/* Header */}
       <div className="flex items-center justify-between p-4 border-b">
         <div>
@@ -219,7 +244,7 @@ export function Watchlist() {
             </tr>
           </thead>
           <tbody>
-            {sortedItems.map(item => {
+            {sortedItems.map((item) => {
               const isPositive = (item.priceChangePercent || 0) >= 0
 
               return (
@@ -229,7 +254,7 @@ export function Watchlist() {
                 >
                   <td className="p-3">
                     <Link
-                      href={`/stock/${item.ticker}`}
+                      href={`/stock/${item.ticker}?from=%2Fresearch`}
                       className="font-semibold hover:text-primary"
                     >
                       {item.ticker}
@@ -274,8 +299,9 @@ export function Watchlist() {
                   <td className="p-3 text-right">
                     <div className="inline-flex items-center gap-1">
                       <Link
-                        href={`/stock/${item.ticker}`}
+                        href={`/stock/${item.ticker}?from=%2Fresearch`}
                         className="p-2 hover:bg-muted rounded-md"
+                        aria-label={`View ${item.ticker}`}
                         title="View stock"
                       >
                         <Eye className="h-4 w-4" />
@@ -288,7 +314,16 @@ export function Watchlist() {
                             ? 'bg-destructive text-destructive-foreground'
                             : 'hover:bg-muted text-muted-foreground hover:text-destructive'
                         )}
-                        title={itemToDelete === item.ticker ? 'Click again to confirm' : 'Remove from watchlist'}
+                        aria-label={
+                          itemToDelete === item.ticker
+                            ? `Confirm removal of ${item.ticker}`
+                            : `Remove ${item.ticker}`
+                        }
+                        title={
+                          itemToDelete === item.ticker
+                            ? 'Click again to confirm'
+                            : 'Remove from watchlist'
+                        }
                       >
                         <Trash2 className="h-4 w-4" />
                       </button>
@@ -303,7 +338,8 @@ export function Watchlist() {
 
       {/* Pro tip */}
       <div className="p-4 border-t bg-muted/30 text-sm text-muted-foreground">
-        <strong>Pro tip:</strong> Start with 10-20 stocks. Master these before expanding.
+        Shared across LAN browsers and included in Stock Watch backups. Watching a stock does not
+        change automatic trading eligibility.
       </div>
     </div>
   )

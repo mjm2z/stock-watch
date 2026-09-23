@@ -54,6 +54,15 @@ class ForwardOutcomeTests(unittest.TestCase):
             1,
         )
 
+    def test_rejected_signal_with_shadow_assessment_is_evaluated(self):
+        self.connection.execute("UPDATE signals SET decision='rejected' WHERE id='signal-5'")
+        first=evaluate_forward_outcomes(self.connection,observed_at=OBSERVED_AT)
+        self.assertEqual(first.completed,0)
+        self.connection.execute("INSERT INTO shadow_assessments VALUES ('signal-5','baseline-v1',70,0,'[]','{}','2026-08-17')")
+        second=evaluate_forward_outcomes(self.connection,observed_at=OBSERVED_AT)
+        self.assertEqual(second.completed,1)
+        self.assertAlmostEqual(self.connection.execute("SELECT net_return FROM signal_outcomes WHERE signal_id='signal-5'").fetchone()[0],.099)
+
     def test_missing_stock_session_is_explicit_and_not_persisted(self) -> None:
         self.connection.execute(
             "DELETE FROM market_bars WHERE instrument_id = 1 AND timestamp = '2026-08-20'"
@@ -71,6 +80,32 @@ class ForwardOutcomeTests(unittest.TestCase):
             self.connection.execute("SELECT COUNT(*) FROM signal_outcomes").fetchone()[0],
             0,
         )
+
+    def test_intraday_outcome_remains_pending(self):
+        result = evaluate_forward_outcomes(self.connection,
+            observed_at=datetime(2026, 8, 24, 14, tzinfo=timezone.utc))
+        self.assertEqual(result.completed, 0)
+        state = self.connection.execute("SELECT state FROM signal_evaluations WHERE signal_id='signal-5'").fetchone()[0]
+        self.assertEqual(state, "waiting_for_close")
+
+    def test_old_partial_bar_is_not_finalized_after_close(self):
+        self.connection.execute("UPDATE market_bars SET last_observed_at='2026-08-24T14:00:00Z' WHERE timestamp='2026-08-24'")
+        result = evaluate_forward_outcomes(self.connection, observed_at=OBSERVED_AT)
+        self.assertEqual(result.completed, 0)
+        self.assertEqual(result.missing_history, 1)
+
+    def test_missing_calendar_does_not_guess_session_boundaries(self):
+        self.connection.execute("DELETE FROM market_sessions")
+        result = evaluate_forward_outcomes(self.connection, observed_at=OBSERVED_AT)
+        self.assertEqual(result.completed, 0)
+        self.assertEqual(result.missing_history, 2)
+
+    def test_early_close_uses_exchange_calendar(self):
+        self.connection.execute("UPDATE market_sessions SET closes_at='2026-08-24T17:00:00Z' WHERE trading_date='2026-08-24'")
+        self.connection.execute("UPDATE market_bars SET last_observed_at='2026-08-24T17:20:00Z' WHERE timestamp='2026-08-24'")
+        result = evaluate_forward_outcomes(self.connection,
+            observed_at=datetime(2026, 8, 24, 17, 30, tzinfo=timezone.utc))
+        self.assertEqual(result.completed, 1)
 
     def test_rejects_naive_observation_timestamp(self) -> None:
         with self.assertRaisesRegex(ValueError, "timezone"):
@@ -153,6 +188,13 @@ class ForwardOutcomeTests(unittest.TestCase):
                     """,
                     (instrument_id, session, *prices),
                 )
+        for session in sessions:
+            self.connection.execute(
+                "INSERT INTO market_sessions(trading_date,provider,opens_at,closes_at) "
+                "VALUES (?, 'alpaca-paper', ?, ?)",
+                (session, session + 'T13:30:00Z', session + 'T20:00:00Z'),
+            )
+        self.connection.execute("UPDATE market_bars SET last_observed_at=timestamp || 'T20:30:00Z'")
         self.connection.commit()
 
 

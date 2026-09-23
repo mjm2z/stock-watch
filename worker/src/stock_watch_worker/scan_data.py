@@ -91,14 +91,23 @@ def load_scan_inputs(
         market_date=market_date,
         include_market_date=scan["scan_type"] != "open",
         history_sessions=history_sessions,
+        scan_run_id=scan_run_id,
     )
+    has_bar_snapshot = connection.execute(
+        "SELECT 1 FROM scan_bar_snapshots WHERE scan_run_id = ? LIMIT 1",
+        (scan_run_id,),
+    ).fetchone() is not None
     facts_by_instrument = _load_company_facts(
         connection,
         instrument_ids=tuple(member_ids),
         cutoff=str(scan["data_cutoff"]),
     )
+    has_news_snapshot = connection.execute(
+        "SELECT 1 FROM scan_news_snapshots WHERE scan_run_id=?", (scan_run_id,)
+    ).fetchone() is not None
     news_by_instrument, news_refs = _load_news(
         connection,
+        scan_run_id=scan_run_id,
         instrument_ids=tuple(member_ids),
         start=cutoff - news_lookback,
         cutoff=cutoff,
@@ -115,8 +124,17 @@ def load_scan_inputs(
         fact_refs: dict[str, object] = {}
         if fact_document is not None and bars:
             try:
+                # Read and parse only this security's selected document. Loading
+                # every historical JSON payload can exhaust a small worker host.
+                document = connection.execute(
+                    "SELECT facts_json FROM company_fact_documents WHERE id = ?",
+                    (fact_document["id"],),
+                ).fetchone()
+                facts = json.loads(str(document["facts_json"]))
+                if not isinstance(facts, dict):
+                    raise ValueError("CompanyFacts must be a JSON object")
                 extracted = extract_fundamentals(
-                    fact_document["facts"],
+                    facts,
                     as_of=str(scan["data_cutoff"]),
                     price=bars[-1].close,
                 )
@@ -143,8 +161,10 @@ def load_scan_inputs(
                 source_refs={
                     "market_bar_provider": "alpaca",
                     "market_bar_count": len(bars),
+                    **({"bar_snapshot_scan_id": scan_run_id} if has_bar_snapshot else {}),
                     **fact_refs,
                     "news_ids": list(news_refs.get(instrument_id, ())),
+                    "news_snapshot_scan_id": scan_run_id if has_news_snapshot else None,
                 },
                 vetoes=tuple(vetoes),
             )
@@ -167,19 +187,35 @@ def _load_bars(
     market_date: date,
     include_market_date: bool,
     history_sessions: int,
+    scan_run_id: str | None = None,
 ) -> dict[int, tuple[DailyBar, ...]]:
     placeholders = ",".join("?" for _ in instrument_ids)
-    rows = connection.execute(
-        f"""
-        SELECT instrument_id, timestamp, open, high, low, close, volume
-        FROM market_bars
-        WHERE instrument_id IN ({placeholders})
-          AND timeframe = '1Day' AND adjustment = 'all'
-          AND provider = 'alpaca' AND timestamp <= ?
-        ORDER BY instrument_id, timestamp
-        """,
-        (*instrument_ids, cutoff),
-    ).fetchall()
+    snapshot_rows = connection.execute(
+        "SELECT instrument_id, bars_json FROM scan_bar_snapshots WHERE scan_run_id = ?",
+        (scan_run_id,),
+    ).fetchall() if scan_run_id else []
+    if snapshot_rows:
+        if set(instrument_ids) != {int(row["instrument_id"]) for row in snapshot_rows}:
+            raise ValueError("scan bar snapshot is incomplete")
+        rows = [
+            {**bar, "instrument_id": snapshot["instrument_id"]}
+            for snapshot in snapshot_rows
+            for bar in json.loads(snapshot["bars_json"])
+            if str(bar["timestamp"]) <= cutoff
+        ]
+        rows.sort(key=lambda row: (row["instrument_id"], row["timestamp"]))
+    else:
+        rows = connection.execute(
+            f"""
+            SELECT instrument_id, timestamp, open, high, low, close, volume
+            FROM market_bars
+            WHERE instrument_id IN ({placeholders})
+              AND timeframe = '1Day' AND adjustment = 'all'
+              AND provider = 'alpaca' AND timestamp <= ?
+            ORDER BY instrument_id, timestamp
+            """,
+            (*instrument_ids, cutoff),
+        ).fetchall()
     grouped: dict[int, list[DailyBar]] = {}
     for row in rows:
         session = _session_date(str(row["timestamp"]))
@@ -210,25 +246,24 @@ def _load_company_facts(
     placeholders = ",".join("?" for _ in instrument_ids)
     rows = connection.execute(
         f"""
-        SELECT id, instrument_id, content_sha256, facts_json
-        FROM company_fact_documents
-        WHERE instrument_id IN ({placeholders}) AND captured_at <= ?
-        ORDER BY instrument_id, captured_at DESC, id DESC
+        SELECT documents.id, documents.instrument_id, documents.content_sha256
+        FROM instruments
+        JOIN company_fact_documents AS documents ON documents.id = (
+            SELECT latest.id FROM company_fact_documents AS latest
+            WHERE latest.instrument_id = instruments.id AND latest.captured_at <= ?
+            ORDER BY latest.captured_at DESC, latest.id DESC LIMIT 1
+        )
+        WHERE instruments.id IN ({placeholders})
         """,
-        (*instrument_ids, cutoff),
+        (cutoff, *instrument_ids),
     ).fetchall()
     result: dict[int, dict[str, object]] = {}
     for row in rows:
         instrument_id = int(row["instrument_id"])
-        if instrument_id in result:
-            continue
-        facts = json.loads(str(row["facts_json"]))
-        if isinstance(facts, dict):
-            result[instrument_id] = {
-                "id": int(row["id"]),
-                "sha256": str(row["content_sha256"]),
-                "facts": facts,
-            }
+        result[instrument_id] = {
+            "id": int(row["id"]),
+            "sha256": str(row["content_sha256"]),
+        }
     return result
 
 
@@ -238,20 +273,39 @@ def _load_news(
     instrument_ids: tuple[int, ...],
     start: datetime,
     cutoff: datetime,
+    scan_run_id: str | None = None,
 ) -> tuple[dict[int, tuple[float, ...]], dict[int, tuple[str, ...]]]:
     placeholders = ",".join("?" for _ in instrument_ids)
-    rows = connection.execute(
-        f"""
-        SELECT links.instrument_id, links.sentiment, articles.id
-        FROM news_instruments AS links
-        JOIN news_articles AS articles ON articles.id = links.news_id
-        WHERE links.instrument_id IN ({placeholders})
-          AND articles.published_at >= ? AND articles.published_at <= ?
-          AND links.sentiment IS NOT NULL
-        ORDER BY links.instrument_id, articles.published_at, articles.id
-        """,
-        (*instrument_ids, _utc_iso(start), _utc_iso(cutoff)),
-    ).fetchall()
+    frozen = connection.execute(
+        "SELECT 1 FROM scan_news_snapshots WHERE scan_run_id=?", (scan_run_id,)
+    ).fetchone()
+    if frozen:
+        rows = connection.execute(
+            f"""SELECT links.instrument_id,links.sentiment,
+                       articles.article_id AS id
+                FROM scan_news_revisions snapshot
+                JOIN news_revisions articles ON articles.id=snapshot.revision_id
+                JOIN news_revision_instruments links ON links.revision_id=articles.id
+                WHERE snapshot.scan_run_id=? AND links.instrument_id IN ({placeholders})
+                ORDER BY links.instrument_id,articles.published_at,articles.id""",
+            (scan_run_id,*instrument_ids),
+        ).fetchall()
+    else:
+        # Legacy scans keep their original article records. Never substitute a
+        # revision into previously persisted features without a new scan ID.
+        rows = connection.execute(
+            f"""
+            SELECT links.instrument_id, links.sentiment, articles.id
+            FROM news_instruments AS links
+            JOIN news_articles AS articles ON articles.id = links.news_id
+            WHERE links.instrument_id IN ({placeholders})
+              AND articles.published_at >= ? AND articles.published_at <= ?
+              AND julianday(COALESCE(articles.updated_at,articles.published_at)) <= julianday(?)
+              AND links.sentiment IS NOT NULL
+            ORDER BY links.instrument_id, articles.published_at, articles.id
+            """,
+            (*instrument_ids, _utc_iso(start), _utc_iso(cutoff), _utc_iso(cutoff)),
+        ).fetchall()
     sentiments: dict[int, list[float]] = {}
     refs: dict[int, list[str]] = {}
     for row in rows:

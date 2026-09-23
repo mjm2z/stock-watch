@@ -1,16 +1,21 @@
-import { DatabaseZap } from 'lucide-react'
-
+import Link from 'next/link'
 export function DatabaseUnavailable({ reason }: { reason?: string }) {
   return (
-    <div className="rounded-xl border border-dashed bg-card p-8 text-center">
-      <DatabaseZap className="mx-auto mb-4 h-10 w-10 text-muted-foreground" />
-      <h2 className="text-lg font-semibold">Worker database is not connected</h2>
-      <p className="mx-auto mt-2 max-w-xl text-sm text-muted-foreground">
-        {reason ?? 'Initialize the worker and configure STOCK_WATCH_DATABASE_PATH.'}
+    <section className="space-y-3 rounded-xl border border-dashed bg-card p-6" role="status">
+      <h2 className="text-lg font-semibold">Trading data is unavailable</h2>
+      <p className="text-sm text-muted-foreground">
+        This view could not read the worker database. Existing trades are preserved; this page
+        cannot confirm their current status.
       </p>
-      <code className="mt-4 inline-block rounded bg-muted px-3 py-2 text-xs">
-        STOCK_WATCH_DATABASE_PATH=/var/lib/stock-watch/stock-watch.db
-      </code>
-    </div>
+      <Link href="/operations" className="inline-block py-2 text-sm underline">
+        Review operations
+      </Link>
+      <details className="text-sm">
+        <summary>Connection details</summary>
+        <p className="mt-2 break-all text-muted-foreground">
+          {reason ?? 'The worker database path has not been configured.'}
+        </p>
+      </details>
+    </section>
   )
 }

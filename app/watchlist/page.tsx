@@ -7,11 +7,11 @@ export default function WatchlistPage() {
     <main className="container mx-auto p-4 sm:p-8">
       {/* Back link */}
       <Link
-        href="/"
+        href="/research"
         className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground mb-6"
       >
         <ArrowLeft className="h-4 w-4" />
-        Back to Search
+        Back to research
       </Link>
 
       <div className="mb-6">

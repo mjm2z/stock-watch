@@ -95,7 +95,7 @@ def extract_fundamentals(
         if free_cash_flow is not None and latest_revenue and latest_revenue.value != 0
         else None
     )
-    debt_to_equity = (
+    liabilities_to_equity = (
         liabilities.value / equity.value
         if liabilities and equity and equity.value > 0
         else None
@@ -136,7 +136,7 @@ def extract_fundamentals(
         revenue_growth=revenue_growth,
         net_margin=net_margin,
         free_cash_flow_margin=free_cash_flow_margin,
-        debt_to_equity=debt_to_equity,
+        liabilities_to_equity=liabilities_to_equity,
         price_to_earnings=price_to_earnings,
         free_cash_flow_yield=free_cash_flow_yield,
     )

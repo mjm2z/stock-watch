@@ -308,7 +308,7 @@ class HistoricalDatasetTests(unittest.TestCase):
         self.assertEqual(result.manifest["provenance"]["calendar_ingestion"]["id"], 20)
         self.assertEqual(
             result.manifest["provenance"]["news_cutoff_policy"],
-            "provider exchange-session close",
+            "provider publication and update <= exchange-session close; ingestion-pinned revisions v2",
         )
         self.assertEqual(result.manifest["signals"][0]["data_completeness"], 65)
         self.assertGreater(

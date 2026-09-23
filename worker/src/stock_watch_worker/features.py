@@ -38,7 +38,7 @@ class FundamentalInputs:
     revenue_growth: float | None = None
     net_margin: float | None = None
     free_cash_flow_margin: float | None = None
-    debt_to_equity: float | None = None
+    liabilities_to_equity: float | None = None
     price_to_earnings: float | None = None
     free_cash_flow_yield: float | None = None
 
@@ -73,7 +73,7 @@ def build_feature_set(
     if any(not -1 <= value <= 1 for value in news_sentiments):
         raise ValueError("news sentiment must be between -1 and 1")
 
-    raw: dict[str, float | int | str | None] = {"as_of": as_of}
+    raw: dict[str, float | int | str | None] = {"as_of": as_of, "reference_close": stock[-1].close if stock else None}
     pillars: dict[str, PillarValue] = {}
 
     momentum_values = _momentum_features(stock, spy)
@@ -95,7 +95,7 @@ def build_feature_set(
                 "revenue_growth": fundamentals.revenue_growth,
                 "net_margin": fundamentals.net_margin,
                 "free_cash_flow_margin": fundamentals.free_cash_flow_margin,
-                "debt_to_equity": fundamentals.debt_to_equity,
+                "liabilities_to_equity": fundamentals.liabilities_to_equity,
                 "price_to_earnings": fundamentals.price_to_earnings,
                 "free_cash_flow_yield": fundamentals.free_cash_flow_yield,
             }
@@ -104,7 +104,7 @@ def build_feature_set(
             _linear_score(fundamentals.revenue_growth, -0.10, 0.30),
             _linear_score(fundamentals.net_margin, -0.05, 0.25),
             _linear_score(fundamentals.free_cash_flow_margin, -0.05, 0.20),
-            _linear_score(fundamentals.debt_to_equity, 3.0, 0.0),
+            _linear_score(fundamentals.liabilities_to_equity, 3.0, 0.0),
         ]
         valuation_scores = [
             _linear_score(

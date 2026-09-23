@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { getAlpacaQuotes, hasAlpacaData } from '@/lib/alpaca-market-data'
+import { searchUniverse } from '@/lib/worker-dashboard'
 import { getActiveProvider } from '@/lib/market-data'
 import { searchStocks as finnhubSearch, getRateLimitUsage as getFinnhubUsage } from '@/lib/finnhub'
 import { searchStocks as fmpSearch, getRateLimitUsage as getFmpUsage } from '@/lib/fmp'
@@ -27,6 +29,16 @@ export async function GET(request: NextRequest) {
     }
 
     // Determine which provider to use
+    if (hasAlpacaData()) {
+      const matches = searchUniverse(query)
+      const quotes = await getAlpacaQuotes(matches.map(stock => stock.ticker))
+      const data = matches.map(stock => {
+        const quote = quotes.find(quote => quote.ticker === stock.ticker)
+        return { ...stock, price: quote?.price ?? null, change: quote?.change ?? null,
+          changePercent: quote?.changePercent ?? null, marketCap: null, sector: '' }
+      })
+      return NextResponse.json({ data, meta: { count: data.length, query, provider: 'alpaca-iex' } })
+    }
     const provider = getActiveProvider()
 
     let stocks

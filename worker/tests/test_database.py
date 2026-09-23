@@ -1,6 +1,9 @@
 from __future__ import annotations
 
 import sqlite3
+import tempfile
+import shutil
+from pathlib import Path
 import unittest
 
 from stock_watch_worker.database import (
@@ -41,6 +44,12 @@ class DatabaseMigrationTests(unittest.TestCase):
                 "007_broker_reconciliation",
                 "008_market_sessions",
                 "009_observability",
+                "010_market_data_revisions",
+                "011_outcome_freshness",
+                "012_shared_research",
+                "013_assessment_controls",
+                "014_news_revisions",
+                "015_exit_timing",
             ],
         )
 
@@ -75,6 +84,31 @@ class DatabaseMigrationTests(unittest.TestCase):
                 "operation_events",
             }.issubset(tables)
         )
+
+    def test_failed_migration_rolls_back_ddl_and_version_stamp(self):
+        with tempfile.TemporaryDirectory() as directory:
+            Path(directory,'001_broken.sql').write_text('CREATE TABLE partial(id INTEGER); INVALID SQL;')
+            with self.assertRaises(sqlite3.OperationalError):
+                apply_migrations(self.connection,directory)
+        self.assertIsNone(self.connection.execute("SELECT 1 FROM sqlite_master WHERE name='partial'").fetchone())
+        self.assertEqual(self.connection.execute('SELECT COUNT(*) FROM schema_migrations').fetchone()[0],0)
+
+    def test_news_upgrade_preserves_original_evidence(self):
+        with tempfile.TemporaryDirectory() as directory:
+            for source in MIGRATIONS_DIR.glob('*.sql'):
+                if source.name < '014':
+                    shutil.copy(source,Path(directory)/source.name)
+            apply_migrations(self.connection,directory)
+        self.connection.execute("INSERT INTO instruments(id,symbol) VALUES (1,'AAPL')")
+        self.connection.execute("INSERT INTO news_articles(id,provider,published_at,updated_at,headline,content_hash) VALUES ('alpaca:1','alpaca','2026-01-01T12:00:00Z','2026-01-01T13:00:00Z','Original','hash')")
+        self.connection.execute("INSERT INTO news_instruments(news_id,instrument_id,sentiment,sentiment_model) VALUES ('alpaca:1',1,.5,'lexicon-v0')")
+        self.connection.commit()
+        apply_migrations(self.connection,MIGRATIONS_DIR)
+        self.assertEqual(self.connection.execute("SELECT headline FROM news_articles").fetchone()[0],'Original')
+        row=self.connection.execute("SELECT available_at,first_observed_at FROM news_revisions").fetchone()
+        self.assertEqual(tuple(row),('2026-01-01T13:00:00Z',None))
+        self.assertEqual(self.connection.execute("SELECT sentiment FROM news_revision_instruments").fetchone()[0],.5)
+        self.assertEqual(apply_migrations(self.connection,MIGRATIONS_DIR),[])
 
     def test_backtest_split_boundaries_must_be_chronological(self) -> None:
         apply_migrations(self.connection, MIGRATIONS_DIR)

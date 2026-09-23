@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import sqlite3
+import json
 import unittest
 
 from stock_watch_worker.database import MIGRATIONS_DIR, apply_migrations
@@ -77,6 +78,31 @@ class IngestionTests(unittest.TestCase):
                 provider="alpaca",
             )
 
+    def test_explicit_bar_revision_is_audited_and_idempotent(self) -> None:
+        options = dict(timeframe="1Day", adjustment="all", provider="alpaca", allow_revisions=True)
+        persist_market_bars(self.connection, [self._bar(close=104)], **options)
+        revised = persist_market_bars(self.connection, [self._bar(close=103)], **options)
+        repeated = persist_market_bars(self.connection, [self._bar(close=103)], **options)
+        self.assertEqual(revised.revised, 1)
+        self.assertEqual(repeated.revised, 0)
+        rows = self.connection.execute("SELECT previous_json, revised_json FROM market_bar_revisions").fetchall()
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(json.loads(rows[0]["previous_json"])["close"], 104)
+        self.assertEqual(json.loads(rows[0]["revised_json"])["close"], 103)
+        self.assertEqual(self.connection.execute("SELECT close FROM market_bars").fetchone()[0], 103)
+
+    def test_unchanged_bar_refreshes_observation_provenance(self):
+        options = dict(timeframe="1Day", adjustment="all", provider="alpaca")
+        for index, at in enumerate(("2026-01-02T14:00:00Z", "2026-01-02T21:30:00Z"), 1):
+            self.connection.execute(
+                "INSERT INTO data_ingestions(id,dataset,provider,started_at,status,version) "
+                "VALUES (?, 'scan_bundle', 'alpaca', ?, 'running', ?)", (index, at, str(index)))
+            persist_market_bars(self.connection, [self._bar(close=104)], ingestion_id=index, **options)
+        row = self.connection.execute("SELECT last_observed_at, ingestion_id FROM market_bars").fetchone()
+        self.assertEqual(row["last_observed_at"], "2026-01-02T21:30:00Z")
+        self.assertEqual(row["ingestion_id"], 1)  # original value provenance retained
+
+    def test_rejects_invalid_ohlc(self) -> None:
         invalid = MarketBar("AAPL", "2026-01-02T05:00:00Z", 100, 101, 99, 104, 1000, None, None)
         with self.assertRaisesRegex(ValueError, "high is inconsistent"):
             persist_market_bars(
@@ -114,12 +140,16 @@ class IngestionTests(unittest.TestCase):
         self.assertEqual(link["sentiment"], 0)
         self.assertEqual(link["sentiment_model"], "lexicon-v0")
 
-    def test_changed_news_payload_is_a_conflict(self) -> None:
+    def test_changed_news_payload_is_versioned(self) -> None:
         original = self._article({"id": 9, "headline": "First"})
         changed = self._article({"id": 9, "headline": "Changed"})
         persist_news_articles(self.connection, [original])
-        with self.assertRaisesRegex(DataConflictError, "immutable news article changed"):
-            persist_news_articles(self.connection, [changed])
+        result = persist_news_articles(self.connection, [changed])
+        repeated = persist_news_articles(self.connection, [changed])
+        self.assertEqual(result.revised, 1)
+        self.assertEqual(repeated.unchanged, 1)
+        self.assertEqual(self.connection.execute("SELECT headline FROM news_articles").fetchone()[0], "First")
+        self.assertEqual(self.connection.execute("SELECT COUNT(*) FROM news_revisions").fetchone()[0], 2)
 
     def test_refreshes_fractional_asset_metadata_for_snapshot_members(self) -> None:
         asset = AlpacaAsset(

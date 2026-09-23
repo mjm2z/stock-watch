@@ -80,3 +80,16 @@ export function debounce<T extends (...args: Parameters<T>) => ReturnType<T>>(
 export function generateId(): string {
   return crypto.randomUUID()
 }
+
+/** Dashboard timestamps use Eastern time, including SQLite's UTC timestamps. */
+export function formatTimestamp(value: string | null): string {
+  if (!value) return '—'
+  const normalized = /^\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}:\d{2}(\.\d+)?$/.test(value)
+    ? value.replace(' ', 'T') + 'Z' : value
+  const date = new Date(normalized)
+  if (!Number.isFinite(date.getTime())) return '—'
+  return new Intl.DateTimeFormat('en-US', {
+    timeZone: 'America/New_York', month: 'long', day: 'numeric', year: 'numeric',
+    hour: 'numeric', minute: '2-digit', second: '2-digit', hour12: true,
+  }).format(date).replace(' at ', ', ')
+}

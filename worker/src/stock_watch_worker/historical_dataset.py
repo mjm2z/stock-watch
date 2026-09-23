@@ -190,7 +190,7 @@ def build_historical_backtest_dataset(
                             fundamentals.revenue_growth,
                             fundamentals.net_margin,
                             fundamentals.free_cash_flow_margin,
-                            fundamentals.debt_to_equity,
+                            fundamentals.liabilities_to_equity,
                             fundamentals.price_to_earnings,
                             fundamentals.free_cash_flow_yield,
                         )
@@ -305,7 +305,7 @@ def build_historical_backtest_dataset(
             "calendar_ingestion": calendar_provenance,
             "news_lookback_calendar_days": news_lookback_days,
             "news_cutoff_policy": (
-                "provider exchange-session close"
+                "provider publication and update <= exchange-session close; ingestion-pinned revisions v2"
                 if historical_news_ingestion_id is not None
                 else None
             ),
@@ -525,7 +525,7 @@ def _historical_news(
     ingestion_id: int | None,
     required_start: date,
     required_end: date,
-) -> tuple[dict[str, tuple[tuple[datetime, float], ...]], Mapping[str, Any] | None]:
+) -> tuple[dict[str, tuple[tuple[str, datetime, datetime, float | None, int], ...]], Mapping[str, Any] | None]:
     if ingestion_id is None:
         return {}, None
     ingestion = connection.execute(
@@ -557,25 +557,43 @@ def _historical_news(
     if missing_symbols:
         raise ValueError("historical news ingestion does not cover every universe symbol")
     placeholders = ",".join("?" for _ in members)
-    rows = connection.execute(
-        f"""
-        SELECT instruments.symbol, articles.published_at, links.sentiment
-        FROM news_instruments AS links
-        JOIN news_articles AS articles ON articles.id = links.news_id
-        JOIN instruments ON instruments.id = links.instrument_id
-        WHERE instruments.symbol IN ({placeholders})
-          AND articles.provider = 'alpaca'
-          AND links.sentiment_model = ?
-        ORDER BY instruments.symbol, articles.published_at, articles.id
-        """,
-        (*members, MODEL_VERSION),
-    ).fetchall()
-    grouped: dict[str, list[tuple[datetime, float]]] = {}
+    if metadata.get("revision_policy") == "ingestion-pinned-updates-v1":
+        rows = connection.execute(
+            f"""WITH memberships AS (
+                    SELECT DISTINCT r.article_id,l.instrument_id
+                    FROM news_revision_observations o JOIN news_revisions r ON r.id=o.revision_id
+                    JOIN news_revision_instruments l ON l.revision_id=r.id WHERE o.ingestion_id=?
+                ) SELECT i.symbol,r.article_id AS id,r.published_at,r.available_at,
+                l.sentiment,r.id AS revision_id
+                FROM news_revision_observations o JOIN news_revisions r ON r.id=o.revision_id
+                JOIN memberships m ON m.article_id=r.article_id
+                JOIN instruments i ON i.id=m.instrument_id
+                LEFT JOIN news_revision_instruments l ON l.revision_id=r.id AND l.instrument_id=i.id
+                    AND l.sentiment_model=?
+                WHERE o.ingestion_id=? AND i.symbol IN ({placeholders})
+                ORDER BY r.id""", (ingestion_id,MODEL_VERSION,ingestion_id,*members),
+        ).fetchall()
+    else:
+        # Legacy ingestions expose only their original payloads. Apply update
+        # cutoffs as well as publication cutoffs; never blend in newer captures.
+        rows = connection.execute(
+            f"""SELECT instruments.symbol,articles.id,articles.published_at,
+                COALESCE(articles.updated_at,articles.published_at) AS available_at,
+                links.sentiment,0 AS revision_id
+                FROM news_instruments links JOIN news_articles articles ON articles.id=links.news_id
+                JOIN instruments ON instruments.id=links.instrument_id
+                WHERE instruments.symbol IN ({placeholders}) AND articles.provider='alpaca'
+                    AND links.sentiment_model=? AND articles.ingestion_id=?""",
+            (*members,MODEL_VERSION,ingestion_id),
+        ).fetchall()
+    grouped: dict[str, list[tuple[str, datetime, datetime, float | None, int]]] = {}
     for row in rows:
         published_at = _aware_datetime(str(row["published_at"]))
         if coverage_start <= published_at.date() <= coverage_end:
             grouped.setdefault(str(row["symbol"]), []).append(
-                (published_at, float(row["sentiment"]))
+                (str(row["id"]),published_at,_aware_datetime(str(row["available_at"])),
+                 float(row["sentiment"]) if row["sentiment"] is not None else None,
+                 int(row["revision_id"]))
             )
     return (
         {symbol: tuple(values) for symbol, values in grouped.items()},
@@ -589,13 +607,19 @@ def _historical_news(
 
 
 def _news_sentiments_at_close(
-    values: Sequence[tuple[datetime, float]],
+    values: Sequence[tuple[str, datetime, datetime, float | None, int]],
     *,
     cutoff: datetime,
     lookback_days: int,
 ) -> tuple[float, ...]:
     start = cutoff - timedelta(days=lookback_days)
-    return tuple(sentiment for published_at, sentiment in values if start <= published_at <= cutoff)
+    selected = {}
+    for article_id, published_at, available_at, sentiment, revision_id in values:
+        if start <= published_at <= cutoff and available_at <= cutoff:
+            prior = selected.get(article_id)
+            if prior is None or (available_at,revision_id) > prior[:2]:
+                selected[article_id] = (available_at,revision_id,sentiment)
+    return tuple(value[2] for _,value in sorted(selected.items()) if value[2] is not None)
 
 
 def _historical_session_closes(

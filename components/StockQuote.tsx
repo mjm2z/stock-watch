@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { TrendingUp, TrendingDown, Loader2, RefreshCw } from 'lucide-react'
 import { cn, formatCurrency, formatPercent, formatLargeNumber } from '@/lib/utils'
 import type { Quote, Fundamentals } from '@/types'
@@ -26,7 +26,9 @@ export function StockQuote({ ticker, className }: StockQuoteProps) {
   const [error, setError] = useState<string | null>(null)
   const [isRefreshing, setIsRefreshing] = useState(false)
 
+  const requestId = useRef(0)
   const fetchQuote = async (refresh = false) => {
+    const id = ++requestId.current
     if (refresh) {
       setIsRefreshing(true)
     } else {
@@ -35,7 +37,9 @@ export function StockQuote({ ticker, className }: StockQuoteProps) {
     setError(null)
 
     try {
-      const response = await fetch(`/api/stock/${ticker}/quote`)
+      const response = await fetch(`/api/stock/${ticker}/quote`, {
+        signal: AbortSignal.timeout(10000),
+      })
 
       if (!response.ok) {
         const errorData = await response.json()
@@ -43,17 +47,28 @@ export function StockQuote({ ticker, className }: StockQuoteProps) {
       }
 
       const result: QuoteResponse = await response.json()
-      setData(result)
+      if (id === requestId.current) setData(result)
     } catch (err) {
+      if (id !== requestId.current) return
       setError(err instanceof Error ? err.message : 'Failed to load quote')
     } finally {
-      setIsLoading(false)
-      setIsRefreshing(false)
+      if (id === requestId.current) {
+        setIsLoading(false)
+        setIsRefreshing(false)
+      }
     }
   }
 
   useEffect(() => {
+    const requests = requestId
     fetchQuote()
+    const timer = setInterval(() => {
+      if (!document.hidden) void fetchQuote(true)
+    }, 30000)
+    return () => {
+      requests.current++
+      clearInterval(timer)
+    }
   }, [ticker]) // eslint-disable-line react-hooks/exhaustive-deps
 
   if (isLoading) {
@@ -66,15 +81,12 @@ export function StockQuote({ ticker, className }: StockQuoteProps) {
     )
   }
 
-  if (error) {
+  if (error && !data) {
     return (
       <div className={cn('rounded-lg border bg-card p-6', className)}>
         <div className="text-center">
           <p className="text-destructive mb-2">{error}</p>
-          <button
-            onClick={() => fetchQuote()}
-            className="text-sm text-primary hover:underline"
-          >
+          <button onClick={() => fetchQuote()} className="text-sm text-primary hover:underline">
             Try again
           </button>
         </div>
@@ -89,6 +101,24 @@ export function StockQuote({ ticker, className }: StockQuoteProps) {
 
   return (
     <div className={cn('rounded-lg border bg-card', className)}>
+      <p className="px-6 pt-4 text-xs text-muted-foreground">
+        {data.meta.provider} · As of{' '}
+        {new Intl.DateTimeFormat('en-US', {
+          timeZone: 'America/New_York',
+          month: 'long',
+          day: 'numeric',
+          year: 'numeric',
+          hour: 'numeric',
+          minute: '2-digit',
+          second: '2-digit',
+        }).format(new Date(quote.timestamp))}{' '}
+        Eastern · Refreshes every 30 seconds
+      </p>
+      {error && (
+        <p role="alert" className="px-6 pt-3 text-sm text-amber-700">
+          Refresh failed. Displaying the last successful quote.
+        </p>
+      )}
       {/* Header with price */}
       <div className="p-6 border-b">
         <div className="flex items-start justify-between">
@@ -96,51 +126,39 @@ export function StockQuote({ ticker, className }: StockQuoteProps) {
             <div className="flex items-center gap-2">
               <h1 className="text-2xl font-bold">{ticker}</h1>
               {fundamentals?.name && (
-                <span className="text-muted-foreground">
-                  {fundamentals.name}
-                </span>
+                <span className="text-muted-foreground">{fundamentals.name}</span>
               )}
             </div>
             {fundamentals?.sector && (
-              <p className="text-sm text-muted-foreground mt-1">
-                {fundamentals.sector}
-              </p>
+              <p className="text-sm text-muted-foreground mt-1">{fundamentals.sector}</p>
             )}
           </div>
           <button
             onClick={() => fetchQuote(true)}
             disabled={isRefreshing}
             className="p-2 hover:bg-muted rounded-md transition-colors"
+            aria-label="Refresh quote"
             title="Refresh quote"
           >
-            <RefreshCw
-              className={cn('h-4 w-4', isRefreshing && 'animate-spin')}
-            />
+            <RefreshCw className={cn('h-4 w-4', isRefreshing && 'animate-spin')} />
           </button>
         </div>
 
-        <div className="mt-4 flex items-baseline gap-3">
-          <span className="text-4xl font-bold">
-            {formatCurrency(quote.price)}
-          </span>
+        <div className="mt-4 flex flex-wrap items-baseline gap-3">
+          <span className="text-4xl font-bold">{formatCurrency(quote.price)}</span>
           <div
             className={cn(
               'flex items-center gap-1 text-lg font-medium',
               isPositive ? 'text-gain' : 'text-loss'
             )}
           >
-            {isPositive ? (
-              <TrendingUp className="h-5 w-5" />
-            ) : (
-              <TrendingDown className="h-5 w-5" />
-            )}
+            {isPositive ? <TrendingUp className="h-5 w-5" /> : <TrendingDown className="h-5 w-5" />}
             <span>
               {isPositive ? '+' : ''}
               {formatCurrency(quote.change)}
             </span>
             <span>
-              ({isPositive ? '+' : ''}
-              {formatPercent(quote.changePercent)})
+              ({formatPercent(quote.changePercent)})
             </span>
           </div>
         </div>
@@ -155,13 +173,8 @@ export function StockQuote({ ticker, className }: StockQuoteProps) {
 
         {fundamentals && (
           <>
-            <MetricItem
-              label="Market Cap"
-              value={formatLargeNumber(fundamentals.marketCap)}
-            />
-            {fundamentals.pe && (
-              <MetricItem label="P/E Ratio" value={fundamentals.pe.toFixed(2)} />
-            )}
+            <MetricItem label="Market Cap" value={formatLargeNumber(fundamentals.marketCap)} />
+            {fundamentals.pe && <MetricItem label="P/E Ratio" value={fundamentals.pe.toFixed(2)} />}
             {fundamentals.eps && (
               <MetricItem label="EPS" value={formatCurrency(fundamentals.eps)} />
             )}
@@ -172,16 +185,10 @@ export function StockQuote({ ticker, className }: StockQuoteProps) {
               />
             )}
             {fundamentals.fiftyTwoWeekHigh > 0 && (
-              <MetricItem
-                label="52W High"
-                value={formatCurrency(fundamentals.fiftyTwoWeekHigh)}
-              />
+              <MetricItem label="52W High" value={formatCurrency(fundamentals.fiftyTwoWeekHigh)} />
             )}
             {fundamentals.fiftyTwoWeekLow > 0 && (
-              <MetricItem
-                label="52W Low"
-                value={formatCurrency(fundamentals.fiftyTwoWeekLow)}
-              />
+              <MetricItem label="52W Low" value={formatCurrency(fundamentals.fiftyTwoWeekLow)} />
             )}
           </>
         )}

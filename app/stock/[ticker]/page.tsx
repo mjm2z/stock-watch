@@ -1,8 +1,11 @@
+import { Suspense } from 'react'
+import { ResearchBackLink } from '@/components/ResearchBackLink'
 import Link from 'next/link'
 import { ArrowLeft } from 'lucide-react'
 import { StockQuote } from '@/components/StockQuote'
 import { StockChart } from '@/components/StockChart'
 import { StockAnalysis } from '@/components/StockAnalysis'
+import { aiAnalysisEnabled } from '@/lib/server-features'
 import { QuickActions } from '@/components/QuickActions'
 
 interface StockPageProps {
@@ -18,13 +21,9 @@ export default async function StockPage({ params }: StockPageProps) {
   return (
     <main className="container mx-auto p-4 sm:p-8">
       {/* Back link */}
-      <Link
-        href="/"
-        className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground mb-6"
-      >
-        <ArrowLeft className="h-4 w-4" />
-        Back to Search
-      </Link>
+      <Suspense fallback={<Link href="/research">Back to research</Link>}>
+        <ResearchBackLink />
+      </Suspense>
 
       <div className="space-y-6">
         {/* Quote and key metrics */}
@@ -33,8 +32,7 @@ export default async function StockPage({ params }: StockPageProps) {
         {/* Price chart */}
         <StockChart ticker={upperTicker} />
 
-        {/* AI Analysis */}
-        <StockAnalysis ticker={upperTicker} />
+        {aiAnalysisEnabled() ? <StockAnalysis ticker={upperTicker} /> : null}
 
         {/* Quick actions */}
         <QuickActions ticker={upperTicker} />

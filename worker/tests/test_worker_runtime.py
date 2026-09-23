@@ -131,6 +131,7 @@ class WorkerRuntimeTests(unittest.TestCase):
         self.assertEqual(reconcile.call_args.kwargs["captured_at"], NOW)
 
     def test_nonretryable_provider_failure_fails_job(self) -> None:
+        self._insert_scan("development")
         self._insert_job()
         with patch(
             "stock_watch_worker.worker_runtime.load_scan_inputs",
@@ -145,6 +146,9 @@ class WorkerRuntimeTests(unittest.TestCase):
         self.assertEqual(result.state, "failed")
         self.assertIsInstance(result.error, ProviderError)
         self.assertEqual(self._job_status(), "failed")
+        scan = self.connection.execute("SELECT status, error FROM scan_runs WHERE id='scan-1'").fetchone()
+        self.assertEqual(scan["status"], "failed")
+        self.assertIn("invalid credentials", scan["error"])
 
     def test_rejects_unknown_job_type_without_retry(self) -> None:
         self._insert_job(job_type="unknown")

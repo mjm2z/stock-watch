@@ -140,6 +140,8 @@ def sync_universe_from_url(
         source=source,
         source_url=source_url,
     )
+    from .instrument_context import update_sectors
+    update_sectors(connection, text, captured_at=effective_at, source=source_url)
     return UniverseSyncResult(
         import_result=imported,
         source=source,

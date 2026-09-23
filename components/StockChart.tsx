@@ -45,6 +45,10 @@ const TIME_RANGES: { label: string; value: TimeRange }[] = [
 /**
  * Calculate Simple Moving Average
  */
+function chartTime(value: string, intraday: boolean): Time {
+  return intraday ? (Math.floor(Date.parse(value) / 1000) as Time) : (value.split('T')[0] as Time)
+}
+
 function calculateSMA(data: PriceData[], period: number): LineData<Time>[] {
   const result: LineData<Time>[] = []
 
@@ -65,12 +69,12 @@ function calculateSMA(data: PriceData[], period: number): LineData<Time>[] {
 /**
  * Transform API data to chart format
  */
-function transformData(prices: PriceData[]): ChartData {
+function transformData(prices: PriceData[], intraday = false): ChartData {
   const candles: CandlestickData<Time>[] = []
   const volume: HistogramData<Time>[] = []
 
   for (const price of prices) {
-    const time = price.date.split('T')[0] as Time
+    const time = chartTime(price.date, intraday)
 
     candles.push({
       time,
@@ -88,8 +92,8 @@ function transformData(prices: PriceData[]): ChartData {
   }
 
   // Calculate moving averages (only meaningful for longer timeframes)
-  const ma50 = prices.length >= 50 ? calculateSMA(prices, 50) : []
-  const ma200 = prices.length >= 200 ? calculateSMA(prices, 200) : []
+  const ma50 = !intraday && prices.length >= 50 ? calculateSMA(prices, 50) : []
+  const ma200 = !intraday && prices.length >= 200 ? calculateSMA(prices, 200) : []
 
   return { candles, volume, ma50, ma200 }
 }
@@ -102,50 +106,65 @@ export function StockChart({ ticker, className }: StockChartProps) {
   const ma50SeriesRef = useRef<ISeriesApi<'Line'> | null>(null)
   const ma200SeriesRef = useRef<ISeriesApi<'Line'> | null>(null)
 
+  const requestId = useRef(0)
+  const [loadedRange, setLoadedRange] = useState<TimeRange | null>(null)
+  const [overlays, setOverlays] = useState({ ma50: false, ma200: false })
+  const [empty, setEmpty] = useState(false)
   const [selectedRange, setSelectedRange] = useState<TimeRange>('1M')
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
   // Fetch data for the chart
-  const fetchData = useCallback(async (range: TimeRange) => {
-    setIsLoading(true)
-    setError(null)
+  const fetchData = useCallback(
+    async (range: TimeRange, refresh = false) => {
+      const id = ++requestId.current
+      if (!refresh) setIsLoading(true)
+      setError(null)
 
-    try {
-      const response = await fetch(`/api/stock/${ticker}/history?range=${range}`)
+      try {
+        const response = await fetch(`/api/stock/${ticker}/history?range=${range}`, {
+          signal: AbortSignal.timeout(15000),
+        })
 
-      if (!response.ok) {
-        const errorData = await response.json()
-        throw new Error(errorData.error || 'Failed to fetch chart data')
-      }
+        if (!response.ok) {
+          const errorData = await response.json()
+          throw new Error(errorData.error || 'Failed to fetch chart data')
+        }
 
-      const result = await response.json()
-      const chartData = transformData(result.data)
+        const result = await response.json()
+        if (id !== requestId.current) return
+        const chartData = transformData(result.data, range === '1D' || range === '1W')
 
-      // Update chart series
-      if (candlestickSeriesRef.current) {
-        candlestickSeriesRef.current.setData(chartData.candles)
-      }
-      if (volumeSeriesRef.current) {
-        volumeSeriesRef.current.setData(chartData.volume)
-      }
-      if (ma50SeriesRef.current) {
-        ma50SeriesRef.current.setData(chartData.ma50)
-      }
-      if (ma200SeriesRef.current) {
-        ma200SeriesRef.current.setData(chartData.ma200)
-      }
+        setLoadedRange(range)
+        setEmpty(!chartData.candles.length)
+        setOverlays({ ma50: !!chartData.ma50.length, ma200: !!chartData.ma200.length })
+        // Update chart series
+        if (candlestickSeriesRef.current) {
+          candlestickSeriesRef.current.setData(chartData.candles)
+        }
+        if (volumeSeriesRef.current) {
+          volumeSeriesRef.current.setData(chartData.volume)
+        }
+        if (ma50SeriesRef.current) {
+          ma50SeriesRef.current.setData(chartData.ma50)
+        }
+        if (ma200SeriesRef.current) {
+          ma200SeriesRef.current.setData(chartData.ma200)
+        }
 
-      // Fit content to view
-      if (chartRef.current) {
-        chartRef.current.timeScale().fitContent()
+        // Fit content to view
+        if (chartRef.current && !refresh) {
+          chartRef.current.timeScale().fitContent()
+        }
+      } catch (err) {
+        if (id !== requestId.current) return
+        setError(err instanceof Error ? err.message : 'Failed to load chart')
+      } finally {
+        if (id === requestId.current) setIsLoading(false)
       }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load chart')
-    } finally {
-      setIsLoading(false)
-    }
-  }, [ticker])
+    },
+    [ticker]
+  )
 
   // Initialize chart
   useEffect(() => {
@@ -154,6 +173,7 @@ export function StockChart({ ticker, className }: StockChartProps) {
     // Detect dark mode
     const isDarkMode = window.matchMedia('(prefers-color-scheme: dark)').matches
 
+    const requests = requestId
     const chart = createChart(chartContainerRef.current, {
       layout: {
         background: { type: ColorType.Solid, color: 'transparent' },
@@ -234,41 +254,47 @@ export function StockChart({ ticker, className }: StockChartProps) {
 
     window.addEventListener('resize', handleResize)
 
-    // Initial data fetch
-    fetchData(selectedRange)
-
     return () => {
       window.removeEventListener('resize', handleResize)
+      requests.current++
       chart.remove()
     }
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Refetch when range changes
   useEffect(() => {
+    const requests = requestId
     if (chartRef.current) {
       fetchData(selectedRange)
+    }
+    const timer = setInterval(() => {
+      if (!document.hidden) void fetchData(selectedRange, true)
+    }, 60000)
+    return () => {
+      requests.current++
+      clearInterval(timer)
     }
   }, [selectedRange, fetchData])
 
   const handleRangeChange = (range: TimeRange) => {
+    requestId.current++
     setSelectedRange(range)
   }
 
   return (
     <div className={cn('rounded-lg border bg-card', className)}>
       {/* Timeframe selector */}
-      <div className="flex items-center justify-between border-b p-3">
+      <div className="flex flex-wrap items-center justify-between gap-2 border-b p-3">
         <h3 className="font-semibold">Price Chart</h3>
         <div className="flex gap-1">
           {TIME_RANGES.map(({ label, value }) => (
             <button
               key={value}
+              aria-pressed={selectedRange === value}
               onClick={() => handleRangeChange(value)}
               className={cn(
-                'px-3 py-1 text-sm rounded-md transition-colors',
-                selectedRange === value
-                  ? 'bg-primary text-primary-foreground'
-                  : 'hover:bg-muted'
+                'min-h-11 px-3 py-1 text-sm rounded-md transition-colors',
+                selectedRange === value ? 'bg-primary text-primary-foreground' : 'hover:bg-muted'
               )}
             >
               {label}
@@ -286,35 +312,34 @@ export function StockChart({ ticker, className }: StockChartProps) {
         )}
 
         {error && (
-          <div className="absolute inset-0 flex items-center justify-center bg-background/50 z-10">
-            <div className="text-center p-4">
-              <p className="text-destructive mb-2">{error}</p>
-              <button
-                onClick={() => fetchData(selectedRange)}
-                className="text-sm text-primary hover:underline"
-              >
-                Try again
-              </button>
-            </div>
+          <div role="alert" className="p-3 text-sm text-amber-700">
+            Chart could not refresh.{loadedRange ? ` Showing the last ${loadedRange} data.` : ''}{' '}
+            <button className="min-h-11 underline" onClick={() => fetchData(selectedRange)}>
+              Retry
+            </button>
           </div>
         )}
+        {empty && !error && (
+          <p className="p-3 text-sm">No price bars are available for this period.</p>
+        )}
 
-        <div
-          ref={chartContainerRef}
-          className="h-[400px] w-full"
-        />
+        <div ref={chartContainerRef} className="h-[400px] w-full" />
       </div>
 
       {/* Legend */}
       <div className="flex items-center gap-4 px-3 pb-3 text-xs text-muted-foreground">
-        <div className="flex items-center gap-1">
-          <div className="h-2 w-4 rounded" style={{ backgroundColor: '#2962FF' }} />
-          <span>50-day MA</span>
-        </div>
-        <div className="flex items-center gap-1">
-          <div className="h-2 w-4 rounded" style={{ backgroundColor: '#FF6D00' }} />
-          <span>200-day MA</span>
-        </div>
+        {overlays.ma50 && (
+          <div className="flex items-center gap-1">
+            <div className="h-2 w-4 rounded" style={{ backgroundColor: '#2962FF' }} />
+            <span>50-day MA</span>
+          </div>
+        )}
+        {overlays.ma200 && (
+          <div className="flex items-center gap-1">
+            <div className="h-2 w-4 rounded" style={{ backgroundColor: '#FF6D00' }} />
+            <span>200-day MA</span>
+          </div>
+        )}
       </div>
     </div>
   )

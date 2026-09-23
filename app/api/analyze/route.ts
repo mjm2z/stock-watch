@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { analyzeStock, StockAnalysis } from '@/lib/claude'
 import { getQuote, getFundamentals } from '@/lib/finnhub'
 import { serverCache, CACHE_TTL } from '@/lib/cache'
+import { aiAnalysisEnabled } from '@/lib/server-features'
 
 interface AnalyzeRequest {
   ticker: string
@@ -35,6 +36,9 @@ function shouldInvalidateCache(
  * - forceRefresh: boolean (optional, bypass cache)
  */
 export async function POST(request: NextRequest) {
+  if (!aiAnalysisEnabled()) {
+    return NextResponse.json({ error: 'Analysis is not enabled', code: 'FEATURE_DISABLED' }, { status: 404 })
+  }
   try {
     const body: AnalyzeRequest = await request.json()
     const { ticker, forceRefresh = false } = body

@@ -45,84 +45,32 @@ export default function BacktestsPage() {
                 ),
               ]
               return (
-                <article key={run.id} className="rounded-xl border bg-card p-5 shadow-sm">
+                <article key={run.id} className="min-w-0 rounded-xl border bg-card p-5 shadow-sm">
                   <div className="flex items-start justify-between gap-3">
                     <div>
                       <h2 className="font-semibold">{run.strategyName}</h2>
-                      <p className="mt-1 font-mono text-xs text-muted-foreground">{run.id}</p>
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        Historical simulation · Separate from actual paper fills
+                      </p>
                     </div>
                     <StatusBadge status={run.status} />
                   </div>
-                  <dl className="mt-5 grid grid-cols-2 gap-4 text-sm">
-                    <div>
-                      <dt className="text-xs text-muted-foreground">Trades</dt>
-                      <dd className="mt-1 font-semibold">{run.tradeCount}</dd>
-                    </div>
-                    <div>
-                      <dt className="text-xs text-muted-foreground">Rejected</dt>
-                      <dd className="mt-1 font-semibold">{run.rejectionCount}</dd>
-                    </div>
-                    <div>
-                      <dt className="text-xs text-muted-foreground">Walk-forward splits</dt>
-                      <dd className="mt-1 font-semibold">{run.splitCount}</dd>
-                    </div>
-                    <div>
-                      <dt className="text-xs text-muted-foreground">Dataset</dt>
-                      <dd className="mt-1">{run.datasetVersion}</dd>
-                    </div>
-                    <div>
-                      <dt className="text-xs text-muted-foreground">Feature set</dt>
-                      <dd className="mt-1">{run.featureSetVersion}</dd>
-                    </div>
-                    <div>
-                      <dt className="text-xs text-muted-foreground">Modeled cost</dt>
-                      <dd className="mt-1">{run.costBps.toFixed(1)} bps</dd>
-                    </div>
-                    <div>
-                      <dt className="text-xs text-muted-foreground">Universe membership</dt>
-                      <dd className="mt-1">
-                        {formatUniverseMembership(membershipMode, run.survivorshipBiased)}
-                      </dd>
-                    </div>
-                    <div>
-                      <dt className="text-xs text-muted-foreground">Selected threshold(s)</dt>
-                      <dd className="mt-1">
-                        {selectedThresholds.length ? selectedThresholds.join(', ') : '—'}
-                      </dd>
-                    </div>
-                    <div>
-                      <dt className="text-xs text-muted-foreground">Validation power</dt>
-                      <dd className="mt-1">
-                        {underpoweredSplits === null
-                          ? '—'
-                          : `${underpoweredSplits}/${run.splitCount} splits underpowered`}
-                      </dd>
-                    </div>
-                  </dl>
-                  <dl className="mt-5 grid grid-cols-3 gap-3 rounded-lg bg-muted/50 p-3 text-sm">
-                    <div>
-                      <dt className="text-xs text-muted-foreground">Positive</dt>
-                      <dd className="mt-1 font-semibold">
-                        {formatRate(metricNumber(summary.positive_rate))}
-                      </dd>
-                    </div>
-                    <div>
-                      <dt className="text-xs text-muted-foreground">Beat SPY</dt>
-                      <dd className="mt-1 font-semibold">
-                        {formatRate(metricNumber(summary.beat_spy_rate))}
-                      </dd>
-                    </div>
-                    <div>
-                      <dt className="text-xs text-muted-foreground">Avg excess</dt>
-                      <dd className="mt-1 font-semibold">
-                        {formatRate(metricNumber(summary.average_excess_return))}
-                      </dd>
-                    </div>
-                  </dl>
+                  {run.metrics.evaluation_version !== 'mature-validation-labels-v2' && (
+                    <p className="mt-4 rounded-lg border border-amber-500/30 p-3 text-sm">
+                      Legacy evaluation: validation outcomes could cross into the test period. Rerun
+                      with the corrected evaluator before relying on these results.
+                    </p>
+                  )}
+                  <p className="mt-3 text-xs text-muted-foreground">
+                    Rank scores are not probabilities. Repeated companies and overlapping holding
+                    periods are correlated; interval estimates do not adjust for that dependence.
+                  </p>
                   {portfolioStatus === 'complete' ? (
                     <section className="mt-5 rounded-lg border p-4">
                       <div>
-                        <h3 className="text-sm font-semibold">Unlimited-funding portfolio</h3>
+                        <h3 className="text-sm font-semibold">
+                          Modeled portfolio · Independently funded lots
+                        </h3>
                         <p className="mt-1 text-xs text-muted-foreground">
                           Independently funded $5–$15 lots, capped at $30 concurrently per ticker,
                           compared with equal-dollar SPY cohorts on identical dates.
@@ -270,6 +218,77 @@ export default function BacktestsPage() {
                       ) : null}
                     </section>
                   ) : null}
+                  <details className="mt-5">
+                    <summary className="text-sm font-medium">
+                      Sample counts and reproducibility
+                    </summary>{' '}
+                    <dl className="mt-5 grid grid-cols-2 gap-4 text-sm">
+                      <div>
+                        <dt className="text-xs text-muted-foreground">Trades</dt>
+                        <dd className="mt-1 font-semibold">{run.tradeCount}</dd>
+                      </div>
+                      <div>
+                        <dt className="text-xs text-muted-foreground">Rejected</dt>
+                        <dd className="mt-1 font-semibold">{run.rejectionCount}</dd>
+                      </div>
+                      <div>
+                        <dt className="text-xs text-muted-foreground">Walk-forward splits</dt>
+                        <dd className="mt-1 font-semibold">{run.splitCount}</dd>
+                      </div>
+                      <div>
+                        <dt className="text-xs text-muted-foreground">Dataset</dt>
+                        <dd className="mt-1">{run.datasetVersion}</dd>
+                      </div>
+                      <div>
+                        <dt className="text-xs text-muted-foreground">Feature set</dt>
+                        <dd className="mt-1">{run.featureSetVersion}</dd>
+                      </div>
+                      <div>
+                        <dt className="text-xs text-muted-foreground">Modeled cost</dt>
+                        <dd className="mt-1">{run.costBps.toFixed(1)} bps</dd>
+                      </div>
+                      <div>
+                        <dt className="text-xs text-muted-foreground">Universe membership</dt>
+                        <dd className="mt-1">
+                          {formatUniverseMembership(membershipMode, run.survivorshipBiased)}
+                        </dd>
+                      </div>
+                      <div>
+                        <dt className="text-xs text-muted-foreground">Selected threshold(s)</dt>
+                        <dd className="mt-1">
+                          {selectedThresholds.length ? selectedThresholds.join(', ') : '—'}
+                        </dd>
+                      </div>
+                      <div>
+                        <dt className="text-xs text-muted-foreground">Validation power</dt>
+                        <dd className="mt-1">
+                          {underpoweredSplits === null
+                            ? '—'
+                            : `${underpoweredSplits}/${run.splitCount} splits underpowered`}
+                        </dd>
+                      </div>
+                    </dl>
+                    <dl className="mt-5 grid grid-cols-3 gap-3 rounded-lg bg-muted/50 p-3 text-sm">
+                      <div>
+                        <dt className="text-xs text-muted-foreground">Positive</dt>
+                        <dd className="mt-1 font-semibold">
+                          {formatRate(metricNumber(summary.positive_rate))}
+                        </dd>
+                      </div>
+                      <div>
+                        <dt className="text-xs text-muted-foreground">Beat SPY</dt>
+                        <dd className="mt-1 font-semibold">
+                          {formatRate(metricNumber(summary.beat_spy_rate))}
+                        </dd>
+                      </div>
+                      <div>
+                        <dt className="text-xs text-muted-foreground">Avg excess</dt>
+                        <dd className="mt-1 font-semibold">
+                          {formatRate(metricNumber(summary.average_excess_return))}
+                        </dd>
+                      </div>
+                    </dl>
+                  </details>
                   <p
                     className="mt-4 truncate font-mono text-[11px] text-muted-foreground"
                     title={run.datasetSha256}
@@ -290,7 +309,9 @@ export default function BacktestsPage() {
           </div>
         ) : (
           <div className="rounded-xl border bg-card p-8 text-center text-sm text-muted-foreground">
-            No persisted backtest runs yet.
+            No saved backtest results yet. Completed worker experiments will appear here with their
+            dataset, modeled costs, and validation evidence. Current paper results are available on
+            the Paper page.
           </div>
         )}
       </main>

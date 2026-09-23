@@ -6,7 +6,7 @@ import json
 import sqlite3
 import uuid
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timedelta
 from decimal import Decimal, InvalidOperation
 from typing import Any, Mapping, Protocol, Sequence
 from zoneinfo import ZoneInfo
@@ -27,6 +27,8 @@ NONTERMINAL_ORDER_STATUSES = (
 
 
 class PaperLifecycleBroker(PaperOrderBroker, Protocol):
+    def get_clock(self) -> Mapping[str, Any]: ...
+
     def submit_fractional_market_sell(
         self,
         *,
@@ -127,13 +129,14 @@ def submit_or_reconcile_exit(
     exit_order_id: str,
     broker: PaperLifecycleBroker,
     now: datetime,
-) -> ReconciledExit:
+) -> ReconciledExit | None:
     """Reconcile by client ID before submitting a fractional market sell."""
 
     row = connection.execute(
         """
         SELECT exits.id, exits.client_order_id, exits.quantity, exits.status,
-               instruments.symbol
+               instruments.symbol, lots.exit_timing_policy,lots.target_exit_at,
+               lots.target_session_close_at
         FROM paper_exit_orders AS exits
         JOIN paper_trade_lots AS lots ON lots.id = exits.lot_id
         JOIN instruments ON instruments.id = lots.instrument_id
@@ -153,6 +156,22 @@ def submit_or_reconcile_exit(
         if error.status != 404:
             _record_exit_error(connection, exit_order_id, str(error))
             raise
+        if row["exit_timing_policy"] == "near-close-v1":
+            # Lookup always precedes the gate: a lost response must still be
+            # reconciled after the submission window or outside market hours.
+            clock = broker.get_clock()
+            checked = _parse_timestamp(str(clock["timestamp"]))
+            target = _parse_timestamp(str(row["target_exit_at"]))
+            if abs((checked-now).total_seconds()) > 120:
+                _record_exit_error(connection, exit_order_id, "exit_broker_clock_stale")
+                return None
+            if checked < target or clock.get("is_open") is not True:
+                _record_exit_error(connection, exit_order_id, "exit_waiting_for_regular_session")
+                return None
+            if checked >= _parse_timestamp(str(row["target_session_close_at"])):
+                with connection:
+                    _audit(connection, "paper_exit_late_submission", "paper_exit_order",
+                           exit_order_id, {"target":row["target_exit_at"],"submitted_at":utc_iso(checked)})
         timestamp = utc_iso(now)
         with connection:
             connection.execute(
@@ -258,8 +277,10 @@ def reconcile_paper_lifecycle(
     broker: PaperLifecycleBroker,
     sessions: Sequence[MarketSession],
     now: datetime,
+    reconcile_entries: bool = True,
+    managed_only: bool = False,
 ) -> PaperLifecycleResult:
-    """Reconcile entries/exits and submit exits after the configured horizon close."""
+    """Reconcile fills and apply the explicitly activated exit timing policy."""
 
     utc_iso(now)
     ordered_sessions = _validated_sessions(sessions)
@@ -277,7 +298,7 @@ def reconcile_paper_lifecycle(
         """,
         NONTERMINAL_ORDER_STATUSES,
     ).fetchall()
-    for row in entry_rows:
+    for row in entry_rows if reconcile_entries else ():
         submit_or_reconcile_order(
             connection,
             order_id=str(row["id"]),
@@ -288,11 +309,13 @@ def reconcile_paper_lifecycle(
 
     exit_rows = connection.execute(
         f"""
-        SELECT id FROM paper_exit_orders
-        WHERE status IN ({','.join('?' for _ in NONTERMINAL_ORDER_STATUSES)})
-        ORDER BY updated_at, id
+        SELECT e.id FROM paper_exit_orders e
+        JOIN paper_trade_lots l ON l.id=e.lot_id
+        WHERE e.status IN ({','.join('?' for _ in NONTERMINAL_ORDER_STATUSES)})
+          AND (?=0 OR l.exit_timing_policy='near-close-v1')
+        ORDER BY e.updated_at,e.id
         """,
-        NONTERMINAL_ORDER_STATUSES,
+        (*NONTERMINAL_ORDER_STATUSES,int(managed_only)),
     ).fetchall()
     for row in exit_rows:
         submit_or_reconcile_exit(
@@ -305,12 +328,15 @@ def reconcile_paper_lifecycle(
 
     lots = connection.execute(
         """
-        SELECT id, opened_at, horizon_trading_days,
-               minimum_exit_at, target_exit_at
-        FROM paper_trade_lots
-        WHERE status = 'open' AND opened_at IS NOT NULL
-        ORDER BY opened_at, id
+        SELECT l.id,l.opened_at,l.horizon_trading_days,l.minimum_exit_at,l.target_exit_at,
+               l.exit_timing_policy,p.policy_version,p.minutes_before_close
+        FROM paper_trade_lots l LEFT JOIN paper_exit_timing_policies p
+          ON p.strategy_version_id=l.strategy_version_id
+        WHERE l.status='open' AND l.opened_at IS NOT NULL
+          AND (?=0 OR p.policy_version='near-close-v1')
+        ORDER BY l.opened_at,l.id
         """
+        ,(int(managed_only),)
     ).fetchall()
     for lot in lots:
         schedule = _lot_schedule(
@@ -319,21 +345,29 @@ def reconcile_paper_lifecycle(
             sessions=ordered_sessions,
         )
         if schedule is None:
+            if lot["policy_version"] == "near-close-v1":
+                raise ValueError(f"Exit calendar does not cover lot {lot['id']}")
             continue
         minimum_exit_at, target_exit_at = schedule
+        session_close_at = target_exit_at
+        if lot["policy_version"] == "near-close-v1":
+            target_exit_at = utc_iso(_parse_timestamp(session_close_at)-timedelta(minutes=5))
         if (
             lot["minimum_exit_at"] != minimum_exit_at
             or lot["target_exit_at"] != target_exit_at
+            or lot["exit_timing_policy"] != lot["policy_version"]
         ):
             with connection:
                 connection.execute(
                     """
                     UPDATE paper_trade_lots
-                    SET minimum_exit_at = ?, target_exit_at = ?
+                    SET minimum_exit_at=?,target_exit_at=?,target_session_close_at=?,exit_timing_policy=?
                     WHERE id = ? AND status = 'open'
                     """,
-                    (minimum_exit_at, target_exit_at, lot["id"]),
+                    (minimum_exit_at,target_exit_at,session_close_at,lot["policy_version"],lot["id"]),
                 )
+                _audit(connection,"paper_exit_schedule","paper_trade_lot",str(lot["id"]),
+                       {"policy":lot["policy_version"],"submit_at":target_exit_at,"session_close_at":session_close_at})
             targets_updated += 1
         target = _parse_timestamp(target_exit_at)
         if now.astimezone(target.tzinfo) < target:
@@ -400,7 +434,7 @@ def _update_lot_from_exit(
 ) -> None:
     lot = connection.execute(
         """
-        SELECT lots.id, lots.entry_price
+        SELECT lots.id, lots.entry_price,lots.entry_quantity
         FROM paper_exit_orders AS exits
         JOIN paper_trade_lots AS lots ON lots.id = exits.lot_id
         WHERE exits.id = ?
@@ -414,6 +448,9 @@ def _update_lot_from_exit(
             "UPDATE paper_trade_lots SET status = 'closing' WHERE id = ?",
             (lot["id"],),
         )
+        if response.get("filled_qty") in (None, "", "0", "0.0", 0):
+            return
+    if status != "filled" and response.get("filled_qty") in (None, "", "0", "0.0", 0):
         return
     quantity = _positive_decimal(response.get("filled_qty"))
     price = _positive_decimal(response.get("filled_avg_price"))
@@ -421,6 +458,11 @@ def _update_lot_from_exit(
         if status == "filled":
             raise ValueError("filled paper exit is missing quantity or price")
         return
+    entry_quantity = _positive_decimal(lot["entry_quantity"])
+    if entry_quantity is None or quantity > entry_quantity + Decimal("0.000000001"):
+        raise ValueError("exit fill exceeds lot quantity")
+    if status == "filled" and abs(quantity-entry_quantity) > Decimal("0.000000001"):
+        raise ValueError("filled exit does not close the full lot")
     filled_at = _optional_text(response.get("filled_at")) or fallback_timestamp
     aggregate_fill_id = f"exit-fill-{uuid.uuid5(EXIT_NAMESPACE, broker_order_id).hex}"
     aggregate_broker_fill_id = f"aggregate:{broker_order_id}"

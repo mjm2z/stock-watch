@@ -264,7 +264,7 @@ export async function searchStocks(query: string): Promise<Stock[]> {
   // Skip quality filters for Finnhub search results since we don't fetch profile data
   // We only have price from the quote - rely on the "Common Stock" filter instead
   // Filter to stocks with valid prices above $5
-  const validStocks = stocks.filter(s => s.price >= 5)
+  const validStocks = stocks.filter(s => (s.price ?? 0) >= 5)
 
   serverCache.set(cacheKey, validStocks, CACHE_TTL.SEARCH)
 

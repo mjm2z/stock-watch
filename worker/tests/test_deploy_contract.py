@@ -8,6 +8,16 @@ REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
 
 
 class DeployContractTests(unittest.TestCase):
+    def test_reliability_installer_recreates_required_cache_before_web_start(self) -> None:
+        installer = (REPOSITORY_ROOT / "deploy/install-reliability-root.sh").read_text()
+        swap = installer.index('mv "${saved}/new-next" "${APP}/.next"')
+        cache = installer.index('install -d -o stock-watch -g stock-watch -m 0750 "${APP}/.next/cache"')
+        start = installer.index('systemctl start stock-watch-web.service', swap)
+        self.assertLess(swap, cache)
+        self.assertLess(cache, start)
+        unit = (REPOSITORY_ROOT / "deploy/systemd/stock-watch-web.service").read_text()
+        self.assertIn('/opt/stock-watch/.next/cache', unit)
+
     def test_dispatcher_uses_explicit_configured_strategy_version(self) -> None:
         environment = (REPOSITORY_ROOT / "deploy/stock-watch.env.example").read_text(
             encoding="utf-8"

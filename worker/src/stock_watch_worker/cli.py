@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+from dataclasses import asdict
 import socket
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
@@ -166,6 +167,10 @@ def build_parser() -> argparse.ArgumentParser:
     work.add_argument("--data-path", type=Path, required=True)
     work.add_argument("--worker-id", default=socket.gethostname())
     work.add_argument("--now", help="aware ISO timestamp; defaults to current UTC")
+
+    exit_tick = commands.add_parser('exit-once', help='process calendar-aware paper exits only')
+    exit_tick.add_argument('--database', type=Path, required=True)
+    exit_tick.add_argument('--data-path', type=Path, required=True)
 
     maintain = commands.add_parser(
         "maintain-paper",
@@ -542,6 +547,9 @@ def _run_command(args: argparse.Namespace, operation: OperationMonitor) -> int:
         connection = connect(args.database)
         try:
             apply_migrations(connection)
+            from .entry_controls import process_deferred_entries, prepare_due_entries
+            prepare_due_entries(connection, paper_trading, now)
+            deferred_checked = process_deferred_entries(connection, paper_trading, now)
             recovered = recover_stale_jobs(
                 connection,
                 stale_before=now - timedelta(minutes=15),
@@ -568,13 +576,30 @@ def _run_command(args: argparse.Namespace, operation: OperationMonitor) -> int:
             scan_run_id=result.scan_run_id,
             recovered=recovered.requeued,
             expired=recovered.failed,
+            deferred_checked=deferred_checked,
             raw_captures=len(capture.captures),
         )
         if result.error is not None:
             operation.fail(result.error)
-        if result.state == "idle" and recovered.requeued == 0 and recovered.failed == 0:
+        if result.state == "idle" and recovered.requeued == 0 and recovered.failed == 0 and deferred_checked == 0:
             operation.discard_on_success()
         return 0
+    if args.command == 'exit-once':
+        from .exit_runtime import process_exit_tick
+        capture = JsonResponseCapture(ContentAddressedStore(args.data_path), provider='alpaca-paper')
+        broker = AlpacaPaperTradingClient(AlpacaCredentials.from_environment(), response_observer=capture)
+        connection = connect(args.database)
+        try:
+            apply_migrations(connection)
+            result = process_exit_tick(connection, broker, datetime.now(timezone.utc))
+        finally:
+            connection.close()
+        if result is None or not (result.exit_intents_created or result.exits_reconciled or result.targets_updated):
+            operation.discard_on_success()
+        else:
+            operation.result('paper exit tick completed', **asdict(result))
+        return 0
+
     if args.command == "maintain-paper":
         if args.calendar_lookahead_days < 1:
             raise ValueError("calendar-lookahead-days must be positive")
@@ -590,6 +615,16 @@ def _run_command(args: argparse.Namespace, operation: OperationMonitor) -> int:
         connection = connect(args.database)
         try:
             apply_migrations(connection)
+            earliest_signal = connection.execute(
+                "SELECT MIN(as_of) FROM signals WHERE (decision='qualified' OR EXISTS (SELECT 1 FROM shadow_assessments WHERE signal_id=signals.id)) "
+                "AND NOT EXISTS (SELECT 1 FROM signal_outcomes WHERE signal_id=signals.id)"
+            ).fetchone()[0]
+            if earliest_signal:
+                backfill_historical_calendar(
+                    connection, provider=broker,
+                    start=_parse_aware_datetime(str(earliest_signal)).astimezone(ZoneInfo("America/New_York")).date(),
+                    end=now.astimezone(ZoneInfo("America/New_York")).date() + timedelta(days=366),
+                )
             outcomes = evaluate_forward_outcomes(
                 connection,
                 observed_at=now,

@@ -10,6 +10,7 @@ from typing import Protocol
 from .broker_reconciliation import BrokerSnapshotProvider, capture_and_reconcile_broker
 from .http import ProviderError
 from .jobs import claim_next_job, complete_job, fail_job
+from .market_calendar import utc_iso
 from .paper_orders import PaperOrderBroker
 from .scan_data import load_scan_inputs
 from .scan_executor import ScanExecutionResult, execute_scan
@@ -74,6 +75,13 @@ def process_next_job(
         return WorkResult("failed", job_id=job.id)
 
     try:
+        with connection:
+            connection.execute(
+                """UPDATE scan_runs SET status='running',
+                    started_at=COALESCE(started_at, ?), completed_at=NULL, error=NULL
+                    WHERE id=? AND status != 'succeeded'""",
+                (utc_iso(now), scan_run_id),
+            )
         collection = (
             collector.collect_scan(connection, scan_run_id=scan_run_id)
             if collector is not None
@@ -137,6 +145,13 @@ def process_next_job(
             retry_at=now + retry_delay if retryable else None,
             max_attempts=max_attempts,
         )
+        with connection:
+            connection.execute(
+                """UPDATE scan_runs SET status=?, error=?, completed_at=?
+                    WHERE id=? AND status != 'succeeded'""",
+                (state, str(error)[:2000], utc_iso(now) if state == "failed" else None,
+                 scan_run_id),
+            )
         return WorkResult(
             state,
             job_id=job.id,

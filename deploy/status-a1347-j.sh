@@ -9,6 +9,7 @@ readonly SERVICES=(
   stock-watch-assets.service
   stock-watch-fundamentals.service
   stock-watch-dispatch.service
+  stock-watch-exits.service
   stock-watch-worker.service
   stock-watch-maintenance.service
   stock-watch-backup.service

@@ -24,8 +24,10 @@ class AlpacaCollectionMetrics:
     missing_asset_symbols: int
     bars_observed: int
     bars_inserted: int
+    bars_revised: int
     news_observed: int
     news_inserted: int
+    news_revised: int
 
 
 class AlpacaScanCollector:
@@ -117,6 +119,7 @@ class AlpacaScanCollector:
             start = cutoff - timedelta(days=self._history_calendar_days)
             bars_observed = 0
             bars_inserted = 0
+            bars_revised = 0
             for chunk in _chunks((*symbols, "SPY"), self._symbol_chunk_size):
                 bars = self._market_data.get_historical_bars(
                     chunk,
@@ -133,9 +136,26 @@ class AlpacaScanCollector:
                     adjustment="all",
                     provider="alpaca",
                     ingestion_id=ingestion_id,
+                    allow_revisions=True,
                 )
+                # Freeze the complete response for this scan. A later feed
+                # correction must not change the inputs of a successful scan.
+                grouped = {symbol: [] for symbol in chunk}
+                for bar in bars:
+                    grouped[bar.symbol].append(asdict(bar))
+                with connection:
+                    for symbol, observed in grouped.items():
+                        connection.execute(
+                            """INSERT INTO scan_bar_snapshots
+                                (scan_run_id, instrument_id, bars_json)
+                                SELECT ?, id, ? FROM instruments WHERE symbol = ?
+                                ON CONFLICT(scan_run_id, instrument_id)
+                                DO UPDATE SET bars_json = excluded.bars_json""",
+                            (scan_run_id, _canonical_json(observed), symbol),
+                        )
                 bars_observed += len(bars)
                 bars_inserted += result.inserted
+                bars_revised += result.revised
 
             articles = self._market_data.get_news(
                 start=_utc_iso(cutoff - self._news_lookback),
@@ -148,17 +168,23 @@ class AlpacaScanCollector:
                 provider="alpaca",
                 ingestion_id=ingestion_id,
             )
+            from .news_revisions import freeze_scan_news
+            freeze_scan_news(connection, scan_run_id=scan_run_id,
+                             cutoff=cutoff, lookback=self._news_lookback)
             metrics = AlpacaCollectionMetrics(
                 assets_updated=asset_result.updated,
                 missing_asset_symbols=len(asset_result.missing_symbols),
                 bars_observed=bars_observed,
                 bars_inserted=bars_inserted,
+                bars_revised=bars_revised,
                 news_observed=len(articles),
                 news_inserted=news_result.inserted,
+                news_revised=news_result.revised,
             )
             metadata = {
                 **asdict(metrics),
                 "news_coverage_complete": True,
+                "bar_snapshot_version": 1,
             }
             with connection:
                 connection.execute(

@@ -70,3 +70,70 @@
     @apply text-muted-foreground;
   }
 }
+
+/* Shared keyboard focus and resilient long-content layout. */
+@layer base {
+  :where(a, button, input, select, textarea, summary):focus-visible {
+    outline: 2px solid hsl(var(--ring));
+    outline-offset: 3px;
+  }
+  main {
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+  summary {
+    cursor: pointer;
+  }
+  th {
+    text-align: inherit;
+  }
+}
+
+@media (max-width: 767px) {
+  .signal-records,
+  .signal-records tbody {
+    display: block;
+  }
+  .signal-records thead {
+    display: none;
+  }
+  .signal-records tr {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    padding: 12px;
+    gap: 12px;
+  }
+  .signal-records td {
+    display: block;
+    padding: 0;
+    text-align: left;
+    min-width: 0;
+  }
+  .signal-records td:first-child {
+    grid-column: 1 / -1;
+  }
+  .signal-records td::before {
+    display: block;
+    font-size: 12px;
+    color: hsl(var(--muted-foreground));
+    margin-bottom: 4px;
+  }
+  .signal-records td:nth-child(2)::before {
+    content: 'Rank score';
+  }
+  .signal-records td:nth-child(3)::before {
+    content: 'Cached daily price';
+  }
+  .signal-records td:nth-child(4)::before {
+    content: 'Holding period';
+  }
+  .signal-records td:nth-child(5)::before {
+    content: 'Risk';
+  }
+  .signal-records td:nth-child(6)::before {
+    content: 'Decision and execution';
+  }
+  .signal-records td:nth-child(7)::before {
+    content: 'Modeled outcome';
+  }
+}

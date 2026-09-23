@@ -3,6 +3,7 @@ set -euo pipefail
 
 readonly RELEASE_SOURCE="${1:-/home/mjm2z/stock-watch-staging}"
 readonly TIMER_UNITS=(
+  stock-watch-exits.timer
   stock-watch-worker.timer
   stock-watch-dispatch.timer
   stock-watch-maintenance.timer
@@ -11,6 +12,7 @@ readonly TIMER_UNITS=(
   stock-watch-backup.timer
 )
 readonly SERVICE_UNITS=(
+  stock-watch-exits.service
   stock-watch-worker.service
   stock-watch-dispatch.service
   stock-watch-maintenance.service

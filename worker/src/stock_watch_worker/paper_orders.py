@@ -46,7 +46,20 @@ class ReconciledOrder:
     broker_status: str
 
 
-def create_order_intent(
+def create_order_intent(connection, *, signal_id, notional_usd,
+                        maximum_open_notional_per_ticker_usd=30.0):
+    # Serialize capacity checks and reservation, including across worker processes.
+    with connection:
+        if not connection.in_transaction:
+            connection.execute("BEGIN IMMEDIATE")
+        else:
+            connection.execute("UPDATE paper_orders SET id=id WHERE 0")
+        return _create_order_intent_locked(
+            connection, signal_id=signal_id, notional_usd=notional_usd,
+            maximum_open_notional_per_ticker_usd=maximum_open_notional_per_ticker_usd)
+
+
+def _create_order_intent_locked(
     connection: sqlite3.Connection,
     *,
     signal_id: str,
@@ -68,7 +81,7 @@ def create_order_intent(
         SELECT s.id, s.strategy_version_id, s.instrument_id,
                s.horizon_trading_days, s.as_of, s.decision, s.risk_level,
                i.symbol, i.active, i.fractionable,
-               strategy.status AS strategy_status
+               strategy.status AS strategy_status, strategy.config_json
         FROM signals AS s
         JOIN instruments AS i ON i.id = s.instrument_id
         JOIN strategy_versions AS strategy ON strategy.id = s.strategy_version_id
@@ -110,13 +123,12 @@ def create_order_intent(
     duplicate = connection.execute(
         """
         SELECT id FROM paper_trade_lots
-        WHERE strategy_version_id = ? AND instrument_id = ?
+        WHERE instrument_id = ?
           AND horizon_trading_days = ?
           AND status IN ('pending', 'open', 'closing')
         LIMIT 1
         """,
         (
-            signal["strategy_version_id"],
             signal["instrument_id"],
             signal["horizon_trading_days"],
         ),
@@ -129,14 +141,40 @@ def create_order_intent(
         """
         SELECT COALESCE(SUM(entry_notional_usd), 0) AS notional
         FROM paper_trade_lots
-        WHERE strategy_version_id = ? AND instrument_id = ?
+        WHERE instrument_id = ?
           AND status IN ('pending', 'open', 'closing')
         """,
-        (signal["strategy_version_id"], signal["instrument_id"]),
+        (signal["instrument_id"],),
     ).fetchone()
     if float(exposure["notional"]) + notional_usd > maximum_open_notional_per_ticker_usd:
         _audit_rejection(connection, signal_id, "ticker_notional_limit")
         return OrderIntentResult("rejected", None, None, "ticker_notional_limit")
+
+    config = json.loads(signal["config_json"])
+    controls = config.get("entry_policy", {})
+    if controls.get("enabled"):
+        review = connection.execute("SELECT quality_json FROM assessment_reviews WHERE signal_id=?",(signal_id,)).fetchone()
+        quality = json.loads(review[0]) if review else None
+        reason = None
+        if quality is None:
+            reason = "data_review_unavailable"
+        elif quality["blockers"]:
+            reason = "data_review:" + quality["blockers"][0]
+        context = connection.execute("SELECT sector FROM instrument_context WHERE instrument_id=?",(signal["instrument_id"],)).fetchone()
+        sector = context[0] if context else None
+        portfolio = config.get("portfolio", {})
+        total = connection.execute("SELECT COALESCE(SUM(entry_notional_usd),0) FROM paper_trade_lots WHERE status IN ('pending','open','closing')").fetchone()[0]
+        if portfolio.get("maximum_notional_usd") is not None and total+notional_usd > portfolio["maximum_notional_usd"]:
+            reason = "portfolio_notional_limit"
+        if portfolio.get("maximum_sector_notional_usd") is not None:
+            sector_total = connection.execute("""SELECT COALESCE(SUM(l.entry_notional_usd),0) FROM paper_trade_lots l
+                LEFT JOIN instrument_context c ON c.instrument_id=l.instrument_id
+                WHERE l.status IN ('pending','open','closing') AND COALESCE(c.sector,'Unknown')=?""",(sector or 'Unknown',)).fetchone()[0]
+            if sector_total+notional_usd > portfolio["maximum_sector_notional_usd"]:
+                reason = "sector_notional_limit" if sector else "unclassified_sector_limit"
+        if reason:
+            _audit_rejection(connection, signal_id, reason)
+            return OrderIntentResult("rejected",None,None,reason)
 
     order_id = f"order-{uuid.uuid5(ORDER_NAMESPACE, signal_id).hex}"
     lot_id = f"lot-{uuid.uuid5(ORDER_NAMESPACE, 'lot:' + signal_id).hex}"
@@ -245,6 +283,10 @@ def submit_or_reconcile_order(
         if error.status != 404:
             _record_submission_error(connection, order_id, str(error))
             raise
+        from .entry_controls import check_entry
+        decision, reason = check_entry(connection, order_id, broker, now)
+        if decision != 'allow':
+            return ReconciledOrder(order_id, client_order_id, '', 'pending' if decision=='defer' else 'rejected', reason)
         timestamp = utc_iso(now)
         with connection:
             connection.execute(
@@ -265,7 +307,10 @@ def submit_or_reconcile_order(
         except Exception as error:
             _record_submission_error(connection, order_id, str(error))
             raise
-    return reconcile_broker_order(connection, order_id=order_id, response=response, now=now)
+    result = reconcile_broker_order(connection, order_id=order_id, response=response, now=now)
+    with connection:
+        connection.execute("UPDATE deferred_entries SET state='submitted' WHERE order_id=?", (order_id,))
+    return result
 
 
 def reconcile_broker_order(

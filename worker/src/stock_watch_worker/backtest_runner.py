@@ -226,6 +226,7 @@ def run_backtest(
         raise ValueError("backtest dataset is too short for one walk-forward split")
 
     run_config = {
+        "evaluation_version": "mature-validation-labels-v2",
         "minimum_score": minimum_score,
         "minimum_data_completeness": minimum_completeness,
         "allowed_risk_levels": sorted(risk.value for risk in allowed_risks),
@@ -509,6 +510,11 @@ def _select_thresholds(
             for signal in dataset.signals
             if split.validation_start <= signal.signal_session <= split.validation_end
         )
+        # Calibration can only observe outcomes completed by the validation cutoff.
+        validation_bars = {
+            symbol: tuple(bar for bar in bars if bar.session <= split.validation_end)
+            for symbol, bars in dataset.bars_by_symbol.items()
+        }
         threshold_metrics: dict[str, Mapping[str, Any]] = {}
         powered: list[tuple[float, BacktestResult]] = []
         for threshold in threshold_candidates:
@@ -522,8 +528,8 @@ def _select_thresholds(
             )
             result = simulate_close_signals(
                 signals=eligible,
-                bars_by_symbol=dataset.bars_by_symbol,
-                spy_bars=dataset.bars_by_symbol["SPY"],
+                bars_by_symbol=validation_bars,
+                spy_bars=validation_bars["SPY"],
                 round_trip_cost_bps=round_trip_cost_bps,
                 maximum_open_notional_per_symbol_usd=(
                     maximum_open_notional_per_symbol_usd
@@ -561,6 +567,8 @@ def _select_thresholds(
         )
         metrics = {
             "candidates": len(candidates),
+            "outcome_cutoff": split.validation_end,
+            "evaluation_version": "mature-validation-labels-v2",
             "minimum_required_trades": minimum_validation_trades,
             "selected_threshold": selected_threshold,
             "underpowered": underpowered,
@@ -614,6 +622,7 @@ def _aggregate_metrics(
     ):
         rejection_counts[reason] = rejection_counts.get(reason, 0) + 1
     return {
+        "evaluation_version": "mature-validation-labels-v2",
         "candidate_signals": len(dataset.signals),
         "evaluated_test_candidates": evaluated_candidates,
         "ignored_non_test_candidates": len(dataset.signals) - evaluated_candidates,
@@ -697,6 +706,9 @@ def _reliability_metrics(
     return {
         "basis": "untouched_walk_forward_test_trades",
         "selection_conditioned": True,
+        "unique_companies": len({trade.signal.symbol for trade in trades}),
+        "unique_signal_sessions": len({trade.signal.signal_session for trade in trades}),
+        "dependence_caveat": "Repeated companies and overlapping horizons are correlated; Wilson intervals do not adjust for this dependence.",
         "probability_forecasts_available": False,
         "probability_forecasts_reason": (
             "Empirical cohort rates are not per-signal calibrated probabilities."

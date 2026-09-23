@@ -160,3 +160,39 @@ def _round_to_increment(value: float, increment: float) -> float:
         Decimal("1"), rounding=ROUND_HALF_UP
     )
     return float(units * increment_decimal)
+
+
+def sizing_from_config(config: Mapping[str, object]) -> SizingPolicy:
+    """Use the immutable strategy's accepted sizing values, not global defaults."""
+    import math
+    values = config.get("sizing", {})
+    if not isinstance(values, dict):
+        raise ValueError("sizing must be an object")
+    defaults = SizingPolicy()
+    def number(key, fallback):
+        value = values.get(key, fallback)
+        if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value):
+            raise ValueError(f"invalid sizing {key}")
+        return float(value)
+    bands = values.get("bands", [{"minimum_score": b.minimum_score, "notional_usd": b.notional_usd} for b in defaults.bands])
+    if not isinstance(bands, list) or not bands:
+        raise ValueError("sizing bands must not be empty")
+    parsed = []
+    for band in bands:
+        if not isinstance(band, dict):
+            raise ValueError("invalid sizing band")
+        score, amount = band.get("minimum_score"), band.get("notional_usd")
+        if any(isinstance(v, bool) or not isinstance(v, (int,float)) or not math.isfinite(v) for v in (score,amount)):
+            raise ValueError("invalid sizing band")
+        if not 0 <= score <= 100 or not 5 <= amount <= 15:
+            raise ValueError("sizing band outside paper bounds")
+        parsed.append(SizingBand(float(score),float(amount)))
+    if len({b.minimum_score for b in parsed}) != len(parsed):
+        raise ValueError("duplicate sizing thresholds")
+    result = SizingPolicy(number("minimum_notional_usd",5),number("maximum_notional_usd",15),
+        number("medium_risk_multiplier",0.85),number("rounding_increment_usd",0.5),tuple(parsed))
+    if not 5 <= result.minimum_notional_usd <= result.maximum_notional_usd <= 15:
+        raise ValueError("sizing must remain within $5–$15")
+    if not 0 < result.medium_risk_multiplier <= 1 or not 0 < result.rounding_increment_usd <= 1:
+        raise ValueError("invalid risk multiplier or rounding increment")
+    return result

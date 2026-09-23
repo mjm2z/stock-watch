@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 import sqlite3
 from dataclasses import dataclass
-from datetime import date, datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 from typing import Sequence
 from zoneinfo import ZoneInfo
 
@@ -15,7 +15,7 @@ from .outcomes import calculate_outcome
 
 
 NEW_YORK = ZoneInfo("America/New_York")
-DEFAULT_DATASET_VERSION = "alpaca-iex-1day-adjusted-all-v1"
+DEFAULT_DATASET_VERSION = "alpaca-iex-completed-sessions-v2"
 
 
 @dataclass(frozen=True, slots=True)
@@ -53,7 +53,7 @@ def evaluate_forward_outcomes(
                signals.horizon_trading_days, scans.scheduled_for
         FROM signals
         JOIN scan_runs AS scans ON scans.id = signals.scan_run_id
-        WHERE signals.decision = 'qualified'
+        WHERE (signals.decision = 'qualified' OR EXISTS (SELECT 1 FROM shadow_assessments AS shadow WHERE shadow.signal_id=signals.id))
           AND scans.scan_type IN ('open', 'close', 'manual')
           AND NOT EXISTS (
               SELECT 1 FROM signal_outcomes AS outcomes
@@ -81,32 +81,58 @@ def evaluate_forward_outcomes(
         observed_at=observed_at,
     )
     spy_bars = bars_by_instrument.get(int(spy["id"]), ())
-    if not spy_bars:
-        raise ValueError("SPY benchmark history is missing")
     spy_by_session = {bar.session: bar for bar in spy_bars}
-    spy_sessions = tuple(bar.session for bar in spy_bars)
+    calendar = connection.execute(
+        "SELECT trading_date, closes_at FROM market_sessions "
+        "WHERE provider='alpaca-paper' ORDER BY trading_date"
+    ).fetchall()
+    spy_sessions = tuple(str(session["trading_date"]) for session in calendar)
+    closes = {str(session["trading_date"]): _aware(str(session["closes_at"]))
+              for session in calendar}
+
+    def record(row, state, reason, window=()):
+        with connection:
+            connection.execute(
+                """INSERT INTO signal_evaluations VALUES (?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(signal_id) DO UPDATE SET state=excluded.state,
+                reason=excluded.reason, checked_at=excluded.checked_at,
+                entry_session=excluded.entry_session, exit_session=excluded.exit_session,
+                evaluation_version=excluded.evaluation_version""",
+                (row["id"], state, reason, observed_timestamp,
+                 window[0] if window else None, window[-1] if window else None,
+                 dataset_version),
+            )
 
     completed = 0
     pending = 0
     missing = 0
     for row in rows:
         stock_bars = bars_by_instrument.get(int(row["instrument_id"]), ())
-        if not stock_bars:
+        if not calendar:
             missing += 1
+            record(row, "missing_calendar", "Exchange calendar has not been collected.")
             continue
         signal_session = _market_date(str(row["scheduled_for"])).isoformat()
         entry_index = _first_session_after(spy_sessions, signal_session)
         if entry_index is None:
             pending += 1
+            record(row, "waiting_for_horizon", "The calendar does not yet cover the full holding period.")
             continue
         exit_index = entry_index + int(row["horizon_trading_days"]) - 1
         if exit_index >= len(spy_sessions):
             pending += 1
+            record(row, "waiting_for_horizon", "The calendar does not yet cover the full holding period.")
             continue
         window_sessions = spy_sessions[entry_index : exit_index + 1]
+        if observed_at < closes[window_sessions[-1]] + timedelta(minutes=15):
+            pending += 1
+            record(row, "waiting_for_close", "Holding period has not closed plus the 15-minute data buffer.", window_sessions)
+            continue
         stock_by_session = {bar.session: bar for bar in stock_bars}
-        if any(session not in stock_by_session for session in window_sessions):
+        if any(session not in stock_by_session or session not in spy_by_session
+               for session in window_sessions):
             missing += 1
+            record(row, "missing_fresh_data", "Stock or SPY bars are missing, or have not been observed after session close plus 15 minutes.", window_sessions)
             continue
         stock_window = tuple(stock_by_session[session] for session in window_sessions)
         spy_entry = spy_by_session[window_sessions[0]]
@@ -184,6 +210,7 @@ def evaluate_forward_outcomes(
                     ),
                 )
         completed += int(cursor.rowcount == 1)
+        record(row, "completed", "Completed session bars; modeled return after costs, not broker fills.", window_sessions)
     return ForwardOutcomeResult(
         candidates=len(rows),
         completed=completed,
@@ -202,7 +229,7 @@ def _load_daily_bars(
     placeholders = ",".join("?" for _ in instrument_ids)
     rows = connection.execute(
         f"""
-        SELECT instrument_id, timestamp, open, high, low, close, volume
+        SELECT instrument_id, timestamp, open, high, low, close, volume, last_observed_at
         FROM market_bars
         WHERE instrument_id IN ({placeholders})
           AND timeframe = '1Day' AND adjustment = 'all' AND provider = ?
@@ -210,12 +237,21 @@ def _load_daily_bars(
         """,
         (*instrument_ids, provider),
     ).fetchall()
+    closes = {str(row["trading_date"]): _aware(str(row["closes_at"]))
+              for row in connection.execute(
+                  "SELECT trading_date, closes_at FROM market_sessions WHERE provider='alpaca-paper'")}
     observed_date = observed_at.astimezone(NEW_YORK).date()
     grouped: dict[int, list[DailyBar]] = {}
     seen: set[tuple[int, str]] = set()
     for row in rows:
         session = _market_date(str(row["timestamp"]))
         if session > observed_date:
+            continue
+        closed = closes.get(session.isoformat())
+        if closed is None or not row["last_observed_at"]:
+            continue
+        ready_at = closed + timedelta(minutes=15)
+        if not ready_at <= _aware(str(row["last_observed_at"])) <= observed_at:
             continue
         key = (int(row["instrument_id"]), session.isoformat())
         if key in seen:
@@ -248,3 +284,9 @@ def _market_date(value: str) -> date:
     if parsed.tzinfo is None or parsed.utcoffset() is None:
         raise ValueError("market timestamp must include a timezone")
     return parsed.astimezone(NEW_YORK).date()
+
+
+def _aware(value: str) -> datetime:
+    # SQLite CURRENT_TIMESTAMP is UTC without an explicit suffix.
+    parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    return parsed.replace(tzinfo=timezone.utc) if parsed.tzinfo is None else parsed

@@ -89,7 +89,7 @@ def backfill_historical_news(
         sort_keys=True,
         separators=(",", ":"),
     )
-    version = "historical-news-v1:" + hashlib.sha256(
+    version = "historical-news-v2:" + hashlib.sha256(
         identity.encode("utf-8")
     ).hexdigest()
     existing = connection.execute(
@@ -103,6 +103,7 @@ def backfill_historical_news(
         return _stored_result(existing, version)
 
     metadata_base = {
+        "revision_policy": "ingestion-pinned-updates-v1",
         "start": start.isoformat(),
         "end": end.isoformat(),
         "symbol_list": list(symbols),

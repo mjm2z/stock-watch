@@ -2,6 +2,7 @@ import { cn } from '@/lib/utils'
 
 const statusStyles: Record<string, string> = {
   succeeded: 'bg-emerald-500/10 text-emerald-700 border-emerald-500/20',
+  score_qualified: 'bg-blue-500/10 text-blue-700 border-blue-500/20',
   qualified: 'bg-emerald-500/10 text-emerald-700 border-emerald-500/20',
   filled: 'bg-emerald-500/10 text-emerald-700 border-emerald-500/20',
   matched: 'bg-emerald-500/10 text-emerald-700 border-emerald-500/20',

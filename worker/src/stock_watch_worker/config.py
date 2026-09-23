@@ -4,11 +4,12 @@ from __future__ import annotations
 
 import hashlib
 import json
+import math
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Mapping
 
-from .strategy import DEFAULT_WEIGHTS
+from .strategy import DEFAULT_WEIGHTS, sizing_from_config
 
 
 ALPACA_PAPER_BASE_URL = "https://paper-api.alpaca.markets"
@@ -107,6 +108,7 @@ def _validate_strategy(data: Mapping[str, Any]) -> None:
     if execution.get("one_open_lot_per_ticker_horizon") is not True:
         raise ValueError("v1 requires open-lot deduplication")
 
+    sizing_from_config(data)
     sizing = data.get("sizing")
     if not isinstance(sizing, dict):
         raise ValueError("sizing configuration is required")
@@ -117,3 +119,28 @@ def _validate_strategy(data: Mapping[str, Any]) -> None:
         raise ValueError("sizing notionals must be numbers")
     if not (minimum == 5 and base == 10 and maximum == 15):
         raise ValueError("v1 sizing must retain the accepted $5/$10/$15 bounds")
+
+
+    controls = data.get("entry_policy", {})
+    if not isinstance(controls, dict) or not isinstance(controls.get("enabled", False), bool):
+        raise ValueError("entry policy must contain a boolean enabled flag")
+    if controls.get("enabled"):
+        portfolio = data.get("portfolio", {})
+        limits = {
+            "portfolio maximum": (portfolio.get("maximum_notional_usd"), 5, 300),
+            "sector maximum": (portfolio.get("maximum_sector_notional_usd"), 5, 60),
+            "stock maximum": (sizing.get("maximum_open_notional_per_ticker_usd"), 5, 30),
+            "quote age": (controls.get("maximum_quote_age_seconds"), 1, 120),
+            "spread": (controls.get("maximum_spread_fraction"), .00001, .01),
+            "price change": (controls.get("maximum_price_change_fraction"), .00001, .05),
+            "signal age": (controls.get("maximum_initial_signal_age_minutes"), 1, 30),
+            "earnings buffer": (controls.get("earnings_buffer_hours"), 1, 168),
+        }
+        for label, (value, minimum, maximum) in limits.items():
+            if isinstance(value, bool) or not isinstance(value, (int,float)) or not math.isfinite(value) or not minimum <= value <= maximum:
+                raise ValueError(f"Invalid {label} limit")
+        if not isinstance(controls.get("require_earnings_calendar", False), bool):
+            raise ValueError("require_earnings_calendar must be boolean")
+        priority = execution.get("horizon_priority")
+        if not isinstance(priority, list) or sorted(priority) != sorted(horizons):
+            raise ValueError("horizon priority must include each configured horizon once")

@@ -1,12 +1,17 @@
 from __future__ import annotations
 
 import sqlite3
+from datetime import datetime, timedelta, timezone
+from stock_watch_worker.ingestion import persist_news_articles
+from stock_watch_worker.news_revisions import freeze_scan_news
+from dataclasses import replace
 import unittest
 from typing import Sequence
 
 from stock_watch_worker.collectors import AlpacaScanCollector
 from stock_watch_worker.database import MIGRATIONS_DIR, apply_migrations
 from stock_watch_worker.providers.alpaca import AlpacaAsset, MarketBar, NewsArticle
+from stock_watch_worker.scan_data import load_scan_inputs
 
 
 class FakeMarketData:
@@ -114,6 +119,39 @@ class AlpacaCollectorTests(unittest.TestCase):
         self.assertEqual(ingestion["status"], "succeeded")
         self.assertIn('"news_coverage_complete":true', ingestion["metadata_json"])
 
+    def test_revised_news_is_frozen_and_removed_symbols_do_not_leak(self):
+        market = FakeMarketData()
+        original = market.get_news()[0]
+        original = replace(original, updated_at="2026-08-20T12:00:00Z", raw={"id":1,"headline":original.headline})
+        market.get_news = lambda **kwargs: [original]
+        collector = AlpacaScanCollector(market, FakePaperTrading())
+        collector.collect_scan(self.connection, scan_run_id="scan-1")
+        first = load_scan_inputs(self.connection,scan_run_id="scan-1",news_coverage_complete=True)
+        revised = replace(original,headline="Apple warning",symbols=("SPY",),
+            updated_at="2026-08-20T14:00:00Z",raw={"id":1,"headline":"Apple warning","symbols":["SPY"]})
+        persist_news_articles(self.connection,[revised])
+        self.connection.execute("""INSERT INTO scan_runs(id,strategy_version_id,universe_snapshot_id,
+            scan_type,scheduled_for,data_cutoff,status) VALUES
+            ('scan-2','strategy-v0',1,'close','2026-08-20T20:15:00Z','2026-08-20T20:15:00Z','queued')""")
+        market.get_news = lambda **kwargs: [revised]
+        collector.collect_scan(self.connection,scan_run_id="scan-2")
+        second=load_scan_inputs(self.connection,scan_run_id="scan-2",news_coverage_complete=True)
+        replay=load_scan_inputs(self.connection,scan_run_id="scan-1",news_coverage_complete=True)
+        self.assertEqual(len(first.candidates[0].news_sentiments),1)
+        self.assertEqual(second.candidates[0].news_sentiments,())
+        self.assertEqual(replay.candidates[0].news_sentiments,first.candidates[0].news_sentiments)
+        self.assertEqual(self.connection.execute("SELECT COUNT(*) FROM news_revisions").fetchone()[0],2)
+
+    def test_future_revision_is_excluded_and_empty_snapshot_stays_empty(self):
+        article=replace(FakeMarketData().get_news()[0],updated_at="2026-08-20T15:00:00Z")
+        persist_news_articles(self.connection,[article])
+        cutoff=datetime(2026,8,20,13,45,tzinfo=timezone.utc)
+        freeze_scan_news(self.connection,scan_run_id="scan-1",cutoff=cutoff,lookback=timedelta(days=3))
+        self.assertEqual(self.connection.execute("SELECT COUNT(*) FROM scan_news_revisions").fetchone()[0],0)
+        persist_news_articles(self.connection,[replace(article,id=2,updated_at=None,raw={"id":2})])
+        freeze_scan_news(self.connection,scan_run_id="scan-1",cutoff=cutoff,lookback=timedelta(days=3))
+        self.assertEqual(self.connection.execute("SELECT COUNT(*) FROM scan_news_revisions").fetchone()[0],0)
+
     def _seed(self) -> None:
         self.connection.execute(
             "INSERT INTO strategy_versions VALUES "
@@ -142,6 +180,25 @@ class AlpacaCollectorTests(unittest.TestCase):
             """
         )
         self.connection.commit()
+
+    def test_later_correction_does_not_change_an_earlier_scan(self) -> None:
+        market = FakeMarketData()
+        collector = AlpacaScanCollector(market, FakePaperTrading())
+        collector.collect_scan(self.connection, scan_run_id="scan-1")
+        first = load_scan_inputs(self.connection, scan_run_id="scan-1", news_coverage_complete=True)
+        self.connection.execute("""INSERT INTO scan_runs(
+            id, strategy_version_id, universe_snapshot_id, scan_type, scheduled_for, data_cutoff, status
+            ) VALUES ('scan-2', 'strategy-v0', 1, 'open', '2026-08-21T13:45:00Z', '2026-08-21T13:45:00Z', 'queued')""")
+        self.connection.commit()
+        original_get = market.get_historical_bars
+        market.get_historical_bars = lambda *args, **kwargs: [replace(bar, close=100) for bar in original_get(*args, **kwargs)]
+        collector.collect_scan(self.connection, scan_run_id="scan-2")
+        second = load_scan_inputs(self.connection, scan_run_id="scan-2", news_coverage_complete=True)
+        replay = load_scan_inputs(self.connection, scan_run_id="scan-1", news_coverage_complete=True)
+        self.assertEqual(first.candidates[0].bars[-1].close, 101)
+        self.assertEqual(second.candidates[0].bars[-1].close, 100)
+        self.assertEqual(replay.candidates[0].bars, first.candidates[0].bars)
+        self.assertEqual(self.connection.execute("SELECT COUNT(*) FROM market_bar_revisions").fetchone()[0], 2)
 
 
 if __name__ == "__main__":

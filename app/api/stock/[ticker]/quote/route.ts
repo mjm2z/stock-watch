@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { getAlpacaQuotes, hasAlpacaData } from '@/lib/alpaca-market-data'
 import { getActiveProvider } from '@/lib/market-data'
 import { getQuote as finnhubQuote, getFundamentals as finnhubFundamentals } from '@/lib/finnhub'
 import { getQuote as fmpQuote, getFundamentals as fmpFundamentals } from '@/lib/fmp'
@@ -24,6 +25,12 @@ export async function GET(_request: NextRequest, context: RouteContext) {
       )
     }
 
+    if (hasAlpacaData()) {
+      const [quote] = await getAlpacaQuotes([ticker])
+      if (!quote) return NextResponse.json({ error: `No current IEX quote available for ${ticker}` }, { status: 404 })
+      return NextResponse.json({ quote, fundamentals: null,
+        meta: { ticker: quote.ticker, provider: 'Alpaca · IEX', timestamp: quote.timestamp } })
+    }
     const provider = getActiveProvider()
     const upperTicker = ticker.toUpperCase()
 

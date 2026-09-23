@@ -15,7 +15,8 @@ from .http import ProviderError
 from .market_calendar import utc_iso
 from .paper_orders import PaperOrderBroker, create_order_intent, submit_or_reconcile_order
 from .scan_data import CandidateData, ScanInputs
-from .strategy import QualificationPolicy, calculate_notional, calculate_score
+from .strategy import QualificationPolicy, calculate_notional, calculate_score, sizing_from_config
+from .assessment import review_inputs, persist_assessments
 
 
 SIGNAL_NAMESPACE = uuid.UUID("313e89b7-568d-474b-8042-3c5087f42d61")
@@ -66,6 +67,8 @@ def execute_scan(
     horizons = _horizons(config)
     weights = _weights(config)
     policy = _qualification_policy(config)
+    sizing = sizing_from_config(config)
+    ranked = []
     started_at = utc_iso(now)
     with connection:
         connection.execute(
@@ -113,6 +116,18 @@ def execute_scan(
                 weights=weights,
                 policy=policy,
             )
+            quality = review_inputs(candidate, features, inputs.data_cutoff, inputs.spy_bars)
+            ranked.append((candidate, features, score, quality))
+        except (TypeError, ValueError) as error:
+            failures += 1
+            _audit_candidate_failure(connection, inputs.scan_run_id, candidate, str(error))
+
+    # Rank the entire scan before consuming any portfolio capacity.
+    ranked.sort(key=lambda item: (-item[2].opportunity_score, item[0].symbol))
+    priority = config.get("execution", {}).get("horizon_priority", horizons)
+    horizons = sorted(horizons, key=lambda value: priority.index(value) if value in priority else len(priority)+value)
+    for candidate, features, score, quality in ranked:
+        try:
             feature_id = _persist_feature(
                 connection,
                 candidate=candidate,
@@ -131,6 +146,7 @@ def execute_scan(
                     horizon=horizon,
                     score=score,
                 )
+                persist_assessments(connection, signal_id, candidate, features, horizon, policy, weights, quality, started_at)
                 signals_created += int(created)
                 signals_existing += int(not created)
                 if score.decision is not SignalDecision.QUALIFIED:
@@ -138,11 +154,12 @@ def execute_scan(
                 qualified += 1
                 if scan["strategy_status"] != "paper":
                     continue
-                notional = calculate_notional(score.opportunity_score, score.risk_level)
+                notional = calculate_notional(score.opportunity_score, score.risk_level, policy=sizing)
                 intent = create_order_intent(
                     connection,
                     signal_id=signal_id,
                     notional_usd=notional,
+                    maximum_open_notional_per_ticker_usd=float(config.get("sizing", {}).get("maximum_open_notional_per_ticker_usd", 30)),
                 )
                 intents_created += int(intent.action == "created")
                 intents_rejected += int(intent.action == "rejected")
@@ -243,7 +260,7 @@ def _persist_feature(
             INSERT INTO feature_snapshots(
                 instrument_id, as_of, feature_set_version,
                 features_json, data_completeness, source_refs_json
-            ) VALUES (?, ?, 'features-v0', ?, ?, ?)
+            ) VALUES (?, ?, 'features-v1-liabilities-label', ?, ?, ?)
             ON CONFLICT(instrument_id, as_of, feature_set_version) DO NOTHING
             """,
             (
@@ -258,7 +275,7 @@ def _persist_feature(
         """
         SELECT id, features_json, data_completeness, source_refs_json
         FROM feature_snapshots
-        WHERE instrument_id = ? AND as_of = ? AND feature_set_version = 'features-v0'
+        WHERE instrument_id = ? AND as_of = ? AND feature_set_version = 'features-v1-liabilities-label'
         """,
         (candidate.instrument_id, features.as_of),
     ).fetchone()

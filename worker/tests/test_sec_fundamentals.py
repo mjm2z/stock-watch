@@ -86,7 +86,7 @@ class SecFundamentalTests(unittest.TestCase):
         self.assertAlmostEqual(inputs.revenue_growth or 0, 0.20)
         self.assertAlmostEqual(inputs.net_margin or 0, 0.10)
         self.assertAlmostEqual(inputs.free_cash_flow_margin or 0, 130 / 1_200)
-        self.assertAlmostEqual(inputs.debt_to_equity or 0, 1.5)
+        self.assertAlmostEqual(inputs.liabilities_to_equity or 0, 1.5)
         self.assertAlmostEqual(inputs.price_to_earnings or 0, 20.0)
         self.assertAlmostEqual(inputs.free_cash_flow_yield or 0, 0.013)
         self.assertEqual(result.raw["annual_revenue"], 1_200)

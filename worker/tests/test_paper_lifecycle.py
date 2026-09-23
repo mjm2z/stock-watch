@@ -2,7 +2,9 @@ from __future__ import annotations
 
 import sqlite3
 import unittest
-from datetime import date, datetime, time, timezone
+from datetime import date, datetime, time, timezone, timedelta
+from dataclasses import replace
+from stock_watch_worker.exit_runtime import process_exit_tick
 from decimal import Decimal
 from typing import Any, Mapping
 from zoneinfo import ZoneInfo
@@ -205,6 +207,105 @@ class PaperLifecycleTests(unittest.TestCase):
             ).fetchone()[0],
             "closing",
         )
+
+    def _enable_timing(self):
+        self.connection.execute("INSERT INTO paper_exit_timing_policies(strategy_version_id,policy_version,minutes_before_close) VALUES ('strategy-v0','near-close-v1',5)")
+        self.connection.commit()
+
+    def test_managed_exit_submits_before_close_and_is_idempotent(self):
+        self._enable_timing()
+        sessions=_sessions(date(2026,8,17),5)
+        broker=FakeLifecycleBroker()
+        at=datetime(2026,8,21,19,55,tzinfo=timezone.utc)
+        broker.get_clock=lambda: {'timestamp':at.isoformat(),'is_open':True}
+        before=reconcile_paper_lifecycle(self.connection,broker=broker,sessions=sessions,now=at-timedelta(seconds=1))
+        self.assertEqual(before.exit_intents_created,0)
+        result=reconcile_paper_lifecycle(self.connection,broker=broker,sessions=sessions,now=at)
+        repeated=reconcile_paper_lifecycle(self.connection,broker=broker,sessions=sessions,now=at)
+        self.assertEqual((result.exit_intents_created,repeated.exit_intents_created,broker.sell_calls),(1,0,1))
+        row=self.connection.execute("SELECT target_exit_at,target_session_close_at,exit_timing_policy FROM paper_trade_lots").fetchone()
+        self.assertEqual(tuple(row),('2026-08-21T19:55:00Z','2026-08-21T20:00:00Z','near-close-v1'))
+
+    def test_early_close_uses_exchange_close(self):
+        self._enable_timing()
+        sessions=list(_sessions(date(2026,8,17),5))
+        sessions[-1]=replace(sessions[-1],closes_at=datetime(2026,8,21,13,tzinfo=NEW_YORK))
+        at=datetime(2026,8,21,16,55,tzinfo=timezone.utc)
+        broker=FakeLifecycleBroker()
+        broker.get_clock=lambda: {'timestamp':at.isoformat(),'is_open':True}
+        result=reconcile_paper_lifecycle(self.connection,broker=broker,sessions=sessions,now=at)
+        self.assertEqual(result.exit_intents_created,1)
+        self.assertEqual(self.connection.execute("SELECT target_exit_at FROM paper_trade_lots").fetchone()[0], '2026-08-21T16:55:00Z')
+
+    def test_missed_close_defers_until_regular_session_and_records_lateness(self):
+        self._enable_timing()
+        broker=FakeLifecycleBroker()
+        broker.get_clock=lambda: {'timestamp':NOW.isoformat(),'is_open':False}
+        reconcile_paper_lifecycle(self.connection,broker=broker,sessions=_sessions(date(2026,8,17),5),now=NOW)
+        self.assertEqual(broker.sell_calls,0)
+        next_open=datetime(2026,8,24,13,30,tzinfo=timezone.utc)
+        broker.get_clock=lambda: {'timestamp':next_open.isoformat(),'is_open':True}
+        reconcile_paper_lifecycle(self.connection,broker=broker,sessions=_sessions(date(2026,8,17),6),now=next_open)
+        self.assertEqual(broker.sell_calls,1)
+        self.assertEqual(self.connection.execute("SELECT COUNT(*) FROM audit_events WHERE event_type='paper_exit_late_submission'").fetchone()[0],1)
+
+    def test_exit_tick_is_independent_and_skips_weekends(self):
+        self._enable_timing()
+        for session in _sessions(date(2026,8,17),6):
+            self.connection.execute("INSERT INTO market_sessions(trading_date,provider,opens_at,closes_at) VALUES (?,'alpaca-paper',?,?)",
+                (session.trading_date.isoformat(),session.opens_at.isoformat(),session.closes_at.isoformat()))
+        broker=FakeLifecycleBroker()
+        self.assertIsNone(process_exit_tick(self.connection,broker,datetime(2026,8,22,18,tzinfo=timezone.utc)))
+        at=datetime(2026,8,21,19,55,tzinfo=timezone.utc)
+        broker.get_clock=lambda: {'timestamp':at.isoformat(),'is_open':True}
+        result=process_exit_tick(self.connection,broker,at)
+        self.assertEqual(result.lots_closed,1)
+        self.assertEqual(broker.buy_calls,0)
+
+    def test_stale_clock_does_not_submit(self):
+        self._enable_timing()
+        broker=FakeLifecycleBroker()
+        at=datetime(2026,8,21,19,55,tzinfo=timezone.utc)
+        broker.get_clock=lambda: {'timestamp':(at-timedelta(minutes=3)).isoformat(),'is_open':True}
+        reconcile_paper_lifecycle(self.connection,broker=broker,sessions=_sessions(date(2026,8,17),5),now=at)
+        self.assertEqual(broker.sell_calls,0)
+
+    def test_partial_fill_then_cancel_preserves_exposure_and_fills(self):
+        from stock_watch_worker.paper_lifecycle import reconcile_exit_response
+        intent=create_exit_intent(self.connection,lot_id='lot-1')
+        response={'id':'partial-exit','status':'canceled','filled_qty':'0.02',
+                  'filled_avg_price':'210','filled_at':'2026-08-21T19:56:00Z'}
+        reconcile_exit_response(self.connection,exit_order_id=intent.exit_order_id,response=response,now=NOW)
+        lot=self.connection.execute("SELECT status,exit_quantity FROM paper_trade_lots").fetchone()
+        self.assertEqual(tuple(lot),('closing',.02))
+        self.assertEqual(self.connection.execute("SELECT COUNT(*) FROM paper_exit_fills").fetchone()[0],1)
+
+    def test_managed_retry_reconciles_existing_fill_after_market_close(self):
+        self._enable_timing()
+        broker=FakeLifecycleBroker()
+        at=datetime(2026,8,21,19,55,tzinfo=timezone.utc)
+        broker.get_clock=lambda: {'timestamp':at.isoformat(),'is_open':True}
+        def uncertain_submit(**kwargs):
+            broker.sell_calls+=1
+            broker.existing[kwargs['client_order_id']]={'id':'uncertain-exit','status':'filled',
+                'filled_qty':'0.05','filled_avg_price':'210','filled_at':'2026-08-21T19:55:01Z'}
+            raise TimeoutError('lost submission response')
+        broker.submit_fractional_market_sell=uncertain_submit
+        with self.assertRaises(TimeoutError):
+            reconcile_paper_lifecycle(self.connection,broker=broker,sessions=_sessions(date(2026,8,17),5),now=at)
+        broker.get_clock=lambda: self.fail('Already submitted order must be reconciled before clock gate')
+        result=reconcile_paper_lifecycle(self.connection,broker=broker,sessions=_sessions(date(2026,8,17),5),now=NOW)
+        self.assertEqual(result.lots_closed,1)
+        self.assertEqual(broker.sell_calls,1)
+
+    def test_accepted_unfilled_exit_keeps_intent_for_reconciliation(self):
+        from stock_watch_worker.paper_lifecycle import reconcile_exit_response
+        intent=create_exit_intent(self.connection,lot_id='lot-1')
+        result=reconcile_exit_response(self.connection,exit_order_id=intent.exit_order_id,
+            response={'id':'accepted-exit','status':'new','filled_qty':'0','filled_avg_price':None},now=NOW)
+        self.assertEqual(result.status,'accepted')
+        self.assertEqual(self.connection.execute("SELECT status FROM paper_trade_lots").fetchone()[0],'closing')
+        self.assertEqual(self.connection.execute("SELECT COUNT(*) FROM paper_exit_fills").fetchone()[0],0)
 
     def _seed_open_lot(self) -> None:
         self.connection.execute(

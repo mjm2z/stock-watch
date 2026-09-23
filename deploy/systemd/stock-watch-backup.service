@@ -3,12 +3,15 @@ Description=Create a verified Stock Watch SQLite backup
 
 [Service]
 Type=oneshot
+TimeoutStartSec=130min
 User=stock-watch
 Group=stock-watch
 WorkingDirectory=/opt/stock-watch/worker
 EnvironmentFile=/etc/stock-watch/stock-watch.env
 Environment=PYTHONUNBUFFERED=1
-ExecStart=/opt/stock-watch/.venv/bin/stock-watch-worker backup --database ${STOCK_WATCH_DATABASE_PATH} --destination /var/backups/stock-watch --keep 14
+Environment=STOCK_WATCH_BACKUP_READER=mjm2z
+# Keep the prior copy until its replacement passes verification, then prune it.
+ExecStart=/opt/stock-watch/.venv/bin/stock-watch-worker backup --database ${STOCK_WATCH_DATABASE_PATH} --destination /var/backups/stock-watch --keep 1
 StandardOutput=journal
 StandardError=journal
 SyslogIdentifier=stock-watch-backup
@@ -17,4 +20,6 @@ NoNewPrivileges=true
 PrivateTmp=true
 ProtectHome=true
 ProtectSystem=strict
-ReadWritePaths=/var/backups/stock-watch
+# The CLI records operation telemetry in the source database before opening the
+# read-only backup connection. SQLite needs the database directory for WAL/SHM.
+ReadWritePaths=/var/backups/stock-watch /var/lib/stock-watch

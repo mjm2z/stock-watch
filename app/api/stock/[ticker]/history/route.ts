@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { getAlpacaHistory, hasAlpacaData } from '@/lib/alpaca-market-data'
 import { getHistoricalPrices as yahooHistory } from '@/lib/yahoo-finance'
 
 type ValidRange = '1D' | '1W' | '1M' | '3M' | '1Y' | '5Y'
@@ -40,7 +41,8 @@ export async function GET(request: NextRequest, context: RouteContext) {
     }
 
     // Use Yahoo Finance for historical data (free, no API key required)
-    const prices = await yahooHistory(ticker.toUpperCase(), range)
+    const useAlpaca = hasAlpacaData()
+    const prices = useAlpaca ? await getAlpacaHistory(ticker, range) : await yahooHistory(ticker.toUpperCase(), range)
 
     if (!prices || prices.length === 0) {
       return NextResponse.json(
@@ -55,7 +57,7 @@ export async function GET(request: NextRequest, context: RouteContext) {
         ticker: ticker.toUpperCase(),
         range,
         count: prices.length,
-        provider: 'yahoo',
+        provider: useAlpaca ? 'alpaca-iex' : 'yahoo',
         from: prices[0]?.date,
         to: prices[prices.length - 1]?.date,
       },

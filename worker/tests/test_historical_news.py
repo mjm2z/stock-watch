@@ -3,7 +3,10 @@ from __future__ import annotations
 import json
 import sqlite3
 import unittest
-from datetime import date
+from datetime import date, datetime, timezone
+from dataclasses import replace
+from stock_watch_worker.ingestion import persist_news_articles
+from stock_watch_worker.historical_dataset import _historical_news, _news_sentiments_at_close
 from typing import Sequence
 
 from stock_watch_worker.database import MIGRATIONS_DIR, apply_migrations
@@ -69,6 +72,29 @@ class HistoricalNewsTests(unittest.TestCase):
 
     def tearDown(self) -> None:
         self.connection.close()
+
+    def test_dataset_pins_ingestion_revisions_and_filters_later_edits(self):
+        metadata={'start':'2026-01-01','end':'2026-01-03','symbol_list':['AAPL'],
+                  'sentiment_model':'lexicon-v0','news_coverage_complete':True,
+                  'revision_policy':'ingestion-pinned-updates-v1'}
+        for ingestion_id in (10,11):
+            self.connection.execute("INSERT INTO data_ingestions(id,dataset,provider,started_at,status,version,metadata_json) VALUES (?,'historical_news','alpaca',CURRENT_TIMESTAMP,'succeeded',?,?)",
+                (ingestion_id,str(ingestion_id),json.dumps(metadata)))
+        original=NewsArticle(99,'AAPL beats estimates','2026-01-02T12:00:00Z','2026-01-02T12:00:00Z','fixture',None,None,('AAPL',),None,{'id':99,'headline':'beats'})
+        persist_news_articles(self.connection,[original],ingestion_id=10)
+        edited=replace(original,headline='AAPL warning',updated_at='2026-01-02T21:00:00Z',raw={'id':99,'headline':'warning'})
+        persist_news_articles(self.connection,[edited],ingestion_id=11)
+        def load(ingestion_id):
+            return _historical_news(self.connection,members=['AAPL'],ingestion_id=ingestion_id,
+                required_start=date(2026,1,1),required_end=date(2026,1,3))[0]['AAPL']
+        cutoff=datetime(2026,1,2,20,tzinfo=timezone.utc)
+        self.assertGreater(_news_sentiments_at_close(load(10),cutoff=cutoff,lookback_days=3)[0],0)
+        self.assertEqual(_news_sentiments_at_close(load(11),cutoff=cutoff,lookback_days=3),())
+        self.assertLess(_news_sentiments_at_close(load(11),cutoff=datetime(2026,1,3,20,tzinfo=timezone.utc),lookback_days=3)[0],0)
+        persist_news_articles(self.connection,[edited],ingestion_id=10)
+        removed=replace(edited,symbols=(),updated_at='2026-01-03T12:00:00Z',raw={'id':99,'symbols':[]})
+        persist_news_articles(self.connection,[removed],ingestion_id=10)
+        self.assertEqual(_news_sentiments_at_close(load(10),cutoff=datetime(2026,1,3,20,tzinfo=timezone.utc),lookback_days=3),())
 
     def test_backfills_bounded_windows_and_reuses_succeeded_ingestion(self) -> None:
         provider = FakeNewsProvider()

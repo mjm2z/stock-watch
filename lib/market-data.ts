@@ -60,8 +60,8 @@ export function applyQualityFilters(
   filters: QualityFilters = DEFAULT_QUALITY_FILTERS
 ): Stock[] {
   return stocks.filter(stock =>
-    stock.marketCap >= filters.minMarketCap &&
-    stock.price >= filters.minPrice &&
+    (stock.marketCap ?? 0) >= filters.minMarketCap &&
+    (stock.price ?? 0) >= filters.minPrice &&
     (stock.avgVolume ?? stock.volume ?? 0) >= filters.minVolume &&
     filters.allowedExchanges.includes(stock.exchange)
   )

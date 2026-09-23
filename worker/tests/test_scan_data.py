@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import sqlite3
 import unittest
+import tracemalloc
+import json
 from datetime import date, timedelta
 
 from stock_watch_worker.database import MIGRATIONS_DIR, apply_migrations
@@ -75,6 +77,24 @@ class ScanDataTests(unittest.TestCase):
             news_coverage_complete=True,
         )
         self.assertEqual(inputs.spy_bars, ())
+
+    def test_historical_fundamental_payloads_do_not_accumulate_in_memory(self) -> None:
+        payload = json.dumps({"facts": {}, "padding": "x" * 1_000_000})
+        for day in range(1, 13):
+            self.connection.execute(
+                """INSERT INTO company_fact_documents(instrument_id, captured_at,
+                    content_sha256, facts_json) VALUES (1, ?, ?, ?)""",
+                (f"2026-07-{day:02d}T00:00:00Z", f"old-{day}", payload),
+            )
+        self.connection.commit()
+        tracemalloc.start()
+        try:
+            inputs = load_scan_inputs(self.connection, scan_run_id="scan-open", news_coverage_complete=True)
+            _, peak = tracemalloc.get_traced_memory()
+        finally:
+            tracemalloc.stop()
+        self.assertEqual(inputs.candidates[0].source_refs["company_facts_document_id"], 1)
+        self.assertLess(peak, 4_000_000, "Scan retained irrelevant historical CompanyFacts payloads")
 
     def _seed(self) -> None:
         self.connection.execute(
