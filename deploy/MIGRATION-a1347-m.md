@@ -5,11 +5,25 @@
 Migration is **not deployed**. No source services, databases, schedules, DNS,
 or backup policies have been changed. Connectivity was restored after switching
 Wi-Fi; SSH now succeeds to all four servers. All four reject noninteractive sudo
-with "a password is required". Administrative execution is the current blocker.
+with "a password is required". The user ran runtime preparation successfully:
+Node 24.16.0 and PostgreSQL 16.15 are installed on a1347-m; PostgreSQL listens
+on localhost. Separate app/rehearsal database provisioning is staged but pending
+administrative execution. Production cutover has not started.
 StockWatch's seven production timers are active; do not interrupt market hours.
 
 Prepared locally:
 
+- `provision-app-databases-root.py`: create non-admin jobwatch/radar roles,
+  empty production and rehearsal databases, and protected generated credentials.
+  Refuses existing roles, databases, or credentials rather than replacing them.
+- `postgres-migration-snapshot.mjs`: consistent custom-format dump plus
+  primary-key-ordered row-content SHA-256 fingerprints from the same exported
+  PostgreSQL snapshot, with UTC serialization. Tables without primary keys use
+  bytewise row ordering. Current manifest format is 3; earlier rehearsal artifacts
+  are retained but must not be used with the current restore verifier.
+- `postgres-rehearsal-restore.mjs`: verifies the transferred dump checksum,
+  restores only an empty loopback rehearsal database in one transaction, and
+  verifies all table fingerprints. Production databases are explicitly refused.
 - `prepare-app-host-root.sh`: host-checked a1347-m infrastructure preparation;
   installs pinned Node 24.16.0 and Ubuntu PostgreSQL 16/Python venv packages.
   Refuses an existing PostgreSQL cluster or conflicting runtime links. Does not
@@ -24,6 +38,19 @@ Prepared locally:
   verification. Does not prune, stop writers, restore, or activate anything.
 - Regression tests for WAL contents, historical notes, source preservation,
   changed snapshot rejection, and recovery-point overwrite protection.
+
+Rehearsal progress: JobWatch backup contains 15 tables and its Linux build passed.
+HomeOps snapshot (1,109,602,304 bytes) verified on both source and destination,
+SHA-256 `998290b2ba7ee3c86899224b31cb27a5cf965e4d0a002e8decd795689d03c0b9`,
+with no FK violations. Radar's staged frontend build and 82 backend tests passed; existing locked
+dependencies report three high frontend advisories and were not upgraded as
+part of the move. Radar fingerprinting and StockWatch backup transfer are in
+progress; check completion and verify before using either artifact.
+
+JobWatch's explicit stable-host allowlist and HomeOps's independent send-only
+watchdog transport are implemented in their own repositories, not yet deployed.
+The watchdog supports delivery-disabled rehearsals with separate state and a
+configurable observer name; existing notification/deduplication behavior remains.
 
 ## Approved destination and boundaries
 
