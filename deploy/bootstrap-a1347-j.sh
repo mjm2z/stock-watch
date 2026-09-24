@@ -12,16 +12,16 @@ readonly STATE_ROOT="/var/lib/stock-watch"
 readonly BACKUP_ROOT="/var/backups/stock-watch"
 readonly ENVIRONMENT_ROOT="/etc/stock-watch"
 
-if [[ "${INSTALL_MODE}" != normal && "${INSTALL_MODE}" != stage-only ]]; then
-  echo "Usage: $0 [release-source] [normal|stage-only]" >&2
+if [[ "${INSTALL_MODE}" != normal && "${INSTALL_MODE}" != stage-only && "${INSTALL_MODE}" != stage-check ]]; then
+  echo "Usage: $0 [release-source] [normal|stage-only|stage-check]" >&2
   exit 1
 fi
 
-if [[ "${EUID}" -ne 0 ]]; then
+if [[ "${EUID}" -ne 0 && "${INSTALL_MODE}" != stage-check ]]; then
   echo "Run this bootstrap as root." >&2
   exit 1
 fi
-if [[ "${INSTALL_MODE}" == stage-only ]]; then
+if [[ "${INSTALL_MODE}" == stage-only || "${INSTALL_MODE}" == stage-check ]]; then
   # Migration staging must never overwrite an existing deployment or its data.
   for existing in "${INSTALL_ROOT}" "${STATE_ROOT}" "${ENVIRONMENT_ROOT}" "${BACKUP_ROOT}"; do
     if [[ -e "${existing}" ]]; then
@@ -29,7 +29,9 @@ if [[ "${INSTALL_MODE}" == stage-only ]]; then
       exit 1
     fi
   done
-  existing_units=$(systemctl list-unit-files 'stock-watch-*' --no-legend)
+  # A filtered query returns 1 when no units match on a fresh host. Query all
+  # units instead so a true systemctl failure still aborts safely.
+  existing_units=$(systemctl list-unit-files --no-legend --no-pager)
   if [[ "$existing_units" == *stock-watch-* ]]; then
     echo "Refusing staging over existing Stock Watch units." >&2
     exit 1
@@ -42,6 +44,10 @@ fi
 if [[ -e "${RELEASE_SOURCE}/.env" || -e "${RELEASE_SOURCE}/.env.local" ]]; then
   echo "Refusing a release source containing environment secrets." >&2
   exit 1
+fi
+if [[ "${INSTALL_MODE}" == stage-check ]]; then
+  echo "Fresh-host staging checks passed; no files or services changed."
+  exit 0
 fi
 
 task_temp_dir="$(mktemp -d /tmp/stock-watch-bootstrap.XXXXXX)"
