@@ -55,7 +55,7 @@ install -d -o stock-watch -g stock-watch -m 0700 \
   "${STATE_ROOT}" "${STATE_ROOT}/data" "${BACKUP_ROOT}"
 install -d -o root -g root -m 0700 "${ENVIRONMENT_ROOT}"
 
-if [[ ! -x "/opt/node-v${NODE_VERSION}/bin/node" ]]; then
+if [[ ! -x "/opt/node-v${NODE_VERSION}-linux-x64/bin/node" ]]; then
   curl --fail --location --silent --show-error \
     --output "${task_temp_dir}/${NODE_ARCHIVE}" "${NODE_URL}"
   echo "${NODE_SHA256}  ${task_temp_dir}/${NODE_ARCHIVE}" | sha256sum --check --status

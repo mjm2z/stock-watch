@@ -7,12 +7,19 @@ or backup policies have been changed. Connectivity was restored after switching
 Wi-Fi; SSH now succeeds to all four servers. All four reject noninteractive sudo
 with "a password is required". The user ran runtime preparation successfully:
 Node 24.16.0 and PostgreSQL 16.15 are installed on a1347-m; PostgreSQL listens
-on localhost. Separate app/rehearsal database provisioning is staged but pending
-administrative execution. Production cutover has not started.
+on localhost. The user also completed separate app/rehearsal database provisioning.
+Production cutover has not started. StockWatch's disabled destination installation
+and protected source configuration export are the current administrative gates.
 StockWatch's seven production timers are active; do not interrupt market hours.
 
 Prepared locally:
 
+- `export-stockwatch-config-root.py`: read-only export on a1347-j of the protected
+  environment, configured data-path inventory, and exact installed/enabled/active
+  service definitions. No service stops or database changes. Staged under
+  `~/app-migration-20260924/`; refuses replacing an earlier export.
+- `run-homeops-rehearsal.py`: uses a disposable copy on loopback port 19100,
+  without retention, ingestion credentials, monitoring, or notification threads.
 - `provision-app-databases-root.py`: create non-admin jobwatch/radar roles,
   empty production and rehearsal databases, and protected generated credentials.
   Refuses existing roles, databases, or credentials rather than replacing them.
@@ -39,18 +46,45 @@ Prepared locally:
 - Regression tests for WAL contents, historical notes, source preservation,
   changed snapshot rejection, and recovery-point overwrite protection.
 
-Rehearsal progress: JobWatch backup contains 15 tables and its Linux build passed.
+Rehearsal progress: JobWatch's 15 tables restored into `jobwatch_rehearsal` with
+all row fingerprints matching the format-3 source snapshot. Linux build, dashboard,
+jobs/searches APIs, supervised restart, readiness HTTP 200, and stale-worker
+HTTP 503 passed. No source collection or worker was started on the target.
 HomeOps snapshot (1,109,602,304 bytes) verified on both source and destination,
 SHA-256 `998290b2ba7ee3c86899224b31cb27a5cf965e4d0a002e8decd795689d03c0b9`,
-with no FK violations. Radar's staged frontend build and 82 backend tests passed; existing locked
+with no FK violations. HomeOps's historical overview, logs, backup runs, network
+history, and dashboard passed against a separate working copy. Dashboard latency
+was 1.6–1.7 seconds without bulk transfer versus 1.3 seconds on a1990; concurrent
+bulk copy caused 18-second responses and an earlier 30-second timeout. Avoid
+overlapping large migration copies/restores during latency acceptance checks;
+normal workload/backup contention still needs observation before retiring sources.
+
+Radar's 22 tables restored into `radar_rehearsal` with all row fingerprints
+matching. Its staged frontend build, 82 backend tests, and all 28 page/API smoke
+checks passed on loopback port 15210. No collectors or notification jobs ran.
+Existing locked
 dependencies report three high frontend advisories and were not upgraded as
-part of the move. Radar fingerprinting and StockWatch backup transfer are in
-progress; check completion and verify before using either artifact.
+part of the move. StockWatch's 34,959,163,392-byte snapshot transfer is still in
+progress (16 GiB at 13:07 ET); it is not yet a verified destination recovery point.
+The transfer was temporarily paused for isolated performance measurements and
+Radar restoration, then resumed. Source backup and live database remain intact.
 
 JobWatch's explicit stable-host allowlist and HomeOps's independent send-only
 watchdog transport are implemented in their own repositories, not yet deployed.
 The watchdog supports delivery-disabled rehearsals with separate state and a
 configurable observer name; existing notification/deduplication behavior remains.
+HomeOps now has a pure idempotent relocation helper, generator `--app-host a1347-m`
+option, and configurable StockWatch backup source. All 69 Python 3.12 tests pass.
+At cutover, apply the helper to actual protected live configs, preserving secrets
+and collector state; persist `~/.config/home-ops/app-host.json` on the generator
+machine with `{"machine":"a1347-m"}` so future generation retains the new host.
+No live config was changed by these tests.
+
+Radar's deploy script now preserves mutable JSON configuration, reports, backups,
+and existing credentials; it seeds only missing defaults and does not prune old
+releases unless explicitly requested. Its host bind is configurable. A real-rsync
+temporary-directory preservation fixture passes. The default deployment target
+remains a1347-d until actual cutover; update it and deployment docs at that time.
 
 ## Approved destination and boundaries
 
