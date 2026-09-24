@@ -6,14 +6,34 @@ readonly NODE_ARCHIVE="node-v${NODE_VERSION}-linux-x64.tar.xz"
 readonly NODE_SHA256="d804845d34eddc21dc1092b519d643ef40b1f58ec5dec5c22b1f4bd8fabde6c9"
 readonly NODE_URL="https://nodejs.org/dist/v${NODE_VERSION}/${NODE_ARCHIVE}"
 readonly RELEASE_SOURCE="${1:-/home/mjm2z/stock-watch-staging}"
+readonly INSTALL_MODE="${2:-normal}"
 readonly INSTALL_ROOT="/opt/stock-watch"
 readonly STATE_ROOT="/var/lib/stock-watch"
 readonly BACKUP_ROOT="/var/backups/stock-watch"
 readonly ENVIRONMENT_ROOT="/etc/stock-watch"
 
+if [[ "${INSTALL_MODE}" != normal && "${INSTALL_MODE}" != stage-only ]]; then
+  echo "Usage: $0 [release-source] [normal|stage-only]" >&2
+  exit 1
+fi
+
 if [[ "${EUID}" -ne 0 ]]; then
   echo "Run this bootstrap as root." >&2
   exit 1
+fi
+if [[ "${INSTALL_MODE}" == stage-only ]]; then
+  # Migration staging must never overwrite an existing deployment or its data.
+  for existing in "${INSTALL_ROOT}" "${STATE_ROOT}" "${ENVIRONMENT_ROOT}" "${BACKUP_ROOT}"; do
+    if [[ -e "${existing}" ]]; then
+      echo "Refusing staging onto existing path: ${existing}" >&2
+      exit 1
+    fi
+  done
+  existing_units=$(systemctl list-unit-files 'stock-watch-*' --no-legend)
+  if [[ "$existing_units" == *stock-watch-* ]]; then
+    echo "Refusing staging over existing Stock Watch units." >&2
+    exit 1
+  fi
 fi
 if [[ ! -f "${RELEASE_SOURCE}/package-lock.json" || ! -d "${RELEASE_SOURCE}/worker" ]]; then
   echo "Release source is incomplete: ${RELEASE_SOURCE}" >&2
@@ -74,21 +94,28 @@ python3.12 -m venv --clear "${INSTALL_ROOT}/.venv"
   /usr/local/bin/npm run build
 )
 
-if [[ ! -f "${ENVIRONMENT_ROOT}/stock-watch.env" ]]; then
+if [[ "${INSTALL_MODE}" == normal && ! -f "${ENVIRONMENT_ROOT}/stock-watch.env" ]]; then
   install -o root -g root -m 0600 \
     "${INSTALL_ROOT}/deploy/stock-watch.env.example" \
     "${ENVIRONMENT_ROOT}/stock-watch.env"
 fi
-runuser -u stock-watch -- \
+if [[ "${INSTALL_MODE}" == normal ]]; then
+  runuser -u stock-watch -- \
   "${INSTALL_ROOT}/.venv/bin/stock-watch-worker" init-db \
   --database "${STATE_ROOT}/stock-watch.db" \
   --strategy "${INSTALL_ROOT}/worker/config/strategy-v0.json"
+fi
 chown -R stock-watch:stock-watch "${STATE_ROOT}" "${BACKUP_ROOT}"
 chown -R stock-watch:stock-watch "${INSTALL_ROOT}/.next/cache"
 
 install -o root -g root -m 0644 \
   "${INSTALL_ROOT}"/deploy/systemd/* /etc/systemd/system/
 systemctl daemon-reload
+if [[ "${INSTALL_MODE}" == stage-only ]]; then
+  echo "Staged code and disabled units only; no database or credentials created."
+  echo "Restore and verify production data/configuration before starting any unit."
+  exit 0
+fi
 systemctl enable --now stock-watch-web.service
 
 curl --fail --silent --show-error --retry 10 --retry-delay 1 --retry-connrefused \
