@@ -21,11 +21,14 @@ Prepared locally:
   Source configs are retained in private staging. Recheck source changes before
   final cutover; canonical code directories and service activation are pending.
 - `prepare-app-access-root.sh`: staged for administrator execution on a1347-m;
-  preserves a root-only copy of existing UFW configuration, installs ACL support,
-  grants directory traversal for finalized StockWatch backup pulls, and places
-  trusted-LAN/loopback allowances before denies for the four app ports. Refuses
-  an inactive firewall or unexpected PostgreSQL listener. No app starts or DNS
-  changes. Existing source production services remain untouched.
+  preserves a root-only copy of existing firewall configuration, installs ACL
+  support, grants directory traversal for finalized StockWatch backup pulls, and
+  installs a dedicated nftables table for the four app ports. Loopback and the
+  trusted LAN remain allowed; other incoming TCP access to those ports is dropped.
+  A separate system service persists these rules; no global ruleset flush, UFW
+  activation, or unrelated-port changes. The initial command was accidentally
+  pasted onto an earlier command and did not run. Inspection showed UFW is
+  disabled, so the script was corrected before retry. No apps or DNS changed.
 - `verify-artifact-export.py`: checks all file sizes and SHA-256 hashes against
   the export manifest, rejecting missing, extra, nonregular, or changed files.
   Tests include same-size corruption and missing/extra artifacts.
