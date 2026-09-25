@@ -66,14 +66,20 @@ def snapshot(source, destination, manifest):
         src = read_only(source)
         dst = sqlite3.connect(destination)
         try:
-            src.backup(dst, pages=1024, sleep=0.1)
+            last_report = time.monotonic()
+            def progress(status, remaining, total):
+                nonlocal last_report
+                if time.monotonic() - last_report >= 30:
+                    print(f'SQLite snapshot: {total-remaining}/{total} pages copied...', file=sys.stderr, flush=True)
+                    last_report = time.monotonic()
+            src.backup(dst, pages=1024, sleep=0.1, progress=progress)
             dst.execute("PRAGMA journal_mode=DELETE")
         finally:
             dst.close()
             src.close()
         with destination.open("rb") as database:
             os.fsync(database.fileno())
-        record = fingerprint(destination)
+        record = fingerprint(destination, progress=True)
         json.dump(record, output, indent=2, sort_keys=True)
         output.write("\n")
         output.flush()

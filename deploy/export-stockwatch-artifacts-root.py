@@ -15,7 +15,7 @@ import stat
 import time
 
 
-def export(source, destination, uid, gid):
+def export(source, destination, uid, gid, purpose='rehearsal-only'):
     destination.mkdir(mode=0o700)  # Never overwrite a previous recovery point.
     os.chown(destination, uid, gid)
     data = destination / 'data'
@@ -56,7 +56,7 @@ def export(source, destination, uid, gid):
     manifest = destination / 'manifest.json'
     with manifest.open('x') as output:
         os.chmod(manifest, 0o600)
-        json.dump(dict(purpose='rehearsal-only', source=str(source), files=records), output, indent=2)
+        json.dump(dict(purpose=purpose, source=str(source), files=records), output, indent=2)
         output.write('\n')
         output.flush()
         os.fsync(output.fileno())

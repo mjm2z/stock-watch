@@ -2,21 +2,42 @@
 
 ## Execution status — 2026-09-25
 
-Migration is **not deployed**. No source services, databases, schedules, DNS,
-or backup policies have been changed. Connectivity was restored after switching
+Production cutover **started after market hours on September 25**. JobWatch's
+source web and worker LaunchAgents are disabled/unloaded; a final consistent
+15-table dump is retained on the M4 and transferred to a1347-m. All restored
+table fingerprints matched; target web and worker are enabled and running.
+LAN and loopback readiness, stale-worker HTTP 503 before activation, healthy
+worker HTTP 200 afterward, and supervised web restart passed. JobWatch is now
+authoritative at http://192.168.4.35:3020 (DNS handoff is still pending).
+Do not restart its source without carrying authoritative data back.
+Radar's managed cron block was backed up and removed, jobs drained, and source
+server stopped. Its final snapshot and mutable-file archive are in progress in
+`radar-final-20260925T195808` on a1347-d; shared PostgreSQL/Data Engine remain up.
+HomeOps and StockWatch sources, DNS and backup policies are unchanged.
+Connectivity was restored after switching
 Wi-Fi; SSH now succeeds to all four servers. All four reject noninteractive sudo
 with "a password is required". The user ran runtime preparation successfully:
 Node 24.16.0 and PostgreSQL 16.15 are installed on a1347-m; PostgreSQL listens
 on localhost. The user also completed separate app/rehearsal database provisioning.
-Production cutover has not started. StockWatch's disabled destination installation
+StockWatch's disabled destination installation
 and protected source configuration export have completed successfully.
 StockWatch's seven production timers are active; do not interrupt market hours.
 
 Verified at 11:00–11:07 ET on September 25: app-access service is enabled and
 active, and finalized-backup directory ACL grants mjm2z read/traverse only.
 Temporary fixed-response probes passed on all four app ports from loopback,
-the M4, and a1990; probes were then stopped. External/nontrusted-source rejection
-has not been independently exercised. PostgreSQL remains loopback-only.
+the M4, and a1990; probes were then stopped. Nontrusted-source rejection was
+subsequently verified using a1990's IPv6 link-local connection: a control port
+responded while the protected app port timed out. Trusted IPv4 and IPv6 loopback
+remained reachable. Those probes were stopped. PostgreSQL remains loopback-only.
+
+Final-cutover tooling added: source JobWatch work-lock drain; root StockWatch
+freeze/export and guarded publication; compressed snapshot transfer with full
+roundtrip checksums. Eighteen migration regression tests pass. The real StockWatch
+rehearsal database compressed from 34,959,163,392 to 4,780,602,548 bytes in 695s;
+compression plus decompression verification took 923s. Original files remain.
+StockWatch helpers preserve exact enabled timers and persistent timer timestamps;
+they have not yet frozen or published production StockWatch data.
 
 Backup/DNS preparation completed at approximately 11:30 ET:
 
