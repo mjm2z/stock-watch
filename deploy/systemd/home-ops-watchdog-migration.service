@@ -1,0 +1,27 @@
+[Unit]
+Description=Independent HomeOps watchdog on a1347-j
+After=network-online.target
+Wants=network-online.target
+ConditionPathExists=/home/mjm2z/.config/app-migration/watchdog.cutover-ready
+ConditionPathExists=/home/mjm2z/.local/state/home-ops/watchdog.json
+StartLimitIntervalSec=300
+StartLimitBurst=5
+
+[Service]
+Type=simple
+User=mjm2z
+Group=mjm2z
+WorkingDirectory=/home/mjm2z/home-ops-watchdog
+Environment=PYTHONUNBUFFERED=1
+Environment=HOME_OPS_WATCHDOG_CONFIG=/home/mjm2z/.config/home-ops/watchdog-migration.json
+ExecStart=/usr/bin/python3 -m home_ops.watchdog
+Restart=on-failure
+RestartSec=20
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ReadWritePaths=/home/mjm2z/.local/state/home-ops
+
+[Install]
+WantedBy=multi-user.target

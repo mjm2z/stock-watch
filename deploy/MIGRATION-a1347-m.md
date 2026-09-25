@@ -12,6 +12,12 @@ Production cutover has not started. StockWatch's disabled destination installati
 and protected source configuration export have completed successfully.
 StockWatch's seven production timers are active; do not interrupt market hours.
 
+Verified at 11:00–11:07 ET on September 25: app-access service is enabled and
+active, and finalized-backup directory ACL grants mjm2z read/traverse only.
+Temporary fixed-response probes passed on all four app ports from loopback,
+the M4, and a1990; probes were then stopped. External/nontrusted-source rejection
+has not been independently exercised. PostgreSQL remains loopback-only.
+
 Prepared locally:
 
 - `stage-app-runtime.mjs`: preserves source env settings and credentials while
@@ -19,14 +25,17 @@ Prepared locally:
   exist under `~/.config/{job-watch,app-demand-radar}/runtime.env` on a1347-m,
   mode 600 inside mode-700 directories. No app starts or database writes.
   Source configs are retained in private staging. Recheck source changes before
-  final cutover; canonical code directories and service activation are pending.
+  final cutover. Rehearsed code is installed at `~/job-watch` and
+  `~/app-demand-radar`; all 29 service/timer definitions are installed but disabled
+  (oneshot jobs are static), with no cutover markers. The guarded
+  `install-staged-app-units.sh` performed this staging without starting jobs.
 - `prepare-app-access-root.sh`: staged for administrator execution on a1347-m;
   preserves a root-only copy of existing firewall configuration, installs ACL
   support, grants directory traversal for finalized StockWatch backup pulls, and
   installs a dedicated nftables table for the four app ports. Loopback and the
   trusted LAN remain allowed; other incoming TCP access to those ports is dropped.
   A separate system service persists these rules; no global ruleset flush, UFW
-  activation, or unrelated-port changes. The initial command was accidentally
+  activation, or unrelated-port changes. This setup has now completed. The initial command was accidentally
   pasted onto an earlier command and did not run. Inspection showed UFW is
   disabled, so the script was corrected before retry. No apps or DNS changed.
 - `verify-artifact-export.py`: checks all file sizes and SHA-256 hashes against
@@ -106,8 +115,8 @@ or schedules were supplied.
 Source backup and live database remain intact. The protected source inventory
 also contains 10,381 artifact files totaling 2,655,719,937 bytes; these need their
 own final export after writers stop. The separate rehearsal artifact export
-completed on a1347-j and is transferring to a1347-m; per-file destination
-checksum validation is pending. This newer rehearsal contains 10,512 files and
+completed on a1347-j and transferred successfully to a1347-m. All per-file
+destination checksums and the manifest checksum passed. This newer rehearsal contains 10,512 files and
 2,665,607,415 bytes; source manifest SHA-256 is
 `c44fa8a305f5e30f137d6ee3da7f540918834f89e06ef7f295279db67da455e6`.
 Source configuration
@@ -119,6 +128,13 @@ JobWatch's explicit stable-host allowlist and HomeOps's independent send-only
 watchdog transport are implemented in their own repositories, not yet deployed.
 The watchdog supports delivery-disabled rehearsals with separate state and a
 configurable observer name; existing notification/deduplication behavior remains.
+Independent watchdog code is now staged at `~/home-ops-watchdog` on a1347-j,
+with protected send-only credentials and `~/.config/home-ops/watchdog-migration.json`.
+Notification-disabled rehearsal detected both reachable and unreachable endpoints.
+Production config still has `delivery_enabled=false`; no notification was sent.
+The proposed system unit requires a cutover marker AND the transferred historical
+state file. It remains staged, not installed or activated. At cutover stop the old
+watchdog, carry over its final state, then enable delivery and the new service.
 HomeOps now has a pure idempotent relocation helper, generator `--app-host a1347-m`
 option, and configurable StockWatch backup source. All 69 Python 3.12 tests pass.
 At cutover, apply the helper to actual protected live configs, preserving secrets
