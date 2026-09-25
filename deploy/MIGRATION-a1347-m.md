@@ -1,6 +1,6 @@
 # Application consolidation: a1347-m
 
-## Execution status — 2026-09-24
+## Execution status — 2026-09-25
 
 Migration is **not deployed**. No source services, databases, schedules, DNS,
 or backup policies have been changed. Connectivity was restored after switching
@@ -9,11 +9,24 @@ with "a password is required". The user ran runtime preparation successfully:
 Node 24.16.0 and PostgreSQL 16.15 are installed on a1347-m; PostgreSQL listens
 on localhost. The user also completed separate app/rehearsal database provisioning.
 Production cutover has not started. StockWatch's disabled destination installation
-and protected source configuration export are the current administrative gates.
+and protected source configuration export have completed successfully.
 StockWatch's seven production timers are active; do not interrupt market hours.
 
 Prepared locally:
 
+- `render-app-services.py`: renders 29 disabled JobWatch/Radar service/timer files
+  without installing them. Staged bundle `service-units-v2` passes systemd unit
+  validation. All units require an explicit per-app cutover marker. Radar's
+  actual source cron runs in UTC (Debian cron ignores CRON_TZ); explicit UTC
+  timers preserve those execution times and do not catch up missed runs.
+  Jobs retain their script arguments, log paths, Reddit limit, cleanup dry-run,
+  and scheduled report notification behavior. No timer or worker was activated.
+  Create protected runtime configs and log directories, verify final restored data,
+  restrict LAN access, and drain source writers before creating markers/enabling.
+- `export-stockwatch-artifacts-root.py`: read-only rehearsal export of the
+  separate artifact directory with per-file SHA-256, source-change detection,
+  protected permissions, and refusal to overwrite earlier exports. Nonregular
+  files fail closed. Requires root on a1347-j; never stops production services.
 - `export-stockwatch-config-root.py`: read-only export on a1347-j of the protected
   environment, configured data-path inventory, and exact installed/enabled/active
   service definitions. No service stops or database changes. Staged under
@@ -64,10 +77,15 @@ matching. Its staged frontend build, 82 backend tests, and all 28 page/API smoke
 checks passed on loopback port 15210. No collectors or notification jobs ran.
 Existing locked
 dependencies report three high frontend advisories and were not upgraded as
-part of the move. StockWatch's 34,959,163,392-byte snapshot transfer is still in
-progress (16 GiB at 13:07 ET); it is not yet a verified destination recovery point.
-The transfer was temporarily paused for isolated performance measurements and
-Radar restoration, then resumed. Source backup and live database remain intact.
+part of the move. StockWatch's 34,959,163,392-byte snapshot transfer completed.
+Full SQLite integrity/table/FK checks on a1347-m and independent source SHA-256
+on a1347-d are in progress; it is not yet a verified destination recovery point.
+Source backup and live database remain intact. The protected source inventory
+also contains 10,381 artifact files totaling 2,655,719,937 bytes; these need their
+own rehearsal export and a final export after writers stop. Source configuration
+and exact deployed system unit definitions have been copied to protected staging.
+Destination `/opt/stock-watch` is built, and its web service and timers remain
+disabled/inactive. Seven source timers remain active on a1347-j.
 
 JobWatch's explicit stable-host allowlist and HomeOps's independent send-only
 watchdog transport are implemented in their own repositories, not yet deployed.
@@ -144,6 +162,7 @@ first for a final cutover snapshot. Live snapshots are suitable for rehearsals.
 ```sh
 python3 deploy/sqlite-migration-snapshot.py create SOURCE.db SNAPSHOT.db SNAPSHOT.json
 python3 deploy/sqlite-migration-snapshot.py verify SNAPSHOT.db SNAPSHOT.json
+python3 deploy/sqlite-migration-snapshot.py inspect EXISTING_FINALIZED.db NEW_MANIFEST.json
 python3 -m unittest discover -s deploy -p 'test_sqlite_migration_snapshot.py'
 ```
 

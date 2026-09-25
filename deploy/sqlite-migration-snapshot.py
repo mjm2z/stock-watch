@@ -13,14 +13,23 @@ import os
 from pathlib import Path
 import sqlite3
 import sys
+import time
 
 
 def read_only(path):
     return sqlite3.connect(path.resolve().as_uri() + "?mode=ro", uri=True)
 
 
-def fingerprint(path):
+def fingerprint(path, progress=False):
     with closing(read_only(path)) as db:
+        last_report = time.monotonic()
+        def heartbeat():
+            nonlocal last_report
+            if progress and time.monotonic() - last_report >= 30:
+                print('SQLite verification is scanning the snapshot...', file=sys.stderr, flush=True)
+                last_report = time.monotonic()
+            return 0
+        db.set_progress_handler(heartbeat, 100000)
         integrity = [row[0] for row in db.execute("PRAGMA integrity_check")]
         if integrity != ["ok"]:
             raise RuntimeError("Snapshot failed SQLite integrity_check")
@@ -90,10 +99,23 @@ def main():
     check = sub.add_parser("verify")
     check.add_argument("database", type=Path)
     check.add_argument("manifest", type=Path)
+    inspect = sub.add_parser("inspect", help="Fingerprint a finalized, immutable snapshot without copying it")
+    inspect.add_argument("database", type=Path)
+    inspect.add_argument("manifest", type=Path)
     args = parser.parse_args()
     try:
         if args.command == "create":
             record = snapshot(args.source, args.destination, args.manifest)
+        elif args.command == 'inspect':
+            if args.database.resolve() == args.manifest.resolve():
+                raise ValueError('Manifest must not overwrite the database')
+            fd = os.open(args.manifest, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+            with os.fdopen(fd, 'w') as output:
+                record = fingerprint(args.database, progress=True)
+                json.dump(record, output, indent=2, sort_keys=True)
+                output.write('\n')
+                output.flush()
+                os.fsync(output.fileno())
         else:
             record = verify(args.database, args.manifest)
     except (OSError, ValueError, RuntimeError, sqlite3.Error) as error:
