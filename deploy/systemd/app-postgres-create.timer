@@ -1,0 +1,11 @@
+[Unit]
+Description=Daily application PostgreSQL snapshots
+ConditionPathExists=%h/.config/app-migration/postgres-backups.cutover-ready
+
+[Timer]
+OnCalendar=*-*-* 08:30:00 UTC
+Persistent=true
+RandomizedDelaySec=0
+
+[Install]
+WantedBy=timers.target

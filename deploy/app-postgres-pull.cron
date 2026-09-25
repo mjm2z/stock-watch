@@ -1,0 +1,2 @@
+# Staged only. a1347-d uses UTC system cron; preserve all unrelated entries.
+15 9 * * * /usr/bin/python3 /home/mjm2z/.local/lib/app-migration/app-postgres-backups.py pull >> /home/mjm2z/.local/state/home-ops/app-postgres-pull.log 2>&1 # APP_POSTGRES_BACKUPS

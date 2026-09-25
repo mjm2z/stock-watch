@@ -1,0 +1,15 @@
+[Unit]
+Description=Consistent JobWatch and Radar PostgreSQL backups
+ConditionPathExists=%h/.config/app-migration/postgres-backups.cutover-ready
+ConditionPathExists=%h/.config/app-migration/job-watch.cutover-ready
+ConditionPathExists=%h/.config/app-migration/app-demand-radar.cutover-ready
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/python3 %h/.local/lib/app-migration/app-postgres-backups.py create
+Environment=PYTHONUNBUFFERED=1
+Environment=PATH=/usr/local/bin:/usr/bin:/bin
+UMask=0077
+NoNewPrivileges=true
+TimeoutStartSec=4h
+TimeoutStopSec=60

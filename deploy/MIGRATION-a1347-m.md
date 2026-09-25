@@ -18,6 +18,53 @@ Temporary fixed-response probes passed on all four app ports from loopback,
 the M4, and a1990; probes were then stopped. External/nontrusted-source rejection
 has not been independently exercised. PostgreSQL remains loopback-only.
 
+Backup/DNS preparation completed at approximately 11:30 ET:
+
+- a1347-d has restricted read-only SSH access to three separate target backup
+  directories, limited to source IP 192.168.4.33. Existing SSH keys were preserved;
+  no private key left a1347-d. The target host key was obtained over authenticated
+  SSH and pinned. Shell commands, write-mode rsync, and directory traversal were
+  rejected in live checks. HomeOps's existing absolute backup path is translated
+  safely within its restricted export root. Current production pulls still use
+  their original hosts; target StockWatch correctly has no finalized backup yet.
+- Both PostgreSQL rehearsal dumps were pulled through the new restricted key and
+  restored into an isolated, password-protected PostgreSQL 16 cluster on a1347-d
+  at loopback port 55439. JobWatch's 15 and Radar's 22 table fingerprints all
+  matched. The cluster is now stopped; production PostgreSQL on 5432 stayed up.
+  HDD checkpoint flushing took slightly over the initial 60-second shutdown wait;
+  clean shutdown was confirmed in its log, and the helper now waits up to 300s.
+- `app-postgres-backups.py` and a disabled 08:30 UTC create timer are installed
+  on a1347-m. A 09:15 UTC pull cron entry is staged, NOT installed, on a1347-d
+  (which has no user linger). Explicit cutover markers gate both commands; the
+  create command's refusal was verified. New snapshots publish only after
+  source fingerprints, checksums, and archive-listing checks. Pulls reject stale
+  snapshots. No backup pruning is enabled; a 50 GiB free-space reserve applies.
+  Routine validation passed against both real rehearsal archives and is reported
+  distinctly from the isolated full restore test. Scheduling activation and its
+  first production run remain cutover tasks.
+- `homeops-relocated-configs/` on a1347-m contains a private preview generated
+  from all five ACTUAL collector configs and the current server config. All
+  credentials and state paths match their sources; relocation is idempotent.
+  Preview includes eight sites and 21 backup policies, including local/off-host
+  PostgreSQL backup status collection. Source hashes allow drift checks before
+  publishing. No live config or collector state was replaced.
+- `switch-app-dns-root.py` is staged on a1990. Dry-run diff changes only logs,
+  stockwatch, jobwatch, and radar home.arpa records to a1347-m, preserving Sandbox
+  records and upstream resolvers. Default execution is review-only; `--apply`
+  requires root, an outside-market-hours window, and successful destination app
+  and worker readiness. Existing unit is backed up; restart failure rolls back.
+- `postgres-final-restore.mjs` is staged on a1347-m. Unlike the rehearsal tool,
+  it accepts only the two intended production databases, refuses market hours,
+  active destination services, existing activation markers, or nonempty databases,
+  and checks app schema, dump checksum, and restored row fingerprints. Operator
+  must first verify source writers are stopped and pass `--source-writers-stopped`.
+  This script has not restored either production database yet.
+- All four original applications passed health/page checks after this work;
+  StockWatch's seven source timers remain active, target app units remain inactive,
+  and logs.home.arpa still resolves to a1990. Fourteen migration regression tests
+  and the HomeOps relocation regression passed. Unrelated HomeOps edits remain
+  outside these migration commits.
+
 Prepared locally:
 
 - `stage-app-runtime.mjs`: preserves source env settings and credentials while
