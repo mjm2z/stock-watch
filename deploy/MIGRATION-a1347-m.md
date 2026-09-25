@@ -14,6 +14,21 @@ StockWatch's seven production timers are active; do not interrupt market hours.
 
 Prepared locally:
 
+- `stage-app-runtime.mjs`: preserves source env settings and credentials while
+  changing only target database/address settings. Protected runtime configs now
+  exist under `~/.config/{job-watch,app-demand-radar}/runtime.env` on a1347-m,
+  mode 600 inside mode-700 directories. No app starts or database writes.
+  Source configs are retained in private staging. Recheck source changes before
+  final cutover; canonical code directories and service activation are pending.
+- `prepare-app-access-root.sh`: staged for administrator execution on a1347-m;
+  preserves a root-only copy of existing UFW configuration, installs ACL support,
+  grants directory traversal for finalized StockWatch backup pulls, and places
+  trusted-LAN/loopback allowances before denies for the four app ports. Refuses
+  an inactive firewall or unexpected PostgreSQL listener. No app starts or DNS
+  changes. Existing source production services remain untouched.
+- `verify-artifact-export.py`: checks all file sizes and SHA-256 hashes against
+  the export manifest, rejecting missing, extra, nonregular, or changed files.
+  Tests include same-size corruption and missing/extra artifacts.
 - `render-app-services.py`: renders 29 disabled JobWatch/Radar service/timer files
   without installing them. Staged bundle `service-units-v2` passes systemd unit
   validation. All units require an explicit per-app cutover marker. Radar's
@@ -78,11 +93,21 @@ checks passed on loopback port 15210. No collectors or notification jobs ran.
 Existing locked
 dependencies report three high frontend advisories and were not upgraded as
 part of the move. StockWatch's 34,959,163,392-byte snapshot transfer completed.
-Full SQLite integrity/table/FK checks on a1347-m and independent source SHA-256
-on a1347-d are in progress; it is not yet a verified destination recovery point.
+Full SQLite integrity/table/FK checks passed on a1347-m (zero FK violations),
+and its SHA-256 matches the independent source checksum on a1347-d:
+`6203b6192472e699385d84097119905444b7521a18bc8245c37603384da8ebc6`.
+An isolated loopback dashboard and six read-only APIs (overview, portfolio,
+operations, signals, backtests, research) returned HTTP 200, under one second
+each. The rehearsal server was stopped afterward; no worker/broker credentials
+or schedules were supplied.
 Source backup and live database remain intact. The protected source inventory
 also contains 10,381 artifact files totaling 2,655,719,937 bytes; these need their
-own rehearsal export and a final export after writers stop. Source configuration
+own final export after writers stop. The separate rehearsal artifact export
+completed on a1347-j and is transferring to a1347-m; per-file destination
+checksum validation is pending. This newer rehearsal contains 10,512 files and
+2,665,607,415 bytes; source manifest SHA-256 is
+`c44fa8a305f5e30f137d6ee3da7f540918834f89e06ef7f295279db67da455e6`.
+Source configuration
 and exact deployed system unit definitions have been copied to protected staging.
 Destination `/opt/stock-watch` is built, and its web service and timers remain
 disabled/inactive. Seven source timers remain active on a1347-j.
