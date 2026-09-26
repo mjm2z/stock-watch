@@ -70,8 +70,11 @@ def main():
     if opened.returncode not in (0,1) or opened.stdout.strip():
         raise RuntimeError('Database has open handles; inspect before snapshot')
     def signature():
+        # A read-only connection may create an empty WAL sidecar. It contains
+        # no transactions; still reject any main-file or nonempty-WAL change.
         return {str(p):(p.stat().st_size,p.stat().st_mtime_ns) for p in
-                (database,Path(str(database)+'-wal')) if p.exists()}
+                (database,Path(str(database)+'-wal')) if p.exists() and
+                (p==database or p.stat().st_size>0)}
     before=signature()
     spec=importlib.util.spec_from_file_location('snapshot',Path(__file__).with_name('sqlite-migration-snapshot.py'))
     snapshot=importlib.util.module_from_spec(spec);spec.loader.exec_module(snapshot)

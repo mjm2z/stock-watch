@@ -58,7 +58,11 @@ def main():
     parser=argparse.ArgumentParser(description=__doc__)
     parser.add_argument('export',type=Path)
     parser.add_argument('--use-verified-transfer-copy',action='store_true')
+    parser.add_argument('--activate',action='store_true',help='After publication, check HomeOps readiness and enable only the recorded source web/timers')
+    parser.add_argument('--source-writers-stopped',action='store_true')
     args=parser.parse_args()
+    if args.activate and not args.source_writers_stopped:
+        raise SystemExit('Activation requires fresh source stop verification and --source-writers-stopped')
     if os.geteuid()!=0 or socket.gethostname().split('.')[0]!='a1347-m':
         raise SystemExit('Run as root on a1347-m only')
     freeze=load('freeze','final-stockwatch-export-root.py')
@@ -163,6 +167,9 @@ def main():
         published_at=datetime.now(ZoneInfo('UTC')).isoformat()),indent=2)+'\n')
     print('Final database, artifacts, config and source units installed. No services started.',flush=True)
     print('Before activation, confirm source is still stopped and reconcile pending paper-order state.')
+    if args.activate:
+        activation=load('activation','activate-stockwatch-root.py')
+        activation.activate(source)
 
 
 if __name__=='__main__': main()

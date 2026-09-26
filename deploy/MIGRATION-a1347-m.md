@@ -1,6 +1,6 @@
 # Application consolidation: a1347-m
 
-## Execution status — 2026-09-25
+## Execution status — 2026-09-26
 
 Production cutover **started after market hours on September 25**. JobWatch's
 source web and worker LaunchAgents are disabled/unloaded; a final consistent
@@ -26,14 +26,33 @@ checks, another-LAN-host/loopback health, and supervised restart passed.
 Shared PostgreSQL/Data Engine on a1347-d remain up. A source-retired marker and
 startup/deployment guards prevent restarting the stale source.
 
-HomeOps still runs on a1990. StockWatch's source web and all seven timers are
-now stopped on a1347-j after the user's successful final export. HomeOps's
-live site and collector configs were narrowly updated for JobWatch/Radar only;
-credentials, collector databases/cursors, endpoints, other apps and existing
-backup policies were preserved. Direct IP app links work before DNS handoff.
-Each changed live config has a `before-app-cutover-20260925` recovery copy.
-The original full-relocation preview was archived, then regenerated from the
-updated actual configs for the remaining move. DNS is unchanged.
+HomeOps is now authoritative at http://192.168.4.35:9100. The source a1990
+web/network services and backup timer are disabled and stopped; its collector,
+Sandbox, and DNS remain running. Final snapshot `homeops-final-20260926T040602Z`
+contains 21 tables in 1,468,100,608 bytes, SHA-256
+`265a0939bc1bc95d2fc7b9881190806e914812071c5f74b1be2d92df9c0c2b92`.
+Two frozen snapshots were byte-identical. The first drain's stability guard
+reacted to an empty SQLite WAL; a repeated snapshot and source-stability check
+confirmed the data before transfer. Destination bytes match the source manifest.
+The source database and both frozen copies remain retained.
+
+The exact deployed Python modules and dashboard assets were preserved. Original
+web/network/backup units are enabled on M with the source timer timestamp.
+All five collector configs now use the direct LAN endpoint (Linux resolvers did
+not resolve the local browser names); credentials and local queues were preserved.
+Config predecessors remain as `before-homeops-final-20260926` copies. The generator
+host default is M. The notifier and existing M watchdog are running against M,
+with their state preserved. Independent watchdog activation on J remains pending;
+do not activate it concurrently with the old watchdog. DNS still points to a1990;
+use the direct IP links until its guarded privileged switch completes.
+
+Fourteen earlier HomeOps/StockWatch off-host SQLite recovery points on D were
+hard-linked outside routine retention into
+`app-migration-20260924/pre-cutover-offhost-recovery`, with copied metadata and
+an inode/size manifest. Retain these for at least 30 days. D's collector config
+and narrowly deployed StockWatch backup module now select M. The first new
+HomeOps snapshot is running; verify its explicit success receipt and subsequent
+D integrity-checked pull before calling the new HomeOps backup chain verified.
 
 The daily 08:30 UTC PostgreSQL snapshot timer is enabled on a1347-m. The first
 production backup completed at 20:20 ET; its independent a1347-d pull completed
@@ -47,7 +66,7 @@ Autobot's protected runtime TREND_RADAR_URL now points to a1347-m, with its old
 env retained privately in staging. Its existing service was reloaded, retaining
 message offsets/state; no test notification was sent. HomeOps's live network
 view reports JobWatch readiness, worker health and Radar reachable on the new
-host. Nineteen migration regression tests pass; Radar's actual-rsync deployment
+host. Twenty-one migration regression tests pass; Radar's actual-rsync deployment
 preservation fixture and all deployment shell syntax checks pass.
 
 StockWatch final export `stockwatch-final-20260926T012033Z` completed at 02:23 UTC
@@ -57,7 +76,12 @@ All 10,582 artifacts (2,670,543,883 bytes) passed verification. The private
 paper-state receipt records no pending orders and a matching last reconciliation.
 The source's exact enabled unit set and persistent timer timestamps are retained.
 Original database/artifacts remain on a1347-j; no target StockWatch writers start.
-Database compression/roundtrip verification and final transfer are in progress.
+Database compression, roundtrip verification, transfer, and destination
+uncompressed SHA-256 verification completed. All artifacts were unpacked and
+checksum-verified on M. The compressed DB recovery archive is 5,073,850,531 bytes,
+SHA-256 `112b1ea0c7aacdad260d3f98b93382ca303149a1ceb6cb3b9ebea6d3056d1ae3`.
+The temporary source-restricted rsync SSH authorization was revoked after transfer;
+its temporary private/public key and dedicated known-hosts file were removed on M.
 The artifact/config archive is 2,630,032,089 bytes, SHA-256
 `9cb01866001e29c475a9de9d818c21e4a36c7b1b67111ff869d15d3202b52a42`.
 
@@ -65,13 +89,14 @@ The StockWatch publisher supports `--use-verified-transfer-copy`: it verifies
 both the compressed recovery archive and decompressed database against the
 source manifest, then exclusively publishes that file without a second full
 database copy. The compressed recovery copy and original source-host data remain.
-No services start. Corrupted archive/database refusal tests pass.
+Without `--activate`, no services start. With `--activate
+--source-writers-stopped`, successful publication is followed by HomeOps readiness,
+StockWatch web readiness, and enabling only the original recorded timer set.
+Corrupted archive/database refusal and enabled-unit allowlist tests pass.
+Target publication/activation still requires the user's sudo password. J's web
+and timers were reconfirmed inactive after final transfer. M had 430 GB free and
+6.4 GiB available memory before StockWatch activation.
 
-HomeOps's deployed Python modules match between source and destination. The
-exact source dashboard is staged, and four disabled, marker-gated user units
-are installed on a1347-m. The source drain helper is staged on a1990; its default
-read-only preflight passed. Final drain requires both `--freeze-export` and
-`--notifier-stopped`; it has not run. Source HomeOps remains available.
 
 Actual resolver checks found Linux hosts cannot resolve logs.home.arpa; the Mac
 can. Collector relocation now uses verified IP http://192.168.4.35:9100, while
