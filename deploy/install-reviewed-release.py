@@ -83,10 +83,56 @@ def verify_environment_files(source, manifest):
                 raise RuntimeError('Environment example differs from reviewed source')
 
 
+def deployment_plan(source, runtime, database, force_backup=False):
+    """Require exact migration history for code-only deployment; never hide drift."""
+    staged = {p.stem: p.read_bytes() for p in (source / 'worker/migrations').glob('*.sql')}
+    installed = {p.stem: p.read_bytes() for p in (runtime / 'worker/migrations').glob('*.sql')}
+    if not staged or not installed:
+        raise RuntimeError('Cannot establish installed migration history')
+    with closing(sqlite3.connect(database.as_uri() + '?mode=ro', uri=True)) as db:
+        applied = {row[0] for row in db.execute('SELECT version FROM schema_migrations')}
+    for version in applied:
+        if version not in staged or version not in installed or staged[version] != installed[version]:
+            raise RuntimeError('Applied migration removed or changed: ' + version)
+    pending = sorted(set(staged) - applied)
+    # Initialization changes can alter seeded data without adding SQL. Treat these
+    # conservatively; code-only installs never run init or seeding.
+    initialization_changed = any(
+        not (runtime / name).is_file() or (source / name).read_bytes() != (runtime / name).read_bytes()
+        for name in ('worker/src/stock_watch_worker/database.py',
+                     'worker/src/stock_watch_worker/systems/cli.py'))
+    full = bool(force_backup or pending or initialization_changed)
+    return {'mode': 'database' if full else 'code-only', 'pending_migrations': pending,
+            'initialization_changed': initialization_changed, 'forced_backup': force_backup}
+
+
+def preserve_database(database, recovery, plan):
+    with closing(sqlite3.connect(database.as_uri() + '?mode=ro', uri=True)) as old:
+        before = counts(old)
+        authority_before = authority(old)
+        if plan['mode'] == 'database':
+            print('Creating a fresh recovery database; originals are retained.', flush=True)
+            last = [0.0]
+            def progress(status, remaining, total):
+                if time.monotonic() - last[0] > 10:
+                    print(f'Backup copied {total-remaining}/{total} pages...', flush=True)
+                    last[0] = time.monotonic()
+            with closing(sqlite3.connect(recovery / 'stock-watch.db')) as backup:
+                old.backup(backup, pages=4096, progress=progress)
+                print('Verifying fresh recovery database...', flush=True)
+                if backup.execute('PRAGMA quick_check').fetchall() != [('ok',)] or counts(backup) != before:
+                    raise RuntimeError('Backup verification failed; release not installed')
+            (recovery / 'backup-verified.json').write_text(json.dumps({'counts': before, 'verified': True}))
+        else:
+            print('Code-only release: database backup and initialization skipped; existing database retained.', flush=True)
+    return before, authority_before
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('source', type=Path)
     parser.add_argument('--check', action='store_true', help='Verify staging without changing files or services')
+    parser.add_argument('--full-backup', action='store_true', help='Force a verified database recovery copy, even without pending migrations')
     args = parser.parse_args()
     if socket.gethostname().split('.')[0] != 'a1347-m' or (os.geteuid() != 0 and not args.check):
         raise SystemExit('Run on a1347-m; installation requires root')
@@ -110,12 +156,16 @@ def main():
         return
     runtime = Path('/opt/stock-watch')
     database = Path('/var/lib/stock-watch/stock-watch.db')
+    plan = deployment_plan(source, runtime, database, args.full_backup)
+    print('Deployment plan: ' + json.dumps(plan), flush=True)
     stamp = datetime.now(ZoneInfo('UTC')).strftime('%Y%m%dT%H%M%SZ')
     recovery = Path('/var/backups/stock-watch-releases') / stamp
-    if shutil.disk_usage('/').free < database.stat().st_size + 20 * 1024**3:
+    backup_bytes = database.stat().st_size if plan['mode'] == 'database' else 0
+    if shutil.disk_usage('/').free < backup_bytes + 20 * 1024**3:
         raise RuntimeError('Insufficient room for fresh backup and reserve')
     os.umask(0o077)
     recovery.mkdir(parents=True)
+    (recovery / 'deployment-plan.json').write_text(json.dumps(plan, indent=2))
     shutil.copytree('/etc/stock-watch', recovery / 'config')
     units = output('systemctl', 'list-unit-files', 'stock-watch-*', '--no-legend').splitlines()
     timers = [line.split()[0] for line in units if line.split()[0].endswith('.timer')]
@@ -132,21 +182,10 @@ def main():
             raise RuntimeError('Jobs still active; timers remain stopped. Review before retrying.')
         time.sleep(5)
     run('systemctl', 'stop', 'stock-watch-web.service')
-    print('Writers stopped. Creating a fresh recovery database; originals are retained.', flush=True)
-    last = [0.0]
-    def progress(status, remaining, total):
-        if time.monotonic() - last[0] > 10:
-            print(f'Backup copied {total-remaining}/{total} pages...', flush=True)
-            last[0] = time.monotonic()
-    with closing(sqlite3.connect(database.as_uri() + '?mode=ro', uri=True)) as old:
-        before = counts(old)
-        authority_before=authority(old)
-        with closing(sqlite3.connect(recovery / 'stock-watch.db')) as backup:
-            old.backup(backup, pages=4096, progress=progress)
-            print('Verifying fresh recovery database...', flush=True)
-            if backup.execute('PRAGMA quick_check').fetchall() != [('ok',)] or counts(backup) != before:
-                raise RuntimeError('Backup verification failed; release not installed')
-    (recovery / 'backup-verified.json').write_text(json.dumps({'counts': before, 'verified': True}))
+    # Recheck after draining writers, before replacing any runtime files.
+    if deployment_plan(source, runtime, database, args.full_backup) != plan:
+        raise RuntimeError('Migration state changed during drain; review before retrying')
+    before, authority_before = preserve_database(database, recovery, plan)
     previous = runtime.with_name('stock-watch.before-' + stamp)
     runtime.rename(previous)
     os.umask(0o022)
@@ -167,8 +206,9 @@ def main():
         text = text.replace('SYSTEMS_OPERATOR_TOKEN=\n', 'SYSTEMS_OPERATOR_TOKEN=' + secrets.token_urlsafe(48) + '\n')
         env.write_text(text)
     # Only additive systems migration/seeding; legacy strategy authority is unchanged.
-    run('runuser', '-u', 'stock-watch', '--', str(runtime / '.venv/bin/stock-watch-systems'),
-        '--database', str(database), 'init')
+    if plan['mode'] == 'database':
+        run('runuser', '-u', 'stock-watch', '--', str(runtime / '.venv/bin/stock-watch-systems'),
+            '--database', str(database), 'init')
     with closing(sqlite3.connect(database.as_uri() + '?mode=ro', uri=True)) as current:
         current_counts=counts(current)
         if any(current_counts.get(key)!=value for key,value in before.items()):
@@ -176,7 +216,7 @@ def main():
         authority_after=authority(current,authority_before)
         if any(authority_after.get(key)!=value for key,value in authority_before.items()):
             raise RuntimeError('Existing trading authority changed during migration; services remain stopped')
-    run('bash', str(runtime / 'deploy/install-systems-root.sh'))
+    run('bash', str(runtime / 'deploy/install-systems-root.sh'), '--skip-init')
     for mode in ('enabled', 'enabled-runtime'):
         selected = [unit for unit, state in enabled.items() if state == mode]
         if selected:
@@ -193,6 +233,7 @@ def main():
         else:
             raise RuntimeError('Release readiness failed: ' + route)
     receipt = {'revision': manifest['revision'], 'recovery': str(recovery),
+               'deployment_plan': plan, 'database_backup_created': plan['mode'] == 'database',
                'previous_runtime': str(previous), 'legacy_counts': before,
                'installed_at': datetime.now(ZoneInfo('UTC')).isoformat()}
     (runtime / 'installed-release.json').write_text(json.dumps(receipt, indent=2))

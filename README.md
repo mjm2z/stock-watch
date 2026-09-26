@@ -743,23 +743,17 @@ Cadence is a target after service completion, not a promise that API calls or ex
 
 ### Reviewed release process
 
-The full installer is [install-reviewed-release.py](deploy/install-reviewed-release.py). It:
+The installer is [install-reviewed-release.py](deploy/install-reviewed-release.py). It selects a deployment mode automatically after checking the reviewed files:
 
-1. Validates the staged release manifest, required files, and environment-file restrictions.
-2. Checks capacity for a fresh database backup plus reserve.
-3. Records enabled timers and protects runtime configuration.
-4. Stops timers and waits for existing writers to drain.
-5. Stops the web service.
-6. Uses SQLite's backup API to create a consistent recovery database.
-7. Runs an integrity check and compares retained ledger counts.
-8. Preserves the previous runtime directory.
-9. Installs the reviewed web build and prebuilt worker wheel.
-10. Applies additive migrations and idempotent baseline seeding.
-11. Checks old ledger counts and existing authority against the pre-migration snapshot.
-12. Installs research/monitoring units and restores previously enabled timer states.
-13. Verifies application and new research routes before writing the installed-release receipt.
+- **Code-only:** all staged migrations are already applied and match the installed SQL exactly, and the database/CLI initialization code is unchanged. No database copy, full integrity scan, migration, or baseline seeding runs. Existing history stays in place. The installer still drains workers, briefly stops the web app, preserves the previous runtime and protected configuration, installs the build/wheel, compares ledger counts and trading authority, restores timers, and checks readiness.
+- **Database:** pending migrations or changed initialization code require a fresh SQLite recovery copy, integrity check, and ledger comparison before installing and initializing the release. A many-gigabyte database can take substantial time to copy and verify; this path still keeps writers offline during backup.
+- **Explicit recovery copy:** `--full-backup` requests the database path even for an otherwise code-only release. Use this for reviewed data-changing work outside normal SQL migrations. Never hide data migrations inside ordinary startup code.
 
-A many-gigabyte database can take substantial time to copy and verify. Do not terminate a healthy backup merely because its integrity-check phase is quiet. Use a durable terminal/session for installation; preserve its output and recovery directory.
+Applied migrations cannot be edited or removed. Unknown database migrations block downgrade deployment; add a new migration instead. The installer rechecks migration state after draining writers. `--check` verifies staged files only; the root installation determines the mode from the protected production database and prints its plan before stopping services.
+
+Both modes retain a 20 GiB free-space reserve; the database path additionally reserves room for the database copy. Both retain the previous code directory, configuration, enabled-timer record, and pre-install ledger counts. The receipt records `deployment_plan` and `database_backup_created`: a code-only recovery directory **does not contain a new database snapshot**. Keep scheduled backups and existing verified snapshots independently of release mode. A code rollback must preserve the current database and requires schema-compatible code; never overwrite new trading history with an old snapshot simply to roll back a UI update.
+
+Code-only releases avoid the lengthy backup phase, but worker drain, file installation, and readiness checks can still take time. Installation runs under a supervised systemd unit so SSH can disconnect safely. Watch its journal with `journalctl -fu stock-watch-release-<revision>.service`; Ctrl+C stops log watching only. Do not terminate a healthy migration backup merely because its integrity-check phase is quiet.
 
 The updated unit installer enables chart/discovery/research/watch-only timers. It **does not automatically enable a previously disabled Bitcoin execution timer**. After separate-account setup and policy/account review, the intended coordinator is `stock-watch-bitcoin-automation.timer`; do not also start a competing legacy Bitcoin owner.
 
