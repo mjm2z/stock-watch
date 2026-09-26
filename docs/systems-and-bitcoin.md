@@ -222,3 +222,9 @@ stopped before altering services or production data.
 
 Observe the next full trading day before final operational acceptance. New
 trading strategies require their separate explicit activation workflow.
+
+## Scheduled Bitcoin automation
+
+See [Bitcoin automation](bitcoin-automation.md) for migration 017, multiple timeframes,
+100-scenario scheduled qualification, shared allocations, and the separate installation
+and activation procedure. The v1 workflows above remain available for earlier results.

@@ -12,7 +12,7 @@ state=/var/lib/stock-watch/stock-watch.db
 [[ -f "$state" ]]
 # The CLI performs additive migration and seeds four immutable baseline templates.
 runuser -u stock-watch -- "$runtime/.venv/bin/stock-watch-systems" --database "$state" init
-for name in bitcoin-monitor bitcoin-trading systems-stock-shadow systems-stocks systems-research; do
+for name in bitcoin-monitor bitcoin-trading bitcoin-data bitcoin-automation systems-stock-shadow systems-stocks systems-research; do
   install -o root -g root -m 0644 "$runtime/deploy/systemd/stock-watch-$name.service" /etc/systemd/system/
   install -o root -g root -m 0644 "$runtime/deploy/systemd/stock-watch-$name.timer" /etc/systemd/system/
 done

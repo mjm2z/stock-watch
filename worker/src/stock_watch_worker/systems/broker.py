@@ -98,6 +98,17 @@ class CryptoBroker:
         return self.request('POST','/v2/orders',{'symbol':'BTC/USD','side':side,'type':'market',
                     'time_in_force':'gtc','qty':quantity,'client_order_id':client_id})
 
+    def fills(self, after):
+        results, token = [], None
+        for _ in range(100):
+            params = {'after':after,'direction':'asc','page_size':100}
+            if token: params['page_token'] = token
+            page = self.request('GET','/v2/account/activities/FILL?'+urlencode(params))
+            results.extend(page)
+            if len(page) < 100: return results
+            token = page[-1]['id']
+        raise ValueError('Fill activity history exceeds pagination limit')
+
     def cancel(self, identifier):
         return self.request('DELETE','/v2/orders/'+quote(identifier,safe=''))
 

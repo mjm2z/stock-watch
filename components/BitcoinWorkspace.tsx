@@ -14,19 +14,22 @@ const button = 'min-h-11 rounded border px-3 py-2 text-sm disabled:opacity-50'
 export function BitcoinWorkspace({ view }: { view: string }) {
   const [data, setData] = useState<Row>({})
   const [systems, setSystems] = useState<Row>({})
+  const [automation, setAutomation] = useState<Row>({})
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
   const [authorized, setAuthorized] = useState(false)
   const refresh = useCallback(async () => {
     try {
-      const [networkResponse, systemResponse] = await Promise.all([
+      const [networkResponse, systemResponse, automationResponse] = await Promise.all([
         fetch('/api/bitcoin'),
         fetch('/api/systems?asset=bitcoin'),
+        fetch('/api/systems/bitcoin').catch(() => null),
       ])
       const [network, system] = await Promise.all([networkResponse.json(), systemResponse.json()])
       if (!networkResponse.ok || !systemResponse.ok) throw new Error(network.error || system.error)
       setData(network)
       setSystems(system)
+      if (automationResponse?.ok) setAutomation(await automationResponse.json())
       setError('')
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Monitoring unavailable.')
@@ -48,6 +51,12 @@ export function BitcoinWorkspace({ view }: { view: string }) {
   const observations = (systems.observations || []) as Row[]
   const portfolio = observations.find((o) => o.kind === 'portfolio')
   const position = object(portfolio?.payload_json)
+  const account = object(automation.account)
+  const automatedVersions = (automation.versions || []) as Row[]
+  const orders = [
+    ...((automation.orders || []) as Row[]),
+    ...((systems.orders || []) as Row[]),
+  ].sort((a, b) => String(b.created_at).localeCompare(String(a.created_at)))
   const stale =
     !network.observed_at || Date.now() - Date.parse(String(network.observed_at)) > 180000
   async function mutate(body: Row) {
@@ -125,7 +134,48 @@ export function BitcoinWorkspace({ view }: { view: string }) {
       {view === 'overview' || view === 'paper' ? (
         <section className="space-y-3 rounded-xl border p-5">
           <h2 className="text-xl font-semibold">Paper performance</h2>
-          {portfolio ? (
+          {account.id ? (
+            <>
+              <div className="grid gap-4 sm:grid-cols-3">
+                <Metric
+                  title="Conservative net equity"
+                  value={
+                    account.equity == null
+                      ? 'Awaiting a price check'
+                      : `$${Number(account.equity).toFixed(2)}`
+                  }
+                />
+                <Metric
+                  title="Funded systems"
+                  value={String(automatedVersions.filter((v) => v.budget != null).length)}
+                />
+                <Metric
+                  title="Drawdown from peak"
+                  value={
+                    account.equity == null
+                      ? 'Unavailable'
+                      : `${((1 - Number(account.equity) / Number(account.high_water)) * 100).toFixed(2)}%`
+                  }
+                />
+              </div>
+              <p className="text-sm">
+                {account.risk_paused
+                  ? 'Risk paused · owned exits remain active'
+                  : 'Shared Bitcoin paper account'}{' '}
+                ·{' '}
+                {account.checked_at
+                  ? `Price check ${String(account.checked_at)}`
+                  : 'Waiting for the coordinator'}
+              </p>
+              <p className="text-sm text-muted-foreground">
+                Balances reserve estimated fees until settlement.{' '}
+                <Link className="underline" href="/systems?asset=bitcoin">
+                  Review qualification, allocations, and reconciliation
+                </Link>
+                .
+              </p>
+            </>
+          ) : portfolio ? (
             <>
               <div className="grid gap-4 sm:grid-cols-3">
                 <Metric
@@ -162,6 +212,18 @@ export function BitcoinWorkspace({ view }: { view: string }) {
       {view === 'overview' || view === 'signals' ? (
         <section className="space-y-3">
           <h2 className="text-xl font-semibold">Latest rule decisions</h2>
+          {automatedVersions
+            .filter((v) => v.last_decision_at)
+            .map((v) => (
+              <article key={String(v.id)} className="rounded-lg border p-4 text-sm">
+                <p className="font-medium">
+                  {String(v.template)} · {String(v.id).slice(0, 8)} ·{' '}
+                  {String(object(v.paper_state_json).last_action || 'hold')}
+                </p>
+                <p>{String(object(v.paper_state_json).last_reason || v.reason || '')}</p>
+                <p className="text-muted-foreground">{String(v.last_decision_at)}</p>
+              </article>
+            ))}
           {observations
             .filter((o) => ['shadow', 'decision', 'error', 'warning'].includes(String(o.kind)))
             .slice(0, 10)
@@ -214,10 +276,8 @@ export function BitcoinWorkspace({ view }: { view: string }) {
       {view === 'paper' && (
         <section className="space-y-3">
           <h2 className="text-xl font-semibold">Orders and actual fills</h2>
-          {((systems.orders || []) as Row[]).length === 0 && (
-            <p className="text-muted-foreground">No Bitcoin paper orders.</p>
-          )}
-          {((systems.orders || []) as Row[]).map((o) => (
+          {orders.length === 0 && <p className="text-muted-foreground">No Bitcoin paper orders.</p>}
+          {orders.map((o) => (
             <article key={String(o.id)} className="rounded-lg border p-4 text-sm">
               <p className="font-medium">
                 {String(o.side)} BTC/USD · {String(o.status)}
@@ -227,6 +287,14 @@ export function BitcoinWorkspace({ view }: { view: string }) {
                 {o.filled_price ? ` at $${Number(o.filled_price).toLocaleString()}` : ''}
               </p>
               <p className="text-xs text-muted-foreground">{String(o.updated_at)}</p>
+              {!!o.evaluation_id && (
+                <Link
+                  className="underline"
+                  href={`/systems?asset=bitcoin#evaluation-${String(o.evaluation_id)}`}
+                >
+                  Review entry evidence
+                </Link>
+              )}
             </article>
           ))}
         </section>
@@ -248,6 +316,13 @@ export function BitcoinWorkspace({ view }: { view: string }) {
           </p>
           <p className="text-sm">
             Paper/shadow deployments: {((systems.deployments || []) as Row[]).length}
+          </p>
+          <p className="text-sm">
+            Enrolled automation versions: {automatedVersions.filter((v) => v.active).length}.{' '}
+            <Link className="underline" href="/systems?asset=bitcoin">
+              Open worker health and evaluations
+            </Link>
+            .
           </p>
           <p className="text-sm text-muted-foreground">
             A recent observation confirms a completed collection, not that a timer is currently

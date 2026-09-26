@@ -21,6 +21,8 @@ def start_shadow(db, version_id):
     version = db.execute('SELECT * FROM system_versions WHERE id=?',(version_id,)).fetchone()
     if not version:
         raise ValueError('Unknown system version')
+    if json.loads(version['config_json']).get('protocol'):
+        raise ValueError('Use Bitcoin automation enrollment for version-two systems')
     identifier = str(uuid.uuid4())
     with db:
         db.execute('INSERT INTO system_deployments(id,version_id,mode,started_at) VALUES (?,?,?,?)',
@@ -30,6 +32,8 @@ def start_shadow(db, version_id):
 
 
 def activation_checks(db, identifier, broker, now):
+    if db.execute("SELECT 1 FROM sqlite_master WHERE name='btc_accounts'").fetchone() and db.execute('SELECT 1 FROM btc_accounts').fetchone():
+        raise ValueError('Bitcoin account is owned by the shared automation coordinator')
     row = db.execute('SELECT d.*,v.asset FROM system_deployments d JOIN system_versions v ON v.id=d.version_id WHERE d.id=?',(identifier,)).fetchone()
     if not row or row['asset'] != 'bitcoin':
         raise ValueError('Bitcoin paper activation requires a Bitcoin deployment')

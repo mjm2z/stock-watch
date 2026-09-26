@@ -11,6 +11,8 @@ readonly TIMER_UNITS=(
   stock-watch-universe.timer
   stock-watch-backup.timer
   stock-watch-bitcoin-monitor.timer
+  stock-watch-bitcoin-data.timer
+  stock-watch-bitcoin-automation.timer
   stock-watch-bitcoin-trading.timer
   stock-watch-systems-stock-shadow.timer
   stock-watch-systems-stocks.timer
@@ -26,6 +28,8 @@ readonly SERVICE_UNITS=(
   stock-watch-assets.service
   stock-watch-backup.service
   stock-watch-bitcoin-monitor.service
+  stock-watch-bitcoin-data.service
+  stock-watch-bitcoin-automation.service
   stock-watch-bitcoin-trading.service
   stock-watch-systems-stock-shadow.service
   stock-watch-systems-stocks.service

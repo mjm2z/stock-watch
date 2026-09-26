@@ -1,0 +1,11 @@
+[Unit]
+Description=Schedule Stock Watch bitcoin-data
+
+[Timer]
+OnBootSec=30s
+OnUnitInactiveSec=10s
+AccuracySec=1s
+Unit=stock-watch-bitcoin-data.service
+
+[Install]
+WantedBy=timers.target

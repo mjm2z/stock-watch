@@ -28,7 +28,9 @@ function audit(
 export function readSystems(asset: AssetScope) {
   return researchDatabase(false, (db) => ({
     versions: db
-      .prepare('SELECT * FROM system_versions WHERE asset=? ORDER BY created_at DESC')
+      .prepare(
+        "SELECT * FROM system_versions WHERE asset=? AND json_extract(config_json,'$.protocol') IS NULL ORDER BY created_at DESC"
+      )
       .all(asset),
     datasets: db
       .prepare(
@@ -148,6 +150,11 @@ export function writeSystems(body: Record<string, unknown>) {
       } else if (action === 'backtest') {
         const version = string(body.version, 'version')
         const dataset = string(body.dataset, 'dataset')
+        const config = db.prepare('SELECT config_json FROM system_versions WHERE id=?').get(version)
+        if (config && JSON.parse(String(config.config_json)).protocol)
+          throw new SystemsInputError(
+            'Version-two Bitcoin systems use scheduled scenario evaluations.'
+          )
         const matching = db
           .prepare(
             'SELECT 1 FROM system_versions v JOIN system_datasets d ON d.asset=v.asset WHERE v.id=? AND d.id=?'
@@ -172,6 +179,9 @@ export function writeSystems(body: Record<string, unknown>) {
         ).run(id)
       } else if (action === 'shadow') {
         const version = string(body.version, 'version')
+        const config = db.prepare('SELECT config_json FROM system_versions WHERE id=?').get(version)
+        if (config && JSON.parse(String(config.config_json)).protocol)
+          throw new SystemsInputError('Start collection from Bitcoin automation for this version.')
         if (!db.prepare('SELECT 1 FROM system_versions WHERE id=?').get(version))
           throw new SystemsInputError('Unknown version.')
         const asset = db.prepare('SELECT asset FROM system_versions WHERE id=?').get(version)?.asset

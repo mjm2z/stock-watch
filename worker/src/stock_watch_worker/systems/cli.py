@@ -4,6 +4,7 @@ from dataclasses import asdict
 from datetime import datetime, timezone
 import fcntl
 import json
+import time
 from pathlib import Path
 
 from ..database import apply_migrations, connect
@@ -102,6 +103,8 @@ def main(argv=None):
     commands.add_parser('run-next')
     commands.add_parser('monitor')
     commands.add_parser('tick')
+    commands.add_parser('automation-tick')
+    commands.add_parser('automation-data')
     commands.add_parser('stock-shadow')
     commands.add_parser('stock-tick')
     build = commands.add_parser('build-dataset')
@@ -127,7 +130,7 @@ def main(argv=None):
     args = parser.parse_args(argv)
     # Each command family has a process lock. A terminated runner leaves an explicit
     # failed run rather than permanently blocking the job queue.
-    lock_name = 'tick' if args.command in ('activate','tick') else args.command
+    lock_name = 'tick' if args.command in ('activate','tick','automation-tick') else args.command
     with Path(str(args.database)+'.systems-'+lock_name+'.lock').open('a') as lock:
         fcntl.flock(lock,fcntl.LOCK_EX)
         db = connect(args.database)
@@ -137,6 +140,13 @@ def main(argv=None):
                 for asset in ('stocks','bitcoin'):
                     for template in ('trend','breakout'):
                         register_version(db,SystemConfig(asset,template),'Frozen baseline hypothesis: trend persistence after costs; invalidate on weak out-of-sample results.')
+                # Explicit hourly v2 copies preserve every v1 hash and history.
+                from .automation_config import BitcoinConfig
+                for row in db.execute("SELECT * FROM system_versions WHERE asset='bitcoin'").fetchall():
+                    config=json.loads(row['config_json'])
+                    if not config.get('protocol'):
+                        config['allocation']=min(.5,config['allocation'])
+                        register_version(db,BitcoinConfig(**config),'Hourly automation copy of '+row['id']+'; '+row['hypothesis'])
             elif args.command == 'build-dataset':
                 from .datasets import bitcoin_dataset,stock_dataset,save_dataset
                 if args.asset=='bitcoin' and (not args.start or not args.end):
@@ -151,6 +161,25 @@ def main(argv=None):
                 with db:
                     db.execute("UPDATE system_runs SET status='failed',error='Worker interrupted; rerun explicitly',finished_at=? WHERE status='running'",(now_iso(),))
                 print(run_next(db))
+                if db.execute('SELECT 1 FROM btc_enrollments LIMIT 1').fetchone():
+                    from .history import connect_history
+                    from .automation_data import backfill_one,health
+                    from .evaluation import run_one
+                    history=connect_history(str(args.database)+'.bitcoin-history.db')
+                    try:
+                        try: backfill_one(db,history,CryptoBroker(),datetime.now(timezone.utc))
+                        except Exception as error: health(db,'backfill',datetime.now(timezone.utc),str(error)[:500])
+                        stop=time.monotonic()+45
+                        while time.monotonic()<stop and run_one(db,history): pass
+                    finally: history.close()
+            elif args.command in ('automation-tick','automation-data'):
+                from .history import connect_history
+                from .automation_data import collect_forward
+                from .coordinator import tick as automation_tick
+                history=connect_history(str(args.database)+'.bitcoin-history.db')
+                try:
+                    (automation_tick if args.command=='automation-tick' else collect_forward)(db,history,CryptoBroker(),datetime.now(timezone.utc))
+                finally: history.close()
             elif args.command == 'monitor':
                 BitcoinMonitor().collect(db)
             elif args.command == 'stock-tick':
