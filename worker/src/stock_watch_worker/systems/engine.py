@@ -127,19 +127,24 @@ def validate_dataset(data, asset):
     return rows
 
 
-def replay(config, data, *, cost_multiplier=1, start=None, end=None, canceled=lambda: False):
+def replay(config, data, *, cost_multiplier=1, start=None, end=None, canceled=lambda: False,
+           starting_cash=300., fee_multiplier=None, execution_multiplier=None):
     """Signals create pending intents; only subsequent quote events can fill them.
 
     Missing marks are flagged; they are never filled with a fabricated new price.
     Quotes are executable approximations, not a liquidity/partial-fill simulator.
     """
     rows = validate_dataset(data, config.asset)
-    cash, peak, drawdown = 300., 300., 0.
+    starting_cash=positive(starting_cash,'starting_cash')
+    cash, peak, drawdown = starting_cash, starting_cash, 0.
     holdings, history, marks, sectors, pending = {}, {}, {}, {}, {}
     events, fills, curve, warnings = [], [], [], set()
     planned, receivables = {}, {}
-    fee_rate = (.0025 if config.asset == 'bitcoin' else 0.) * cost_multiplier
-    slip = positive(data.get('slippage_bps', 5), 'slippage_bps') / 10000 * cost_multiplier
+    cost_multiplier=positive(cost_multiplier,'cost_multiplier')
+    if fee_multiplier is not None:fee_multiplier=positive(fee_multiplier,'fee_multiplier')
+    if execution_multiplier is not None:execution_multiplier=positive(execution_multiplier,'execution_multiplier')
+    fee_rate = positive(data.get('fee_multiplier',1),'dataset fee multiplier') * (.0025 if config.asset == 'bitcoin' else 0.) * (fee_multiplier if fee_multiplier is not None else cost_multiplier)
+    slip = positive(data.get('slippage_bps', 5), 'slippage_bps') / 10000 * (execution_multiplier if execution_multiplier is not None else cost_multiplier)
     if data['manifest'].get('fidelity') != 'intraday':
         warnings.add('Coarse execution data: exploratory only')
     risk_quotes = data.get('risk_quotes', []) if config.asset == 'bitcoin' else []
@@ -352,7 +357,7 @@ def replay(config, data, *, cost_multiplier=1, start=None, end=None, canceled=la
             curve.append({'at': at, 'equity': round(value, 6), 'cash': round(cash, 6)})
     final = equity()
     exposure = mean(1-p['cash']/p['equity'] for p in curve if p['equity']>0) if curve else 0
-    net = final/300-1
+    net = final/starting_cash-1
     if config.asset == 'stocks' and 'SPY (price return)' not in data.get('benchmarks',{}) and 'SPY' not in data.get('benchmarks',{}):
         warnings.add('SPY benchmark unavailable')
     if closed < 30:
@@ -364,10 +369,10 @@ def replay(config, data, *, cost_multiplier=1, start=None, end=None, canceled=la
         center=(proportion+z*z/(2*closed))/(1+z*z/closed)
         half=z*math.sqrt(proportion*(1-proportion)/closed+z*z/(4*closed*closed))/(1+z*z/closed)
         interval={'lower':center-half,'upper':center+half,'method':'Wilson 95%; does not adjust for correlated trades'}
-    return {'win_rate_interval':interval,'engine': ENGINE_VERSION, 'capital_model': 'closed_cash_pool', 'starting_cash': 300,
-            'ending_equity': final, 'net_return': final/300-1, 'maximum_drawdown': drawdown,
-            'fees': fees, 'turnover': turnover/300, 'average_exposure':exposure,
-            'cost_drag_from_fees':fees/300, 'net_return_above_cash':net, 'closed_trades': closed,
+    return {'execution_parameters':{'version':'cash-cost-overrides-v1','fee_rate':fee_rate,'slippage_rate':slip},'win_rate_interval':interval,'engine': ENGINE_VERSION, 'capital_model': 'closed_cash_pool', 'starting_cash': starting_cash,
+            'ending_equity': final, 'net_return': net, 'maximum_drawdown': drawdown,
+            'fees': fees, 'turnover': turnover/starting_cash, 'average_exposure':exposure,
+            'cost_drag_from_fees':fees/starting_cash, 'net_return_above_cash':net, 'closed_trades': closed,
             'win_rate': wins/closed if closed else None, 'risk_paused': paused,
             'open_positions': holdings, 'fills': fills, 'equity_curve': curve,
             'warnings': sorted(warnings), 'evidence': 'exploratory' if warnings or closed < 30 else 'review_required'}

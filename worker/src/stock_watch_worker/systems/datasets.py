@@ -22,7 +22,7 @@ def bitcoin_dataset(start, end, transport=None, timeframe="1Hour", canceled=lamb
     if not all(headers.values()): raise ValueError('Alpaca market-data credentials are required')
     bars,token = [],None
     for _ in range(12):
-        if canceled():raise ValueError('Backtest canceled during data collection')
+        if canceled():raise InterruptedError('Backtest canceled during data collection')
         params={'symbols':'BTC/USD','timeframe':timeframe,'start':start,'end':end,'limit':10000,'sort':'asc'}
         if token: params['page_token']=token
         response=transport.request('GET','https://data.alpaca.markets/v1beta3/crypto/us/bars?'+urlencode(params),headers=headers,timeout=30)

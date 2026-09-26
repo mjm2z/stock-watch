@@ -1,0 +1,9 @@
+[Unit]
+Description=Nightly StockWatch research (Eastern time)
+[Timer]
+OnCalendar=*-*-* 03:00:00 America/New_York
+Persistent=true
+AccuracySec=1min
+Unit=stock-watch-discovery.service
+[Install]
+WantedBy=timers.target

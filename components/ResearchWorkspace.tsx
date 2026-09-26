@@ -1,5 +1,7 @@
 'use client'
 import Link from 'next/link'
+import { ResearchActivity } from './ResearchActivity'
+import { ResearchControl } from './ResearchControl'
 import { useSearchParams } from 'next/navigation'
 import { useCallback, useEffect, useState } from 'react'
 import { PageHeader } from './PageHeader'
@@ -397,6 +399,17 @@ export function ResearchWorkspace({
       /* draft stays in memory */
     }
   }, [doc, name, draftId, storageKey, editing])
+  useEffect(() => {
+    const parent = params.get('revise')
+    if (!parent || editing) return
+    const version = data.versions.find((v) => v.id === parent)
+    if (version) {
+      setDoc(version.config as Document)
+      setName((version.hypothesis || 'System') + ' · Revision')
+      setDraftId('')
+      setEditing(true)
+    }
+  }, [params, data.versions, editing])
   async function command(body: Record<string, unknown>) {
     setBusy(true)
     setNotice('')
@@ -426,7 +439,13 @@ export function ResearchWorkspace({
     const d = await command({ action: 'save_draft', id: draftId || undefined, name, document: doc })
     if (d) {
       setDraftId(d.id)
-      if (publish) await command({ action: 'publish', draft: d.id })
+      if (publish)
+        await command({
+          action: 'publish',
+          draft: d.id,
+          parentVersion: params.get('revise') || undefined,
+          parentRun: params.get('run') || undefined,
+        })
     }
   }
   function edit(d?: Draft) {
@@ -1033,7 +1052,15 @@ export function ResearchWorkspace({
                       {r.status}
                       {r.error && <p className="sw-muted">{r.error}</p>}
                     </td>
-                    <td>{r.progress}%</td>
+                    <td>
+                      {r.progress}% ·{' '}
+                      <Link
+                        className="underline"
+                        href={'/systems/runs/' + r.id + '?asset=' + asset}
+                      >
+                        Evidence & outcome
+                      </Link>
+                    </td>
                     <td>
                       {['queued', 'running'].includes(r.status) && (
                         <button
@@ -1059,38 +1086,8 @@ export function ResearchWorkspace({
             ))}
         </div>
       </section>
-      <section className="sw-panel">
-        <div className="sw-panel-heading">
-          <h2>Activity</h2>
-          <span className="sw-muted">Latest 60 requests</span>
-        </div>
-        {data.jobs.length ? (
-          data.jobs.map((j) => (
-            <div key={j.id} className="border-t py-3 flex justify-between items-start gap-3">
-              <div>
-                <strong className="text-sm">
-                  {j.kind.replaceAll('_', ' ')} · {j.status}
-                </strong>
-                <p className="sw-muted">
-                  {new Date(j.created_at).toLocaleString()}
-                  {j.error ? ' · ' + j.error : ''}
-                </p>
-              </div>
-              {j.kind === 'backtest' && ['queued', 'running'].includes(j.status) && (
-                <button
-                  className="sw-button"
-                  disabled={disabled}
-                  onClick={() => command({ action: 'cancel', id: j.id })}
-                >
-                  Cancel
-                </button>
-              )}
-            </div>
-          ))
-        ) : (
-          <p className="sw-muted">Your saved commands and worker outcomes will appear here.</p>
-        )}
-      </section>
+      <ResearchActivity asset={asset} mode={mode} />
+      <ResearchControl asset={asset} />
       <p className="sw-muted">
         <Link className="underline" href={'/systems?asset=' + asset + '&legacy=1'}>
           Earlier research and deployments

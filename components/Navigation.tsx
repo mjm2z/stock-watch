@@ -34,8 +34,9 @@ export function Navigation() {
     path === '/bitcoin' ||
     params.get('asset') === 'bitcoin' ||
     params.get('asset') === 'crypto'
-  const section =
-    path === '/systems'
+  const section = path.startsWith('/systems/runs/')
+    ? 'backtesting'
+    : path.startsWith('/systems')
       ? 'systems'
       : path === '/backtesting' || path === '/backtests'
         ? 'backtesting'

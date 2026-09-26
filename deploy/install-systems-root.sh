@@ -12,7 +12,7 @@ state=/var/lib/stock-watch/stock-watch.db
 [[ -f "$state" ]]
 # The CLI performs additive migration and seeds four immutable baseline templates.
 runuser -u stock-watch -- "$runtime/.venv/bin/stock-watch-systems" --database "$state" init
-for name in bitcoin-monitor bitcoin-trading bitcoin-data bitcoin-automation systems-stock-shadow systems-stocks systems-research; do
+for name in bitcoin-monitor bitcoin-trading bitcoin-data bitcoin-automation systems-stock-shadow systems-stocks systems-research chart discovery; do
   install -o root -g root -m 0644 "$runtime/deploy/systemd/stock-watch-$name.service" /etc/systemd/system/
   install -o root -g root -m 0644 "$runtime/deploy/systemd/stock-watch-$name.timer" /etc/systemd/system/
 done
@@ -27,6 +27,6 @@ CONFIG
 systemctl daemon-reload
 # Research and watch-only collection are safe to start without a broker account.
 # Bitcoin execution remains off until credentials and shadow review are ready.
-systemctl enable --now stock-watch-bitcoin-monitor.timer stock-watch-bitcoin-data.timer stock-watch-systems-research.timer stock-watch-systems-stock-shadow.timer
+systemctl enable --now stock-watch-bitcoin-monitor.timer stock-watch-bitcoin-data.timer stock-watch-systems-research.timer stock-watch-systems-stock-shadow.timer stock-watch-chart.timer stock-watch-discovery.timer
 systemctl restart stock-watch-web.service
 printf '%s\n' 'Systems research and blockchain monitoring installed. Bitcoin/stock system trading timers remain unchanged; no strategy was activated.'

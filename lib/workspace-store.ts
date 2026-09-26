@@ -180,6 +180,22 @@ export function workspaceCommand(body: Record<string, unknown>) {
       throw new SystemsInputError('Unknown command.')
     const id = text(body.requestId, 'Request ID'),
       version = body.version ? text(body.version, 'System version') : undefined
+    if (!/^[A-Za-z0-9_-]{1,120}$/.test(id))
+      throw new SystemsInputError('Invalid request identifier.')
+    if (
+      body.parentVersion &&
+      !db
+        .prepare('SELECT 1 FROM system_versions WHERE id=? AND asset=?')
+        .get(String(body.parentVersion), asset)
+    )
+      throw new SystemsInputError('Unknown parent version.')
+    if (
+      body.parentRun &&
+      !db
+        .prepare('SELECT 1 FROM system_runs WHERE id=? AND version_id=?')
+        .get(String(body.parentRun), String(body.parentVersion))
+    )
+      throw new SystemsInputError('Parent run must belong to the parent version.')
     if (
       version &&
       !db.prepare('SELECT id FROM system_versions WHERE id=? AND asset=?').get(version, asset)

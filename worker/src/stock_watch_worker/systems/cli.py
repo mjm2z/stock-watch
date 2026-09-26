@@ -111,6 +111,11 @@ def main(argv=None):
     commands.add_parser('init')
     commands.add_parser('run-next')
     commands.add_parser('chart-next')
+    commands.add_parser('discovery')
+    cashflow=commands.add_parser('paper-cashflow')
+    cashflow.add_argument('--amount',required=True)
+    cashflow.add_argument('--id',required=True)
+    cashflow.add_argument('--confirm-account',required=True)
     commands.add_parser('monitor')
     commands.add_parser('tick')
     commands.add_parser('automation-tick')
@@ -140,7 +145,7 @@ def main(argv=None):
     args = parser.parse_args(argv)
     # Each command family has a process lock. A terminated runner leaves an explicit
     # failed run rather than permanently blocking the job queue.
-    lock_name = 'tick' if args.command in ('activate','tick','automation-tick') else args.command
+    lock_name = 'tick' if args.command in ('activate','tick','automation-tick','paper-cashflow') else args.command
     with Path(str(args.database)+'.systems-'+lock_name+'.lock').open('a') as lock:
         fcntl.flock(lock,fcntl.LOCK_EX)
         db = connect(args.database)
@@ -167,6 +172,15 @@ def main(argv=None):
                 print(register_version(db,SystemConfig(args.asset,args.template),args.hypothesis))
             elif args.command == 'import-dataset':
                 print(register_dataset(db,args.path,args.storage))
+            elif args.command == 'paper-cashflow':
+                from .automatic_paper import cashflow
+                broker=CryptoBroker()
+                if broker.account()['id']!=args.confirm_account:raise ValueError('Confirm the exact separate paper account')
+                cashflow(db,broker,args.amount,args.id,datetime.now(timezone.utc))
+                print('Paper cash flow reconciled; existing allocations retained.')
+            elif args.command == 'discovery':
+                from .discovery import run
+                run(db,args.database)
             elif args.command == 'chart-next':
                 from .workspace import run_workspace
                 # Display collection cannot run a backtest, authorize or place an order.
@@ -178,6 +192,8 @@ def main(argv=None):
                 with db:
                     db.execute("UPDATE system_runs SET status='failed',error='Worker interrupted; rerun explicitly',finished_at=? WHERE status='running'",(now_iso(),))
                 print(run_next(db))
+                from .reporting import backfill
+                backfill(db)
                 if db.execute('SELECT 1 FROM btc_enrollments LIMIT 1').fetchone():
                     from .history import connect_history
                     from .automation_data import backfill_one,health

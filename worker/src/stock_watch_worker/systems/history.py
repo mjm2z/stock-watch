@@ -67,13 +67,20 @@ def collect(db, broker, configs, now):
         periods=max(max(c.slow,c.entry)+2 for c in configs if c.timeframe==timeframe)
         params={'symbols':'BTC/USD','timeframe':timeframe,'start':advance(end,timeframe,-periods).isoformat(),
                 'end':end.isoformat(),'limit':10000,'sort':'asc'}
-        result=broker.request('GET','/v1beta3/crypto/us/bars?'+urlencode(params),data=True)
-        rows=[]
-        for bar in result.get('bars',{}).get('BTC/USD',[]):
-            close=advance(instant(bar['t']),timeframe)
-            if close>end: continue
-            rows.append({'symbol':'BTC/USD','at':close.isoformat(),'available_at':at,
-                         'open':bar['o'],'high':bar['h'],'low':bar['l'],'close':bar['c'],'volume':bar['v']})
+        rows=[];seen=set()
+        for _ in range(40):
+            result=broker.request('GET','/v1beta3/crypto/us/bars?'+urlencode(params),data=True)
+            for bar in result.get('bars',{}).get('BTC/USD',[]):
+                close=advance(instant(bar['t']),timeframe)
+                if close>end: continue
+                rows.append({'symbol':'BTC/USD','at':close.isoformat(),'available_at':at,
+                             'open':bar['o'],'high':bar['h'],'low':bar['l'],'close':bar['c'],'volume':bar['v']})
+            token=result.get('next_page_token')
+            if not token:break
+            if not isinstance(token,str) or token in seen:raise ValueError('Invalid history pagination')
+            seen.add(token);params['page_token']=token
+        else:raise ValueError('History pagination limit reached')
+        rows=sorted({r['at']:r for r in rows}.values(),key=lambda r:instant(r['at']))
         if not rows or instant(rows[-1]['at'])!=end: raise ValueError(f'{timeframe}: latest completed bar unavailable')
         import_rows(db,timeframe,rows,at)
         with db: db.execute('INSERT INTO collection_state VALUES (?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value',('latest:'+timeframe,end.isoformat()))

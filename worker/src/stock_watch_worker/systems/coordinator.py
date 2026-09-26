@@ -26,6 +26,9 @@ def active_orders(db,version=None):
 
 
 def eligible(db,version,now):
+    from .automatic_paper import available,eligible as automatic_eligible
+    if available(db) and db.execute('SELECT 1 FROM paper_authorizations WHERE version_id=?',(version,)).fetchone():
+        return automatic_eligible(db,version,now)
     row=db.execute('''SELECT q.status,q.evaluation_id,e.expires_at,e.budget,n.approved_at,n.paused,n.active
       FROM btc_qualifications q JOIN btc_evaluations e ON e.id=q.evaluation_id
       JOIN btc_enrollments n ON n.version_id=q.version_id WHERE q.version_id=?''',(version,)).fetchone()
@@ -51,10 +54,10 @@ def fund(db,broker,versions,now):
     if not old and abs(D(account['cash'])-D(300))>D('.01'): raise ValueError('Initial funding requires an empty separate $300 paper account')
     if old and abs(D(account['cash'])-(D(old['cash'])+sum((D(r['cash']) for r in db.execute('SELECT cash FROM btc_allocations')),D(0))))>D('.01'):
         raise ValueError('Reconcile settled cash and fees before changing allocations')
+    if db.execute('SELECT 1 FROM btc_allocations').fetchone(): raise ValueError('Existing allocations are preserved; funding cannot replace their history')
     total=min(D(300),D(account['cash'])); budget=(total/D(len(versions))).quantize(D('.00000001'))
     with db:
         if not old: db.execute('INSERT INTO btc_accounts(id,created_at) VALUES (?,?)',(account['id'],now.isoformat()))
-        db.execute('DELETE FROM btc_allocations')
         for version in versions:
             db.execute('INSERT INTO btc_allocations(version_id,account_id,budget,cash,high_water,approved_at) VALUES (?,?,?,?,?,?)',
                        (version,account['id'],str(budget),str(budget),str(budget),now.isoformat()))
@@ -78,6 +81,10 @@ def reserve(db,version,side,qty,price,now,evaluation,reason):
             if row['risk_paused'] or account['risk_paused'] or eligible(db,version,now)!=evaluation or not evaluation:
                 raise ValueError('Entry is not qualified and approved')
             if reserve_cash>D(row['cash']): raise ValueError('Insufficient sleeve cash')
+            from .automatic_paper import available
+            if available(db) and db.execute('SELECT 1 FROM paper_authorizations WHERE version_id=?',(version,)).fetchone():
+                from .discovery import policy
+                if reserve_cash>D(policy(db)['entry_cap']):raise ValueError('Automatic entry exceeds policy cap including fee reserve')
         elif side!='sell' or qty>D(row['quantity']): raise ValueError('Cannot sell another allocation’s Bitcoin')
         db.execute('''INSERT INTO btc_orders(id,version_id,account_id,side,quantity,reserved_cash,reference_price,created_at,updated_at,evaluation_id,reason)
           VALUES (?,?,?,?,?,?,?,?,?,?,?)''',(identifier,version,row['account_id'],side,str(qty),str(reserve_cash),str(price),now.isoformat(),now.isoformat(),evaluation,reason))
@@ -212,6 +219,8 @@ def commands(db,broker,now):
 
 
 def tick(db,history,broker,now):
+    from .automatic_paper import prepare
+    prepare(db,broker,now)
     local=db.execute('SELECT * FROM btc_accounts').fetchone()
     if not local:
         commands(db,broker,now)
@@ -282,6 +291,11 @@ def tick(db,history,broker,now):
             try:
                 metadata=metadata or broker.metadata()
                 amount=qty if action=='sell' else min(D(row['cash'])/D('1.01'),equity*D(str(config.allocation)))/D(str(quote['ap']))
+                if action=='buy':
+                    from .automatic_paper import available
+                    if available(db) and db.execute('SELECT 1 FROM paper_authorizations WHERE version_id=?',(version,)).fetchone():
+                        from .discovery import policy
+                        amount=min(amount,D(policy(db)['entry_cap'])/D('1.01')/D(str(quote['ap'])))
                 amount=rounded_quantity(amount,metadata['min_trade_increment'])
                 if D(amount)>=D(metadata['min_order_size']):
                     reserve(db,version,action,amount,quote['ap'] if quote else 1,now,evaluation,reason)

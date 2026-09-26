@@ -39,6 +39,10 @@ def chart(payload,transport=None):
             'observedAt':now_iso(),'partial':partial,'note':'Display history only; not forward-observed execution evidence'}
 
 
+def stage(db,identifier,message):
+    if db.execute("SELECT 1 FROM sqlite_master WHERE name='research_job_stages'").fetchone():
+        with db:db.execute('INSERT INTO research_job_stages VALUES (?,?,?) ON CONFLICT(job_id) DO UPDATE SET stage=excluded.stage,heartbeat_at=excluded.heartbeat_at',(identifier,message,now_iso()))
+
 def execute(db,job,database):
     body=json.loads(job['payload_json']);kind=job['kind'];asset=body.get('asset')
     if kind=='chart':
@@ -58,20 +62,31 @@ def execute(db,job,database):
         with db:
             db.execute('INSERT INTO workspace_version_details(version_id,draft_id,parent_version) VALUES (?,?,?) ON CONFLICT(version_id) DO NOTHING',(version,row['id'],snapshot.get('published_version') if snapshot.get('published_version')!=version else None))
             db.execute('UPDATE workspace_drafts SET published_version=? WHERE id=?',(version,row['id']))
+            if db.execute("SELECT 1 FROM sqlite_master WHERE name='research_lineage'").fetchone():
+                parent=body.get('parentVersion') or snapshot.get('published_version')
+                if parent==version:parent=None
+                old=db.execute('SELECT config_json FROM system_versions WHERE id=?',(parent,)).fetchone() if parent else None
+                before=json.loads(old[0]) if old else {}
+                current=json.loads(snapshot['document_json'])
+                changes={k:{'before':before.get(k),'after':v} for k,v in current.items() if before.get(k)!=v}
+                db.execute('INSERT OR IGNORE INTO research_lineage VALUES (?,?,?,?,?,?)',(version,parent,body.get('parentRun'),str(body.get('thesis',''))[:2000],canonical(changes),now_iso()))
         return {'version':version}
     version=db.execute('SELECT * FROM system_versions WHERE id=? AND asset=?',(body['version'],asset)).fetchone()
     if not version:raise ValueError('System version is unavailable')
     if kind=='backtest':
         from .datasets import bitcoin_dataset,stock_dataset,save_dataset
         config=json.loads(version['config_json'])
+        stage(db,job['id'],'Collecting and freezing historical data')
         data=bitcoin_dataset(body['start'],body['end'],timeframe=config.get('timeframe','1Hour'),canceled=lambda:bool(db.execute('SELECT cancel_requested FROM workspace_jobs WHERE id=?',(job['id'],)).fetchone()[0])) if asset=='bitcoin' else stock_dataset(db)
         data['bars']=[r for r in data['bars'] if instant(body['start'])<=instant(r['at'])<instant(body['end'])]
         if not data['bars']:raise ValueError('No captured bars cover this interval; choose a covered range')
         for key,rows in data.get('benchmarks',{}).items():data['benchmarks'][key]=[r for r in rows if instant(body['start'])<=instant(r['at'])<instant(body['end'])]
         data['manifest'].update(actual_start=data['bars'][0]['at'],actual_end=data['bars'][-1]['at'])
         data['slippage_bps']=5*float(body.get('costMultiplier',1))
+        data['fee_multiplier']=float(body.get('costMultiplier',1))
         dataset=save_dataset(db,data,Path(str(database)+'.systems-data'))
         with db:db.execute('INSERT INTO system_runs(id,version_id,dataset_id,status,created_at) VALUES (?,?,?,\'queued\',?)',(job['id'],version['id'],dataset,now_iso()))
+        stage(db,job['id'],'Waiting for historical replay')
         return {'run':job['id'],'dataset':dataset}
     config=json.loads(version['config_json']);automated=asset=='bitcoin' and config.get('protocol') in ('bitcoin-automation-v2','visual-rules-v1')
     if kind=='observe':

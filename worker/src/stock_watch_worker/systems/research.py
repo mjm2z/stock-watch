@@ -138,8 +138,12 @@ def run_next(db):
         def canceled():
             return bool(db.execute('SELECT cancel_requested FROM system_runs WHERE id=?', (identifier,)).fetchone()[0])
         def progress(value):
+            from .workspace import stage
+            stage(db,identifier,f'Replaying validation, test and cost scenarios ({value}%)')
             with db: db.execute('UPDATE system_runs SET progress=? WHERE id=?',(value,identifier))
         result = evaluate(config, data, canceled, progress)
+        from .reporting import enrich
+        enrich(result, config.asset)
         result.update({'dataset_sha256': dataset['sha256'], 'config_sha256': config.sha256})
         result['trial_count']=db.execute('SELECT COUNT(*) FROM system_runs WHERE dataset_id=?',(dataset['id'],)).fetchone()[0]
         result['distinct_versions_tested']=db.execute('SELECT COUNT(DISTINCT version_id) FROM system_runs WHERE dataset_id=?',(dataset['id'],)).fetchone()[0]
@@ -154,6 +158,9 @@ def run_next(db):
             report['equity_curve']=curve[::stride]+([curve[-1]] if curve and (len(curve)-1)%stride else [])
             report['fills_in_full_artifact']=len(report.get('fills',[]))
             report['fills']=report.get('fills',[])[-100:]
+            if report.get('metrics'):
+                report['metrics']['trades_in_full_artifact']=len(report['metrics'].get('trades',[]))
+                report['metrics']['trades']=report['metrics'].get('trades',[])[-100:]
         compact(result['base']); compact(result['double_cost'])
         for fold in result['folds']:
             compact(fold['test']); compact(fold['validation'])

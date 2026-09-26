@@ -84,7 +84,7 @@ def main():
         raise SystemExit('Unexpected release staging directory')
     manifest = json.loads((source / 'reviewed-release.json').read_text())
     verify_files(source, manifest)
-    for required in ('.next/BUILD_ID', 'package-lock.json', 'worker/migrations/018_workspace.sql'):
+    for required in ('.next/BUILD_ID', 'package-lock.json', 'worker/migrations/019_research_control.sql'):
         if required not in manifest['files']:
             raise RuntimeError('Incomplete reviewed release: ' + required)
     verify_environment_files(source, manifest)
@@ -168,7 +168,7 @@ def main():
         selected = [unit for unit, state in enabled.items() if state == mode]
         if selected:
             run('systemctl', 'enable', *(['--runtime'] if mode == 'enabled-runtime' else []), '--now', *selected)
-    for route in ('/api/health', '/api/systems?asset=stocks', '/api/systems?asset=bitcoin', '/api/bitcoin', '/api/systems/workspace?asset=stocks', '/api/systems/workspace?asset=bitcoin', '/crypto', '/favicon.ico'):
+    for route in ('/api/health', '/api/systems?asset=stocks', '/api/systems?asset=bitcoin', '/api/bitcoin', '/api/systems/workspace?asset=stocks', '/api/systems/workspace?asset=bitcoin', '/api/systems/control?asset=bitcoin', '/api/systems/activity?asset=bitcoin', '/crypto', '/favicon.ico'):
         for attempt in range(30):
             try:
                 with urllib.request.urlopen('http://127.0.0.1:3001' + route, timeout=10) as response:
