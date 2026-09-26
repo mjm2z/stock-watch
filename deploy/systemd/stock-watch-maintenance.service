@@ -1,5 +1,5 @@
 [Unit]
-Description=Reconcile Stock Watch paper lots and forward outcomes
+Description=Reconcile StockWatch paper lots and forward outcomes
 After=network-online.target
 Wants=network-online.target
 

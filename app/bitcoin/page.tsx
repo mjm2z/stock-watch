@@ -11,3 +11,5 @@ export default async function BitcoinPage({
     : 'overview'
   return <BitcoinWorkspace view={view} />
 }
+
+export const metadata = { title: 'Crypto' }

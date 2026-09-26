@@ -1,4 +1,5 @@
 """Independent Bitcoin paper/shadow ticks with durable order identities."""
+from .automation_config import load_config
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 import json
@@ -21,7 +22,7 @@ def start_shadow(db, version_id):
     version = db.execute('SELECT * FROM system_versions WHERE id=?',(version_id,)).fetchone()
     if not version:
         raise ValueError('Unknown system version')
-    if json.loads(version['config_json']).get('protocol'):
+    if version['asset']=='bitcoin' and json.loads(version['config_json']).get('protocol'):
         raise ValueError('Use Bitcoin automation enrollment for version-two systems')
     identifier = str(uuid.uuid4())
     with db:
@@ -126,7 +127,7 @@ def tick(db, broker, now=None):
 
 def _tick_one(db,broker,row,now):
     at, identifier = now.isoformat(), row['id']
-    config = SystemConfig(**json.loads(row['config_json']))
+    config = load_config(json.loads(row['config_json']))
     if 'config_sha256' in row.keys() and config.sha256 != row['config_sha256']:
         raise ValueError('Immutable strategy hash mismatch')
     state = json.loads(row['state_json'])

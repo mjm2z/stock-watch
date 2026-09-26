@@ -1,5 +1,5 @@
 [Unit]
-Description=Refresh Stock Watch SEC CompanyFacts cache
+Description=Refresh StockWatch SEC CompanyFacts cache
 After=network-online.target
 Wants=network-online.target
 

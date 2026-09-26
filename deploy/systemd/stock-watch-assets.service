@@ -1,5 +1,5 @@
 [Unit]
-Description=Refresh Stock Watch Alpaca asset eligibility
+Description=Refresh StockWatch Alpaca asset eligibility
 After=network-online.target
 Wants=network-online.target
 

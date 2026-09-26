@@ -1,4 +1,5 @@
 """Immutable research registry and bounded, cancelable job runner."""
+from .automation_config import load_config
 from dataclasses import asdict
 from datetime import datetime, timezone
 from pathlib import Path
@@ -127,7 +128,7 @@ def run_next(db):
     try:
         version = db.execute('SELECT * FROM system_versions WHERE id=?', (row['version_id'],)).fetchone()
         dataset = db.execute('SELECT * FROM system_datasets WHERE id=?', (row['dataset_id'],)).fetchone()
-        config = SystemConfig(**json.loads(version['config_json']))
+        config = load_config(json.loads(version['config_json']))
         if config.sha256 != version['config_sha256']:
             raise ValueError('Strategy hash mismatch')
         raw = Path(dataset['path']).read_bytes()

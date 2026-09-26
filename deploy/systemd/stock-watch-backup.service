@@ -1,5 +1,5 @@
 [Unit]
-Description=Create a verified Stock Watch SQLite backup
+Description=Create a verified StockWatch SQLite backup
 
 [Service]
 Type=oneshot

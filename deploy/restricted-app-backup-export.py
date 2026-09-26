@@ -37,7 +37,7 @@ def main():
                        if re.fullmatch(r'stock-watch-\d{8}T\d{12}Z\.db', p.name)
                        and p.is_file() and not p.is_symlink())
         if not files:
-            raise SystemExit('No finalized Stock Watch backup available')
+            raise SystemExit('No finalized StockWatch backup available')
         path = files[-1]
         print(json.dumps(dict(name=path.name, size=path.stat().st_size)))
         return

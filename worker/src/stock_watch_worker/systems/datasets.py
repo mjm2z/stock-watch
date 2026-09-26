@@ -10,21 +10,25 @@ from .engine import canonical, instant
 from .research import register_dataset
 
 
-def bitcoin_dataset(start, end, transport=None):
+def bitcoin_dataset(start, end, transport=None, timeframe="1Hour", canceled=lambda:False):
+    from .timeframes import advance, TIMEFRAMES
+    if timeframe not in TIMEFRAMES: raise ValueError("Unsupported timeframe")
     start_time,end_time = instant(start),instant(end)
     if start_time >= end_time or end_time > datetime.now(timezone.utc):
         raise ValueError('Choose an ordered historical UTC interval')
     transport = transport or UrllibTransport()
-    headers = {'APCA-API-KEY-ID':os.environ.get('BITCOIN_ALPACA_API_KEY_ID') or os.environ.get('ALPACA_API_KEY_ID',''),
-               'APCA-API-SECRET-KEY':os.environ.get('BITCOIN_ALPACA_API_SECRET_KEY') or os.environ.get('ALPACA_API_SECRET_KEY','')}
+    prefix='BITCOIN_ALPACA' if os.environ.get('BITCOIN_ALPACA_API_KEY_ID') and os.environ.get('BITCOIN_ALPACA_API_SECRET_KEY') else 'ALPACA'
+    headers={'APCA-API-KEY-ID':os.environ.get(prefix+'_API_KEY_ID',''),'APCA-API-SECRET-KEY':os.environ.get(prefix+'_API_SECRET_KEY','')}
     if not all(headers.values()): raise ValueError('Alpaca market-data credentials are required')
     bars,token = [],None
-    for _ in range(100):
-        params={'symbols':'BTC/USD','timeframe':'1Hour','start':start,'end':end,'limit':10000,'sort':'asc'}
+    for _ in range(12):
+        if canceled():raise ValueError('Backtest canceled during data collection')
+        params={'symbols':'BTC/USD','timeframe':timeframe,'start':start,'end':end,'limit':10000,'sort':'asc'}
         if token: params['page_token']=token
         response=transport.request('GET','https://data.alpaca.markets/v1beta3/crypto/us/bars?'+urlencode(params),headers=headers,timeout=30)
         payload=require_success('alpaca-crypto-data',response)
         bars.extend(payload.get('bars',{}).get('BTC/USD',[]))
+        if len(bars)>60000:raise ValueError('History exceeds 60,000 bars; shorten the interval or use a larger timeframe')
         next_token=payload.get('next_page_token')
         if not next_token: break
         if next_token==token: raise ValueError('Provider repeated pagination token')
@@ -32,7 +36,7 @@ def bitcoin_dataset(start, end, transport=None):
     else: raise ValueError('Dataset exceeds bounded pagination limit')
     rows=[]
     for i,b in enumerate(bars):
-        at=instant(b['t'])+timedelta(hours=1)
+        at=advance(instant(b['t']),timeframe)
         if at>end_time: continue
         row={'symbol':'BTC/USD','at':at.isoformat(),'available_at':at.isoformat(),
              'open':b['o'],'high':b['h'],'low':b['l'],'close':b['c'],'volume':b['v']}
@@ -42,12 +46,12 @@ def bitcoin_dataset(start, end, transport=None):
         rows.append(row)
     if not rows: raise ValueError('No accessible Bitcoin bars for this interval')
     return {'schema_version':1,'asset':'bitcoin','slippage_bps':5,'bars':rows,
-            'manifest':{'provider':'Alpaca v1beta3','venue':'Alpaca US','fidelity':'hourly_bar_approximation',
+            'manifest':{'provider':'Alpaca v1beta3','venue':'Alpaca US','fidelity':'bar_approximation','timeframe':timeframe,
                         'requested_start':start,'requested_end':end,'actual_start':rows[0]['at'],'actual_end':rows[-1]['at'],
                         'retrieved_at':datetime.now(timezone.utc).isoformat(),
                         'limitations':['Bars may contain quote midpoints; zero volume is not a trade',
                                       'Next-bar open is a synthetic execution proxy, not a historical bid/ask quote',
-                                      'Hourly marks cannot reproduce minute-by-minute risk execution']}}
+                                      'Bar marks cannot reproduce continuous risk execution']}}
 
 
 def stock_dataset(db):

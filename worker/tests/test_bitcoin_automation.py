@@ -50,7 +50,20 @@ class AutomationTests(unittest.TestCase):
                 self.db.execute('INSERT INTO btc_forward VALUES (?,?,?,?)',(self.version,at,300,'{}'))
             self.db.execute('INSERT INTO btc_health VALUES (?,?,NULL)',('data',NOW.isoformat()))
             self.db.execute('INSERT INTO btc_health VALUES (?,?,NULL)',('forward:'+self.version,NOW.isoformat()))
+        with self.db:self.db.execute('UPDATE btc_allocations SET started_at=? WHERE version_id=?',(NOW.isoformat(),self.version))
         return eid
+
+    def test_funding_and_qualification_are_not_initial_start_authority(self):
+        from stock_watch_worker.systems.coordinator import eligible
+        fund(self.db,self.broker(),[self.version],NOW)
+        self.assertIsNone(self.db.execute('SELECT started_at FROM btc_allocations').fetchone()[0])
+        eid=self.qualify()
+        with self.db:self.db.execute('UPDATE btc_allocations SET started_at=NULL')
+        self.assertIsNone(eligible(self.db,self.version,NOW))
+        with self.assertRaisesRegex(ValueError,'qualified and approved'):
+            reserve(self.db,self.version,'buy','.1',100,NOW,eid,'not explicitly started')
+        with self.db:self.db.execute('UPDATE btc_allocations SET started_at=?',(NOW.isoformat(),))
+        self.assertEqual(eligible(self.db,self.version,NOW),eid)
 
     def test_calendar_month_clamp_week_boundary_and_independent_hold(self):
         self.assertEqual(deadline(datetime(2024,1,31,tzinfo=UTC),1,'months'),datetime(2024,2,29,tzinfo=UTC))

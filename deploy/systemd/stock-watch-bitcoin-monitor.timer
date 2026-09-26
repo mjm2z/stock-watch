@@ -1,5 +1,5 @@
 [Unit]
-Description=Schedule Stock Watch bitcoin-monitor
+Description=Schedule StockWatch bitcoin-monitor
 
 [Timer]
 OnBootSec=2min

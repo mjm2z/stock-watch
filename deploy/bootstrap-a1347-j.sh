@@ -33,7 +33,7 @@ if [[ "${INSTALL_MODE}" == stage-only || "${INSTALL_MODE}" == stage-check ]]; th
   # units instead so a true systemctl failure still aborts safely.
   existing_units=$(systemctl list-unit-files --no-legend --no-pager)
   if [[ "$existing_units" == *stock-watch-* ]]; then
-    echo "Refusing staging over existing Stock Watch units." >&2
+    echo "Refusing staging over existing StockWatch units." >&2
     exit 1
   fi
 fi

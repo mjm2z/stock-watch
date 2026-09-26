@@ -15,7 +15,7 @@ readonly SERVICES=(
   stock-watch-backup.service
 )
 
-echo "Stock Watch health"
+echo "StockWatch health"
 if ! curl --fail --silent --show-error "${HEALTH_URL}"; then
   echo "health endpoint failed" >&2
 fi

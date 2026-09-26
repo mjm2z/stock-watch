@@ -1,5 +1,8 @@
 'use client'
 import Link from 'next/link'
+import { PaperTradingGuide } from './PaperTradingGuide'
+import { PageHeader } from './PageHeader'
+import { CryptoMarketChart } from './MarketChart'
 import { useCallback, useEffect, useState } from 'react'
 import { OperatorAccess } from './SystemsWorkspace'
 type Row = Record<string, unknown>
@@ -76,28 +79,9 @@ export function BitcoinWorkspace({ view }: { view: string }) {
   }
   return (
     <main className="container mx-auto space-y-6 p-4 sm:p-8">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h1 className="text-3xl font-semibold">
-            Bitcoin{' '}
-            {view === 'blockchain'
-              ? 'blockchain'
-              : view === 'signals'
-                ? 'signals'
-                : view === 'operations'
-                  ? 'operations'
-                  : view === 'paper'
-                    ? 'paper portfolio'
-                    : 'overview'}
-          </h1>
-          <p className="mt-2 text-muted-foreground">
-            BTC/USD · Continuous market · UTC signal times · Separate $300 paper allocation
-          </p>
-        </div>
-        <Link className={button} href="/systems?asset=bitcoin">
-          Research trading systems
-        </Link>
-      </div>
+      <PageHeader title={view === 'overview' ? 'Crypto overview' : view === 'paper' ? 'Crypto paper portfolio' : view === 'blockchain' ? 'Blockchain research' : view === 'signals' ? 'Crypto signals' : 'Crypto operations'} description="Bitcoin · BTC/USD · Continuous market · Paper trading only" action={<Link className="sw-button" href="/systems?asset=bitcoin">Explore systems</Link>} />
+      {view === 'paper' && <PaperTradingGuide asset="bitcoin" />}
+      {view === 'overview' && <CryptoMarketChart />}
       {error && (
         <p role="alert" className="rounded border border-amber-500 p-3">
           {error}

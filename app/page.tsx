@@ -1,3 +1,4 @@
+import { PageHeader } from '@/components/PageHeader'
 import { PerformanceSummary } from '@/components/dashboard/PerformanceSummary'
 import { incidentText } from '@/lib/dashboard-presentation'
 import { ExecutionStatus } from '@/components/dashboard/ExecutionStatus'
@@ -18,21 +19,7 @@ export default function Home() {
 
   return (
     <main className="container mx-auto space-y-8 p-4 sm:p-8">
-      <div className="flex flex-col justify-between gap-5 lg:flex-row lg:items-end">
-        <div>
-          <div className="mb-2 flex items-center gap-3 text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">
-            <span className="flex items-center gap-2">Research system</span>
-            {overview.strategyStatus ? <StatusBadge status={overview.strategyStatus} /> : null}
-          </div>
-          <h1 className="text-3xl font-semibold tracking-tight sm:text-4xl">Market intelligence</h1>
-          <p className="mt-2 max-w-2xl text-muted-foreground">
-            Twice-daily S&amp;P 500 signals, paper execution, and performance against SPY.
-          </p>
-        </div>
-        <div className="w-full lg:max-w-md">
-          <StockSearch />
-        </div>
-      </div>
+      <PageHeader title="Stocks overview" description="S&P 500 signals, paper execution, and performance against SPY." action={<StockSearch />} />
 
       <ExecutionStatus />
       {!overview.available ? (
@@ -105,3 +92,5 @@ export default function Home() {
     </main>
   )
 }
+
+export const metadata = { title: 'Stocks overview' }

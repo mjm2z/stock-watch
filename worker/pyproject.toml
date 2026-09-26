@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "stock-watch-worker"
 version = "0.1.0"
-description = "Research, scanning, backtesting, and paper trading worker for Stock Watch"
+description = "Research, scanning, backtesting, and paper trading worker for StockWatch"
 requires-python = ">=3.12"
 dependencies = []
 

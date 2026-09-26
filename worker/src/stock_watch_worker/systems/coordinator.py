@@ -30,7 +30,8 @@ def eligible(db,version,now):
       FROM btc_qualifications q JOIN btc_evaluations e ON e.id=q.evaluation_id
       JOIN btc_enrollments n ON n.version_id=q.version_id WHERE q.version_id=?''',(version,)).fetchone()
     if not row or row['status']!='qualified' or not row['approved_at'] or row['paused'] or not row['active'] or instant(row['expires_at'])<=now: return None
-    allocation=db.execute('SELECT budget FROM btc_allocations WHERE version_id=?',(version,)).fetchone()
+    allocation=db.execute('SELECT budget,started_at FROM btc_allocations WHERE version_id=?',(version,)).fetchone()
+    if allocation and not allocation['started_at']: return None
     if allocation and D(allocation[0])!=D(row['budget']): return None
     return row['evaluation_id'] if forward_ready(db,version,now)[0] else None
 
@@ -93,8 +94,9 @@ def apply_fill(db,row,found,now):
     with db:
         allocation=db.execute('SELECT * FROM btc_allocations WHERE version_id=?',(row['version_id'],)).fetchone()
         cash=D(allocation['cash']); owned=D(allocation['quantity'])
-        entry=allocation['entry_at']; due=allocation['exit_due_at']
+        entry=allocation['entry_at']; due=allocation['exit_due_at']; entry_price=allocation['entry_price']
         if row['side']=='buy':
+            if delta:entry_price=str((D(entry_price or price)*owned+money)/(owned+delta))
             cash-=money; owned+=delta*(1-FEE)
             if delta and not entry:
                 # Use first reported fill timestamp, conservatively no later than observation.
@@ -104,8 +106,8 @@ def apply_fill(db,row,found,now):
             cash+=money*(1-FEE); owned-=delta
             if owned< D('-.000000001'): raise ValueError('Fill exceeds owned Bitcoin')
             owned=max(D(0),owned)
-            if owned==0: entry=None; due=None
-        db.execute('UPDATE btc_allocations SET cash=?,quantity=?,entry_at=?,exit_due_at=? WHERE version_id=?',(str(cash),str(owned),entry,due,row['version_id']))
+            if owned==0: entry=None; due=None; entry_price=None
+        db.execute('UPDATE btc_allocations SET cash=?,quantity=?,entry_at=?,exit_due_at=?,entry_price=? WHERE version_id=?',(str(cash),str(owned),entry,due,entry_price,row['version_id']))
         db.execute('UPDATE btc_orders SET status=?,broker_id=?,filled_qty=?,filled_notional=?,response_json=?,updated_at=? WHERE id=?',
                    (found['status'],found['id'],str(qty),str(notional),canonical(found),now.isoformat(),row['id']))
 
@@ -256,6 +258,11 @@ def tick(db,history,broker,now):
         if qty and not tradable and not active_orders(db,version):
             with db: db.execute('UPDATE btc_allocations SET entry_at=NULL,exit_due_at=NULL WHERE version_id=?',(version,))
             due=False
+        system_risk=None
+        if tradable and quote and config.protocol=='visual-rules-v1':
+            from .rules import risk_exit
+            system_risk=risk_exit(config,quote['bp'],row['entry_price'])
+        if tradable and system_risk:action,reason='sell',system_risk
         if tradable and (risk or sleeve_risk or due): action='sell'; reason='Risk limit' if risk or sleeve_risk else 'Holding deadline'
         bars=None
         if quote:

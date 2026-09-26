@@ -1,4 +1,4 @@
-# Stock Watch effectiveness review — September 22, 2026
+# StockWatch effectiveness review — September 22, 2026
 
 Assessment based on the working tree, earlier release records, and read-only checks of a1347-j around 10:06–10:10 AM Eastern. No strategy, orders, services, or production data were changed. The working tree already contains substantial uncommitted September improvements; those were preserved.
 

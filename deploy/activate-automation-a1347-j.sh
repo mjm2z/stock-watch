@@ -43,7 +43,7 @@ if ! grep -Eq '^ALPACA_API_SECRET_KEY=.+$' "${ENVIRONMENT_FILE}" || \
   exit 1
 fi
 if ! grep -Eq '^SEC_USER_AGENT=.+@.+$' "${ENVIRONMENT_FILE}" || \
-   grep -Fxq 'SEC_USER_AGENT=Stock Watch monitored-email@example.com' \
+   grep -Eq '^SEC_USER_AGENT=Stock ?Watch monitored-email@example.com$' \
      "${ENVIRONMENT_FILE}"; then
   echo "Configure SEC_USER_AGENT with the monitored contact email." >&2
   exit 1

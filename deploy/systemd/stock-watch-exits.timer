@@ -1,5 +1,5 @@
 [Unit]
-Description=Check Stock Watch exit schedules every minute
+Description=Check StockWatch exit schedules every minute
 
 [Timer]
 OnCalendar=*-*-* *:*:00

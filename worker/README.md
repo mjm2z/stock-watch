@@ -1,4 +1,4 @@
-# Stock Watch Worker
+# StockWatch Worker
 
 The worker owns durable ingestion, research, scanning, scoring, backtesting,
 and paper-order orchestration. The Next.js application remains the dashboard.
@@ -113,7 +113,7 @@ manifest.
 ```bash
 export ALPACA_API_KEY_ID="paper key id"
 export ALPACA_API_SECRET_KEY="paper secret"
-export SEC_USER_AGENT="Stock Watch monitored-email@example.com"
+export SEC_USER_AGENT="StockWatch monitored-email@example.com"
 ```
 
 Only Alpaca paper credentials should be used. The order client rejects any base

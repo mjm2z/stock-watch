@@ -1,5 +1,5 @@
 [Unit]
-Description=Run the Stock Watch durable worker every minute
+Description=Run the StockWatch durable worker every minute
 
 [Timer]
 OnCalendar=*-*-* *:*:00

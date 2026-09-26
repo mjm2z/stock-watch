@@ -1,5 +1,6 @@
 'use client'
 import Link from 'next/link'
+import { useOperator } from './OperatorSession'
 import { SystemEquityChart } from '@/components/dashboard/SystemEquityChart'
 import { FormEvent, useCallback, useEffect, useState } from 'react'
 
@@ -37,68 +38,9 @@ function label(row: Row) {
 }
 
 export function OperatorAccess({ onChange }: { onChange: (authenticated: boolean) => void }) {
-  const [signedIn, setSignedIn] = useState(false)
-  const [configured, setConfigured] = useState(true)
-  const [token, setToken] = useState('')
-  const [message, setMessage] = useState('')
-  useEffect(() => {
-    fetch('/api/systems/session')
-      .then((r) => r.json())
-      .then((r) => {
-        setSignedIn(r.authenticated)
-        setConfigured(r.configured)
-        onChange(r.authenticated)
-      })
-      .catch(() => setMessage('Operator access unavailable.'))
-  }, [onChange])
-  async function submit(event: FormEvent) {
-    event.preventDefault()
-    try {
-      const response = await fetch('/api/systems/session', {
-        method: signedIn ? 'DELETE' : 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: signedIn ? undefined : JSON.stringify({ token }),
-      })
-      const result = await response.json()
-      setToken('')
-      if (!response.ok) throw new Error(result.error)
-      setSignedIn(result.authenticated)
-      onChange(result.authenticated)
-      setMessage('')
-    } catch (error) {
-      setMessage(error instanceof Error ? error.message : 'Sign-in failed.')
-    }
-  }
-  return (
-    <form onSubmit={submit} className="flex flex-wrap items-center gap-3 rounded-lg border p-3">
-      <span className="text-sm">
-        {signedIn
-          ? 'Operator session active · expires after one hour'
-          : configured
-            ? 'Read-only view · sign in to make changes'
-            : 'Read-only view · operator access is not configured'}
-      </span>
-      {!signedIn && configured && (
-        <input
-          aria-label="Operator token"
-          type="password"
-          autoComplete="current-password"
-          value={token}
-          onChange={(e) => setToken(e.target.value)}
-          className="rounded border bg-background p-2"
-          placeholder="Operator token"
-        />
-      )}
-      {(signedIn || configured) && (
-        <button className={button}>{signedIn ? 'Sign out' : 'Sign in'}</button>
-      )}
-      {message && (
-        <p role="alert" className="text-sm text-red-600">
-          {message}
-        </p>
-      )}
-    </form>
-  )
+  const session = useOperator()
+  useEffect(() => { onChange(session.authenticated) }, [session.authenticated, onChange])
+  return <p className="text-sm text-muted-foreground">{session.authenticated ? 'Operator session active' : session.configured ? 'Read-only · use Operator access in the header to make changes' : 'Read-only · operator access is not configured'}</p>
 }
 
 export function SystemsWorkspace({ asset }: { asset: 'stocks' | 'bitcoin' }) {

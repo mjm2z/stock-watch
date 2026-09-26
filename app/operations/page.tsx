@@ -1,3 +1,4 @@
+import { PageHeader } from '@/components/PageHeader'
 import { OperationHistory } from '@/components/dashboard/OperationHistory'
 import { incidentText } from '@/lib/dashboard-presentation'
 import { LiquidityDiagnostics } from '@/components/dashboard/LiquidityDiagnostics'
@@ -14,12 +15,7 @@ export default function OperationsPage() {
     const operations = readDashboardOperations()
     return (
       <main className="container mx-auto space-y-8 p-4 sm:p-8">
-        <div>
-          <h1 className="text-3xl font-semibold tracking-tight">Operations</h1>
-          <p className="mt-2 text-muted-foreground">
-            Job attempts, provider ingestion, and actionable failures.
-          </p>
-        </div>
+        <PageHeader title="Operations" description="Job attempts, provider ingestion, and actionable failures." />
         <ExecutionStatus />
         <section>
           <h2 className="mb-4 text-xl font-semibold">Broker reconciliation</h2>
@@ -224,3 +220,5 @@ function PositionList({ title, positions }: { title: string; positions: Record<s
     </div>
   )
 }
+
+export const metadata = { title: 'Operations' }

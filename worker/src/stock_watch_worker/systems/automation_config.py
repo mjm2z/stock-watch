@@ -31,4 +31,7 @@ class BitcoinConfig(SystemConfig):
 
 
 def load_config(document):
+    if document.get('protocol')=='visual-rules-v1':
+        from .rules import RuleConfig
+        return RuleConfig(**document)
     return BitcoinConfig(**document) if document.get('protocol')==PROTOCOL else SystemConfig(**document)

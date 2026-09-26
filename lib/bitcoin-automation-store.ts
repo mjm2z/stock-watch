@@ -27,7 +27,7 @@ export function readBitcoinAutomation() {
       FROM system_versions v LEFT JOIN btc_enrollments n ON n.version_id=v.id
       LEFT JOIN btc_qualifications q ON q.version_id=v.id LEFT JOIN btc_allocations a ON a.version_id=v.id
       LEFT JOIN btc_evaluations qe ON qe.id=q.evaluation_id
-      WHERE json_extract(v.config_json,'$.protocol')=? ORDER BY v.created_at DESC`
+      WHERE v.asset='bitcoin' AND json_extract(v.config_json,'$.protocol') IN (?, 'visual-rules-v1') ORDER BY v.created_at DESC`
       )
       .all(protocol),
     account: db.prepare('SELECT * FROM btc_accounts LIMIT 1').get() || null,
@@ -133,7 +133,7 @@ export function writeBitcoinAutomation(body: Record<string, unknown>) {
         if (
           !db
             .prepare(
-              "SELECT 1 FROM system_versions WHERE id=? AND json_extract(config_json,'$.protocol')=?"
+              "SELECT 1 FROM system_versions WHERE id=? AND asset='bitcoin' AND json_extract(config_json,'$.protocol') IN (?, 'visual-rules-v1')"
             )
             .get(id, protocol)
         )

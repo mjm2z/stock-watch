@@ -1,5 +1,5 @@
 [Unit]
-Description=Schedule Stock Watch systems-research
+Description=Schedule StockWatch systems-research
 
 [Timer]
 OnBootSec=2min

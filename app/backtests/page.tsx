@@ -1,3 +1,4 @@
+import { PageHeader } from '@/components/PageHeader'
 import { DatabaseUnavailable } from '@/components/dashboard/DatabaseUnavailable'
 import { StatusBadge } from '@/components/dashboard/StatusBadge'
 import { readDashboardBacktests, WorkerDatabaseUnavailable } from '@/lib/worker-dashboard'
@@ -9,12 +10,7 @@ export default function BacktestsPage() {
     const backtests = readDashboardBacktests()
     return (
       <main className="container mx-auto space-y-6 p-4 sm:p-8">
-        <div>
-          <h1 className="text-3xl font-semibold tracking-tight">Backtest experiments</h1>
-          <p className="mt-2 text-muted-foreground">
-            Chronological walk-forward results and reproducibility metadata.
-          </p>
-        </div>
+        <PageHeader title="Backtest experiments" description="Chronological walk-forward results and reproducibility metadata." />
         {backtests.length ? (
           <div className="grid gap-5 lg:grid-cols-2">
             {backtests.map((run) => {
@@ -454,3 +450,5 @@ function formatMultiple(value: number | null): string {
 function formatCount(value: number | null): string {
   return value === null ? '—' : new Intl.NumberFormat('en-US').format(value)
 }
+
+export const metadata = { title: 'Historical backtests' }

@@ -29,15 +29,18 @@ def collect_forward(db,history,broker,now):
             bid,ask=float(quote['bp'])*.9995,float(quote['ap'])*1.0005
             equity=cash+qty*bid*.9975; peak=max(float(state.get('peak',300)),equity)
             risk=bool(state.get('risk')) or equity/peak<=.9
+            from .rules import risk_exit
+            system_risk=risk_exit(config,bid,state.get('entry_price'))
             due=bool(qty and now>=instant(state['exit_due_at']))
             pending=state.get('pending')
-            if qty and (risk or due): pending={'side':'sell','at':now.isoformat(),'reason':'risk' if risk else 'deadline'} if not pending or pending['side']!='sell' else pending
+            if qty and (risk or due or system_risk): pending={'side':'sell','at':now.isoformat(),'reason':'risk' if risk else 'deadline'} if not pending or pending['side']!='sell' else pending
             # Strictly subsequent quote and bounded entry validity.
             if pending and instant(quote['t'])>instant(pending['at']):
                 side=pending['side']; size=float(quote.get('as' if side=='buy' else 'bs') or 0)
                 if side=='buy' and not risk and (now-instant(pending['at'])).total_seconds()<=90:
                     gross=min(cash/ask,equity*config.allocation/ask,size)
                     if gross>0:
+                        if getattr(config,'protocol',None)=='visual-rules-v1':state['entry_price']=(state.get('entry_price',0)*qty+gross*ask)/(qty+gross)
                         cash-=gross*ask; qty+=gross*.9975
                         state['exit_due_at']=deadline(now,config.holding_count,config.holding_unit).isoformat()
                 elif side=='sell':

@@ -1,5 +1,5 @@
 [Unit]
-Description=Stock Watch bitcoin-trading
+Description=StockWatch bitcoin-trading
 After=network-online.target
 Wants=network-online.target
 

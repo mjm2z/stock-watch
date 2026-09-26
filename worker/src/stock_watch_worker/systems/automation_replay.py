@@ -36,7 +36,7 @@ def replay(db, config, start, end, cutoff, profile, trade_sink=None,initial_cash
     cash,qty,peak,dd,costs,turnover=initial_cash,0.,initial_cash,0.,0.,0.
     pending=None; entered=None; entry_cost=0.; entry_id=None; previous=None
     last_quote=None; last_quote_at=None; coverage_gap=False; approximate=False
-    trades=[]; bars_count=0; risk=False; exposure_seconds=0.; last_event=begin
+    trades=[]; bars_count=0; risk=False; exposure_seconds=0.; last_event=begin; entry_price=0.
     closed_pnl=0.; trade_count=0; win_count=0
     def bar_events():
         for b in bar_revisions(db,config.timeframe,warm.isoformat(),end,cutoff):
@@ -93,7 +93,9 @@ def replay(db, config, start, end, cutoff, profile, trade_sink=None,initial_cash
         equity=cash+qty*bid*(1-fee)*(1-slip)
         peak=max(peak,equity); dd=max(dd,1-equity/peak)
         if dd>=.1: risk=True
-        if qty and entered and (risk or at>=deadline(entered,config.holding_count,config.holding_unit)):
+        from .rules import risk_exit
+        system_risk=risk_exit(config,bid,entry_price or None)
+        if qty and entered and (risk or system_risk or at>=deadline(entered,config.holding_count,config.holding_unit)):
             if not pending or pending['side']!='sell': pending={'side':'sell','at':at,'id':entry_id,'remaining':None}
         if not pending or at<=pending['at']: continue
         if pending['side']=='buy' and (at-pending['at']).total_seconds()>90:
@@ -112,7 +114,9 @@ def replay(db, config, start, end, cutoff, profile, trade_sink=None,initial_cash
         if delayed and not pending.get('first_partial'):
             fill*=.5; pending['first_partial']=True
         if side=='buy':
-            fill=min(fill,cash/price); cash-=fill*price; qty+=fill*(1-fee)
+            fill=min(fill,cash/price)
+            entry_price=(entry_price*qty+fill*price)/(qty+fill)
+            cash-=fill*price; qty+=fill*(1-fee)
             entry_cost+=fill*price
             if entered is None: entered=at; entry_id=pending['id']
         else:
@@ -129,7 +133,7 @@ def replay(db, config, start, end, cutoff, profile, trade_sink=None,initial_cash
                 trade_count+=1; win_count+=int(pnl>0)
                 if qty<1e-10: qty=0.
                 entered=None
-                entry_cost=0.
+                entry_cost=0.; entry_price=0.
     if last_quote_at is None or (finish-last_quote_at).total_seconds()>30: coverage_gap=True
     if previous!=advance(finish,config.timeframe,-1): coverage_gap=True
     final=cash+qty*(last_quote or 0)*(1-fee)*(1-slip)

@@ -1,4 +1,5 @@
 """Independent systems commands; never dispatch legacy stock scans."""
+from .automation_config import load_config
 import argparse
 from dataclasses import asdict
 from datetime import datetime, timezone
@@ -71,20 +72,28 @@ def stock_shadow(db):
     for deployment in rows:
         if deployment['last_decision_at'] == session['trading_date']:
             continue
-        config = SystemConfig(**json.loads(deployment['config_json']))
+        config = load_config(json.loads(deployment['config_json']))
         state = json.loads(deployment['state_json'])
         held = set(state.get('held',[]))
+        positions=state.get('positions',{})
         decisions, stale = [], []
         for instrument in symbols:
-            bars = db.execute("SELECT timestamp,open,high,low,close FROM market_bars WHERE instrument_id=? AND timeframe='1Day' AND adjustment='raw' AND substr(timestamp,1,10)<=? ORDER BY timestamp DESC LIMIT 251",
+            bars = db.execute("SELECT timestamp,open,high,low,close,volume FROM market_bars WHERE instrument_id=? AND timeframe='1Day' AND adjustment='raw' AND substr(timestamp,1,10)<=? ORDER BY timestamp DESC LIMIT 251",
                               (instrument['id'],session['trading_date'])).fetchall()
             if not bars or bars[0]['timestamp'][:10] != session['trading_date']:
                 stale.append(instrument['symbol'])
                 continue
             history = list(reversed([dict(b) for b in bars]))
             action,reason = decision(config,history,instrument['symbol'] in held)
-            if action == 'buy': held.add(instrument['symbol'])
-            elif action == 'sell': held.discard(instrument['symbol'])
+            if getattr(config,'protocol',None)=='visual-rules-v1':
+                from .rules import position_exit
+                p=positions.get(instrument['symbol'],{})
+                forced=position_exit(config,history[-1]['close'],p.get('price'),p.get('at'),session['closes_at'])
+                if forced:action,reason='sell',forced
+            if action == 'buy':
+                held.add(instrument['symbol']);positions[instrument['symbol']]={'price':history[-1]['close'],'at':session['closes_at']}
+            elif action == 'sell':
+                held.discard(instrument['symbol']);positions.pop(instrument['symbol'],None)
             decisions.append({'symbol':instrument['symbol'],'action':action,'reason':reason})
         if not decisions:
             observe(db,deployment['id'],now_iso(),'error',{'message':'Latest completed stock session has no usable daily bars'})
@@ -92,7 +101,7 @@ def stock_shadow(db):
         observe(db,deployment['id'],now_iso(),'shadow',{'session':session['trading_date'],'decisions':decisions,
                 'missing_symbols':stale,'note':'Signal observation only; holdings are hypothetical and not a capital-constrained forward portfolio'})
         with db:
-            db.execute('UPDATE system_deployments SET last_decision_at=?,state_json=? WHERE id=?',(session['trading_date'],canonical({'held':sorted(held)}),deployment['id']))
+            db.execute('UPDATE system_deployments SET last_decision_at=?,state_json=? WHERE id=?',(session['trading_date'],canonical({'held':sorted(held),'positions':positions}),deployment['id']))
 
 
 def main(argv=None):
@@ -158,6 +167,8 @@ def main(argv=None):
             elif args.command == 'import-dataset':
                 print(register_dataset(db,args.path,args.storage))
             elif args.command == 'run-next':
+                from .workspace import run_workspace
+                run_workspace(db,args.database)
                 with db:
                     db.execute("UPDATE system_runs SET status='failed',error='Worker interrupted; rerun explicitly',finished_at=? WHERE status='running'",(now_iso(),))
                 print(run_next(db))

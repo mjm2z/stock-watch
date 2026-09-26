@@ -27,6 +27,6 @@ CONFIG
 systemctl daemon-reload
 # Research and watch-only collection are safe to start without a broker account.
 # Bitcoin execution remains off until credentials and shadow review are ready.
-systemctl enable --now stock-watch-bitcoin-monitor.timer stock-watch-systems-research.timer stock-watch-systems-stock-shadow.timer
+systemctl enable --now stock-watch-bitcoin-monitor.timer stock-watch-bitcoin-data.timer stock-watch-systems-research.timer stock-watch-systems-stock-shadow.timer
 systemctl restart stock-watch-web.service
 printf '%s\n' 'Systems research and blockchain monitoring installed. Bitcoin/stock system trading timers remain unchanged; no strategy was activated.'

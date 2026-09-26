@@ -48,3 +48,14 @@ class ReleaseGuards(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+
+class AuthorityMigrationGuards(unittest.TestCase):
+    def test_existing_authority_is_compared_without_new_column(self):
+        import sqlite3
+        db=sqlite3.connect(':memory:')
+        db.executescript('CREATE TABLE btc_allocations(version_id TEXT,budget TEXT); INSERT INTO btc_allocations VALUES ("existing","300");')
+        before=release.authority(db)
+        db.execute('ALTER TABLE btc_allocations ADD started_at TEXT')
+        self.assertEqual(before,release.authority(db,before))
+        db.execute('UPDATE btc_allocations SET budget="301"')
+        self.assertNotEqual(before,release.authority(db,before))

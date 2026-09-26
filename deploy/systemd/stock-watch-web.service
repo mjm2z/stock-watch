@@ -1,5 +1,5 @@
 [Unit]
-Description=Stock Watch dashboard
+Description=StockWatch dashboard
 After=network-online.target
 Wants=network-online.target
 
@@ -12,7 +12,7 @@ EnvironmentFile=/etc/stock-watch/stock-watch.env
 Environment=NODE_ENV=production
 Environment=PATH=/usr/local/bin:/usr/bin:/bin
 # Listen on the host network so trusted LAN clients can reach the dashboard.
-# Stock Watch has no application authentication; perimeter access must remain
+# StockWatch has no application authentication; perimeter access must remain
 # restricted to the trusted local network.
 ExecStart=/usr/local/bin/npm start -- --hostname 0.0.0.0 --port 3001
 StandardOutput=journal

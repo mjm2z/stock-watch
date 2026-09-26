@@ -26,7 +26,7 @@ class SecClientTests(unittest.TestCase):
         transport = FakeTransport(json_response({"cik": 320193, "facts": {}}))
         limiter = FakeLimiter()
         client = SecClient(
-            user_agent="Stock Watch admin@example.test",
+            user_agent="StockWatch admin@example.test",
             transport=transport,
             limiter=limiter,
         )
@@ -40,7 +40,7 @@ class SecClientTests(unittest.TestCase):
         )
         self.assertEqual(
             transport.requests[0].headers["User-Agent"],
-            "Stock Watch admin@example.test",
+            "StockWatch admin@example.test",
         )
         self.assertEqual(limiter.calls, 1)
 
@@ -52,7 +52,7 @@ class SecClientTests(unittest.TestCase):
             body=gzip.compress(json.dumps(payload).encode("utf-8")),
         )
         client = SecClient(
-            user_agent="Stock Watch admin@example.test",
+            user_agent="StockWatch admin@example.test",
             transport=FakeTransport(response),
             limiter=FakeLimiter(),
         )
@@ -63,7 +63,7 @@ class SecClientTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             SecClient(user_agent="anonymous")
         client = SecClient(
-            user_agent="Stock Watch admin@example.test",
+            user_agent="StockWatch admin@example.test",
             transport=FakeTransport(),
             limiter=FakeLimiter(),
         )
@@ -100,7 +100,7 @@ class SecClientTests(unittest.TestCase):
                 clock=lambda: datetime(2026, 8, 20, tzinfo=timezone.utc),
             )
             client = SecClient(
-                user_agent="Stock Watch admin@example.test",
+                user_agent="StockWatch admin@example.test",
                 transport=FakeTransport(json_response({"cik": 320193, "facts": {}})),
                 limiter=FakeLimiter(),
                 response_observer=capture,

@@ -3,6 +3,7 @@
 Legacy lots retain their own independent close timers. The durable control row
 only disables legacy entries, including while the replacement system is paused.
 """
+from .automation_config import load_config
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 import json
@@ -143,7 +144,7 @@ def stock_tick(db, broker, now=None):
         own = system_positions(db)
         previous = db.execute('SELECT * FROM market_sessions WHERE trading_date<? ORDER BY trading_date DESC LIMIT 1',(session['trading_date'],)).fetchone()
         if not previous: raise ValueError('Previous stock session unavailable')
-        config = SystemConfig(**json.loads(deployment['config_json']))
+        config = load_config(json.loads(deployment['config_json']))
         if config.sha256 != deployment['config_sha256']: raise ValueError('Immutable strategy hash mismatch')
         # Signal on the previous completed daily bar. New entries at 09:45;
         # rule exits at five minutes before today's actual session close.
@@ -158,6 +159,12 @@ def stock_tick(db, broker, now=None):
             if not bars or bars[0]['timestamp'][:10] != previous['trading_date']: continue
             history = list(reversed([dict(b) for b in bars]))
             action,reason = decision(config,history,instrument['symbol'] in own)
+            if instrument['symbol'] in own and getattr(config,'protocol',None)=='visual-rules-v1':
+                from .rules import position_exit
+                entry=db.execute("SELECT filled_price,created_at FROM system_orders WHERE deployment_id=? AND symbol=? AND side='buy' AND CAST(filled_qty AS REAL)>0 ORDER BY created_at DESC LIMIT 1",(identifier,instrument['symbol'])).fetchone()
+                if entry:
+                    forced=position_exit(config,history[-1]['close'],entry['filled_price'],entry['created_at'],at)
+                    if forced:action,reason='sell',forced
             if deployment['mode']=='paused': action = 'sell' if instrument['symbol'] in own else 'hold'
             momentum = history[-1]['close']/history[-21]['close']-1 if len(history)>=21 else 0
             candidates.append((action,-momentum,instrument['symbol'],instrument,reason))

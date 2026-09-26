@@ -27,11 +27,25 @@ def output(*args):
 
 
 def counts(db):
-    names = ('paper_orders', 'paper_exit_orders', 'paper_lots', 'signals',
-             'strategy_versions', 'scan_runs')
+    names = ('paper_orders', 'paper_exit_orders', 'paper_trade_lots', 'signals',
+             'strategy_versions', 'scan_runs', 'system_deployments', 'system_orders',
+             'system_runs', 'research_notes', 'research_watchlist', 'btc_orders',
+             'btc_allocations', 'btc_accounts', 'btc_enrollments')
     existing = {r[0] for r in db.execute("SELECT name FROM sqlite_master WHERE type='table'")}
     return {n: db.execute('SELECT COUNT(*) FROM "' + n + '"').fetchone()[0]
             for n in names if n in existing}
+
+
+def authority(db, baseline=None):
+    """Snapshot trading authority and ownership, allowing only additive schema changes."""
+    existing={r[0] for r in db.execute("SELECT name FROM sqlite_master WHERE type='table'")}
+    result={}
+    for name in ('system_deployments','system_stock_control','system_orders','btc_accounts','btc_allocations','btc_enrollments','btc_orders'):
+        if name not in existing:continue
+        columns=baseline[name]['columns'] if baseline and name in baseline else [r[1] for r in db.execute('PRAGMA table_info("'+name+'")')]
+        rows=db.execute('SELECT '+','.join('"'+c+'"' for c in columns)+' FROM "'+name+'"').fetchall()
+        result[name]={'columns':columns,'rows':sorted(json.dumps(row,sort_keys=True) for row in rows)}
+    return result
 
 
 def verify_files(source, manifest):
@@ -70,7 +84,7 @@ def main():
         raise SystemExit('Unexpected release staging directory')
     manifest = json.loads((source / 'reviewed-release.json').read_text())
     verify_files(source, manifest)
-    for required in ('.next/BUILD_ID', 'package-lock.json', 'worker/migrations/016_systems.sql'):
+    for required in ('.next/BUILD_ID', 'package-lock.json', 'worker/migrations/018_workspace.sql'):
         if required not in manifest['files']:
             raise RuntimeError('Incomplete reviewed release: ' + required)
     verify_environment_files(source, manifest)
@@ -113,6 +127,7 @@ def main():
             last[0] = time.monotonic()
     with closing(sqlite3.connect(database.as_uri() + '?mode=ro', uri=True)) as old:
         before = counts(old)
+        authority_before=authority(old)
         with closing(sqlite3.connect(recovery / 'stock-watch.db')) as backup:
             old.backup(backup, pages=4096, progress=progress)
             print('Verifying fresh recovery database...', flush=True)
@@ -142,16 +157,18 @@ def main():
     run('runuser', '-u', 'stock-watch', '--', str(runtime / '.venv/bin/stock-watch-systems'),
         '--database', str(database), 'init')
     with closing(sqlite3.connect(database.as_uri() + '?mode=ro', uri=True)) as current:
-        if counts(current) != before:
+        current_counts=counts(current)
+        if any(current_counts.get(key)!=value for key,value in before.items()):
             raise RuntimeError('Legacy ledger counts changed during migration; services remain stopped')
-        if current.execute('SELECT COUNT(*) FROM system_deployments').fetchone()[0]:
-            raise RuntimeError('Unexpected systems deployments require review before activation')
+        authority_after=authority(current,authority_before)
+        if any(authority_after.get(key)!=value for key,value in authority_before.items()):
+            raise RuntimeError('Existing trading authority changed during migration; services remain stopped')
     run('bash', str(runtime / 'deploy/install-systems-root.sh'))
     for mode in ('enabled', 'enabled-runtime'):
         selected = [unit for unit, state in enabled.items() if state == mode]
         if selected:
             run('systemctl', 'enable', *(['--runtime'] if mode == 'enabled-runtime' else []), '--now', *selected)
-    for route in ('/api/health', '/api/systems?asset=stocks', '/api/systems?asset=bitcoin', '/api/bitcoin'):
+    for route in ('/api/health', '/api/systems?asset=stocks', '/api/systems?asset=bitcoin', '/api/bitcoin', '/api/systems/workspace?asset=stocks', '/api/systems/workspace?asset=bitcoin', '/crypto', '/favicon.ico'):
         for attempt in range(30):
             try:
                 with urllib.request.urlopen('http://127.0.0.1:3001' + route, timeout=10) as response:

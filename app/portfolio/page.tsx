@@ -1,3 +1,5 @@
+import { PaperTradingGuide } from '@/components/PaperTradingGuide'
+import { PageHeader } from '@/components/PageHeader'
 import { SystemPortfolio } from '@/components/dashboard/SystemPortfolio'
 import { PerformanceSummary } from '@/components/dashboard/PerformanceSummary'
 import { PaperLots } from '@/components/dashboard/PaperLots'
@@ -19,12 +21,8 @@ export default function PortfolioPage() {
       .sort((a, b) => a.targetExitAt!.localeCompare(b.targetExitAt!))[0]?.targetExitAt
     return (
       <main className="container mx-auto space-y-10 p-4 sm:p-8">
-        <div>
-          <h1 className="text-3xl font-semibold tracking-tight">Paper portfolio</h1>
-          <p className="mt-2 text-muted-foreground">
-            Automatically placed strategy lots and performance against SPY.
-          </p>
-        </div>
+        <PageHeader title="Paper portfolio" description="Automatically placed strategy lots and performance against SPY." />
+        <PaperTradingGuide asset="stocks" />
         <SystemPortfolio />
         <PerformanceSummary />
         <section className="rounded-xl border bg-card p-4">
@@ -76,12 +74,7 @@ export default function PortfolioPage() {
     if (error instanceof WorkerDatabaseUnavailable) {
       return (
         <main className="container mx-auto space-y-10 p-4 sm:p-8">
-          <div>
-            <h1 className="text-3xl font-semibold tracking-tight">Paper portfolio</h1>
-            <p className="mt-2 text-muted-foreground">
-              Automated strategy results appear after the worker database is connected.
-            </p>
-          </div>
+          <PageHeader title="Paper portfolio" description="Automated strategy results appear after the worker database is connected." />
           <DatabaseUnavailable reason={error.message} />
           <details className="space-y-5 border-t pt-8">
             <summary className="font-semibold">Legacy manual sandbox · This browser only</summary>
@@ -100,3 +93,5 @@ export default function PortfolioPage() {
     throw error
   }
 }
+
+export const metadata = { title: 'Paper trading' }

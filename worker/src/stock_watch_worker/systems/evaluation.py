@@ -13,7 +13,10 @@ from .timeframes import advance, boundary, deadline, evidence_expiry, next_revie
 def config_for(db, version):
     row=db.execute('SELECT config_json FROM system_versions WHERE id=?',(version,)).fetchone()
     if not row: raise ValueError('Unknown version')
-    return BitcoinConfig(**json.loads(row[0]))
+    from .automation_config import load_config
+    config=load_config(json.loads(row[0]))
+    if config.asset != 'bitcoin': raise ValueError('Crypto version required')
+    return config
 
 
 def windows(config, cutoff, observed_start=None):

@@ -338,7 +338,7 @@ export function Watchlist() {
 
       {/* Pro tip */}
       <div className="p-4 border-t bg-muted/30 text-sm text-muted-foreground">
-        Shared across LAN browsers and included in Stock Watch backups. Watching a stock does not
+        Shared across LAN browsers and included in StockWatch backups. Watching a stock does not
         change automatic trading eligibility.
       </div>
     </div>

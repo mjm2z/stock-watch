@@ -1,4 +1,4 @@
-# Stock Watch v1 Technical Design
+# StockWatch v1 Technical Design
 
 Status: accepted for implementation
 Scope: automated research and paper trading only
@@ -6,7 +6,7 @@ Initial deployment: `a1347-j`
 
 ## 1. Product objective
 
-Stock Watch evaluates the current S&P 500 twice per US trading day and records
+StockWatch evaluates the current S&P 500 twice per US trading day and records
 reproducible, evidence-backed signals for long-only fractional stock positions.
 Qualifying signals create paper orders automatically. The system measures both
 absolute returns and returns relative to SPY over 5, 21, 63, and 105 trading-day

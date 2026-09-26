@@ -1,3 +1,4 @@
+import { PageHeader } from '@/components/PageHeader'
 import Link from 'next/link'
 import { DatabaseUnavailable } from '@/components/dashboard/DatabaseUnavailable'
 import { SignalTable } from '@/components/dashboard/SignalTable'
@@ -55,17 +56,8 @@ export default async function SignalsPage({ searchParams }: { searchParams: Prom
       'mt-1 block min-h-11 w-full min-w-0 rounded-md border bg-background px-3 py-2 text-sm'
     return (
       <main className="container mx-auto space-y-6 p-4 sm:p-8">
-        <div>
-          <h1 className="text-3xl font-semibold">Signal ledger</h1>
-          <p className="mt-2 text-muted-foreground">
-            Ranked opportunities and their execution history. Outcomes here are modeled; actual
-            fills appear in Paper.
-          </p>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Scores are ranks, not confidence percentages. Four horizons for one company are four
-            observations, not independent forecasts.
-          </p>
-        </div>
+        <PageHeader title="Signal ledger" description="Ranked opportunities and their execution history. Modeled outcomes are separate from actual paper fills." />
+        <p className="sw-muted">Scores are ranks, not confidence percentages. Four horizons for one company are four observations, not independent forecasts.</p>
         <form className="rounded-xl border bg-card p-4">
           <input type="hidden" name="timezone" value={timezone} />
           {p.scanRunId && <input type="hidden" name="scanRunId" value={p.scanRunId} />}
@@ -218,3 +210,5 @@ export default async function SignalsPage({ searchParams }: { searchParams: Prom
     throw error
   }
 }
+
+export const metadata = { title: 'Signals' }

@@ -67,6 +67,9 @@ class SystemConfig:
 
 def decision(config, history, held):
     """Completed bars only; breakout thresholds exclude the deciding bar."""
+    if getattr(config, 'protocol', None) == 'visual-rules-v1':
+        from .rules import decide
+        return decide(config, history, held)
     need = config.slow + 1 if config.template == 'trend' else config.entry + 1
     if len(history) < need:
         return 'hold', 'Warming up indicators'
@@ -245,7 +248,8 @@ def replay(config, data, *, cost_multiplier=1, start=None, end=None, canceled=la
             continue
         if kind == 1:
             prior = history.setdefault(symbol, [])
-            if prior and config.asset == 'bitcoin' and (instant(at) - instant(prior[-1]['at'])).total_seconds() != 3600:
+            from .timeframes import advance
+            if prior and config.asset == 'bitcoin' and advance(instant(prior[-1]['at']),getattr(config,'timeframe','1Hour')) != instant(at):
                 warnings.add('Missing hourly bars; indicators restarted after gap')
                 prior.clear()
             prior.append(dict(row))
@@ -254,6 +258,11 @@ def replay(config, data, *, cost_multiplier=1, start=None, end=None, canceled=la
             if not trading:
                 continue
             action, reason = decision(config, prior, symbol in holdings)
+            if symbol in holdings:
+                from .rules import position_exit
+                p=holdings[symbol]
+                forced=position_exit(config,row['close'],p.get('entry_price'),p.get('entered_at'),at)
+                if forced:action,reason='sell',forced
             value = equity()
             peak = max(peak, value)
             drawdown = min(drawdown, value / peak - 1)
@@ -303,6 +312,9 @@ def replay(config, data, *, cost_multiplier=1, start=None, end=None, canceled=la
                 fee=amount*fee_rate
                 cash-=amount if config.asset=='bitcoin' else amount+fee
                 position=holdings.setdefault(symbol,{'qty':0.,'cost':0.})
+                if getattr(config,'protocol',None)=='visual-rules-v1':
+                    position['entry_price']=(position.get('entry_price',0)*position['qty']+price*qty)/(position['qty']+qty)
+                    position.setdefault('entered_at',at)
                 position['qty']+=qty*(1-fee_rate) if config.asset=='bitcoin' else qty
                 position['cost']+=amount if config.asset=='bitcoin' else amount+fee
                 planned[symbol]['remaining']-=qty

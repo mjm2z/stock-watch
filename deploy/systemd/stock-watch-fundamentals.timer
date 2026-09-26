@@ -1,5 +1,5 @@
 [Unit]
-Description=Refresh Stock Watch SEC fundamentals daily
+Description=Refresh StockWatch SEC fundamentals daily
 
 [Timer]
 OnCalendar=*-*-* 06:15:00 UTC

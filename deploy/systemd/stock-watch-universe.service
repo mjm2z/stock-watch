@@ -1,5 +1,5 @@
 [Unit]
-Description=Synchronize the approved Stock Watch S&P 500 universe
+Description=Synchronize the approved StockWatch S&P 500 universe
 After=network-online.target
 Wants=network-online.target
 
