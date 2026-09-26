@@ -193,3 +193,32 @@ reorg detection, public-provider backoff, operator sessions, and asset isolation
 The public mempool fee endpoint was also checked successfully. These checks do
 not establish broker-specific fill quality or strategy profitability; those
 require the configured paper account and forward observation period.
+
+## Production verification — September 26, 2026
+
+Release `6fa2b33d002b83645ddad4a17356dd87f08f4ded` was installed on a1347-m
+at 16:36:29 UTC. The installer created a fresh recovery database and passed
+SQLite quick_check plus its recorded legacy-table count comparison before
+applying migration 016. Recovery data and protected configuration remain at
+`/var/backups/stock-watch-releases/20260926T151303Z`; the previous runtime remains
+at `/opt/stock-watch.before-20260926T151303Z`. No recovery data was pruned.
+
+The original seven timers are active. Research, stock shadow, and watch-only
+Bitcoin monitoring timers are also active; their service runs report success.
+Both new trading timers remain disabled. Each asset has two baseline templates,
+zero deployments, and zero new system orders. Blockchain observations are present.
+Operator authentication is configured; the token remains in protected runtime
+configuration and is not recorded here.
+
+Both Systems routes, both Bitcoin views, their APIs, and the legacy portfolio API
+return HTTP 200 through stockwatch.home.arpa. HomeOps readiness, JobWatch worker
+health, and Radar readiness also return HTTP 200 through their LAN names.
+Available memory was 6.3 GiB and free disk space 349 GiB after installation.
+The Linux build, 289 worker tests, 60 frontend tests, and isolated seven-route
+rehearsal passed. Deployment tests passed (one platform-specific skip on Linux);
+the three environment/integrity guard tests passed after correcting the initial
+rejection of the tracked `.env.example` template. The failed first install attempt
+stopped before altering services or production data.
+
+Observe the next full trading day before final operational acceptance. New
+trading strategies require their separate explicit activation workflow.
