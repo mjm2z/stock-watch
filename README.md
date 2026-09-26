@@ -817,7 +817,7 @@ npm run build
 PYTHONPATH=worker/src python3.12 -m unittest discover -s worker/tests
 ```
 
-The research-control implementation was checked with 336 Python tests and 74 web tests, production build, and browser smoke checks at 390px and 1440px widths. Tests use isolated fixtures and fake brokers; they do not establish production deployment or strategy profitability.
+The research-control implementation was checked with 338 Python tests and 74 web tests, production build, and browser smoke checks at 390px and 1440px widths. Tests use isolated fixtures and fake brokers; they do not establish production deployment or strategy profitability.
 
 Coverage includes:
 

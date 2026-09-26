@@ -26,6 +26,20 @@ def output(*args):
     return subprocess.check_output(args, text=True).strip()
 
 
+def drain_services(unit_lines, current_pid=None):
+    # A supervised installer is not a writer that it can wait to drain.
+    current_pid = str(os.getpid() if current_pid is None else current_pid)
+    services = []
+    for line in unit_lines:
+        name = line.split()[0]
+        if not name.endswith('.service') or name == 'stock-watch-web.service':
+            continue
+        if output('systemctl', 'show', '-p', 'MainPID', '--value', name) == current_pid:
+            continue
+        services.append(name)
+    return services
+
+
 def counts(db):
     names = ('paper_orders', 'paper_exit_orders', 'paper_trade_lots', 'signals',
              'strategy_versions', 'scan_runs', 'system_deployments', 'system_orders',
@@ -110,8 +124,7 @@ def main():
     (recovery / 'enabled-timers.json').write_text(json.dumps(enabled, indent=2))
     if timers:
         run('systemctl', 'stop', *timers)
-    services = [line.split()[0] for line in units if line.split()[0].endswith('.service')
-                and line.split()[0] != 'stock-watch-web.service']
+    services = drain_services(units)
     deadline = time.monotonic() + 600
     while any(output('systemctl', 'show', '-p', 'ActiveState', '--value', s)
               in ('active', 'activating', 'deactivating') for s in services):
