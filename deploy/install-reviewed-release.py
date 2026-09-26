@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Install a prebuilt release on the authoritative host with retained recovery data."""
 from datetime import datetime
+from contextlib import closing
 import hashlib
 import json
 import os
@@ -92,9 +93,9 @@ def main():
         if time.monotonic() - last[0] > 10:
             print(f'Backup copied {total-remaining}/{total} pages...', flush=True)
             last[0] = time.monotonic()
-    with sqlite3.connect(database.as_uri() + '?mode=ro', uri=True) as old:
+    with closing(sqlite3.connect(database.as_uri() + '?mode=ro', uri=True)) as old:
         before = counts(old)
-        with sqlite3.connect(recovery / 'stock-watch.db') as backup:
+        with closing(sqlite3.connect(recovery / 'stock-watch.db')) as backup:
             old.backup(backup, pages=4096, progress=progress)
             print('Verifying fresh recovery database...', flush=True)
             if backup.execute('PRAGMA quick_check').fetchall() != [('ok',)] or counts(backup) != before:
@@ -122,7 +123,7 @@ def main():
     # Only additive systems migration/seeding; legacy strategy authority is unchanged.
     run('runuser', '-u', 'stock-watch', '--', str(runtime / '.venv/bin/stock-watch-systems'),
         '--database', str(database), 'init')
-    with sqlite3.connect(database.as_uri() + '?mode=ro', uri=True) as current:
+    with closing(sqlite3.connect(database.as_uri() + '?mode=ro', uri=True)) as current:
         if counts(current) != before:
             raise RuntimeError('Legacy ledger counts changed during migration; services remain stopped')
         if current.execute('SELECT COUNT(*) FROM system_deployments').fetchone()[0]:
