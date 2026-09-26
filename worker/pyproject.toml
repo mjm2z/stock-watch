@@ -11,6 +11,7 @@ dependencies = []
 
 [project.scripts]
 stock-watch-worker = "stock_watch_worker.cli:main"
+stock-watch-systems = "stock_watch_worker.systems.cli:main"
 
 [tool.setuptools]
 package-dir = {"" = "src"}

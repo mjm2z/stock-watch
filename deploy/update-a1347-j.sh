@@ -10,6 +10,11 @@ readonly TIMER_UNITS=(
   stock-watch-fundamentals.timer
   stock-watch-universe.timer
   stock-watch-backup.timer
+  stock-watch-bitcoin-monitor.timer
+  stock-watch-bitcoin-trading.timer
+  stock-watch-systems-stock-shadow.timer
+  stock-watch-systems-stocks.timer
+  stock-watch-systems-research.timer
 )
 readonly SERVICE_UNITS=(
   stock-watch-exits.service
@@ -20,6 +25,11 @@ readonly SERVICE_UNITS=(
   stock-watch-universe.service
   stock-watch-assets.service
   stock-watch-backup.service
+  stock-watch-bitcoin-monitor.service
+  stock-watch-bitcoin-trading.service
+  stock-watch-systems-stock-shadow.service
+  stock-watch-systems-stocks.service
+  stock-watch-systems-research.service
 )
 
 if [[ "${EUID}" -ne 0 ]]; then
@@ -38,8 +48,11 @@ for timer in "${TIMER_UNITS[@]}"; do
   fi
 done
 
-systemctl stop "${TIMER_UNITS[@]}"
-systemctl stop "${SERVICE_UNITS[@]}" stock-watch-web.service
+for unit in "${TIMER_UNITS[@]}" "${SERVICE_UNITS[@]}" stock-watch-web.service; do
+  if [[ "$(systemctl show --property=LoadState --value "$unit")" != "not-found" ]]; then
+    systemctl stop "$unit"
+  fi
+done
 
 bash "${RELEASE_SOURCE}/deploy/bootstrap-a1347-j.sh" "${RELEASE_SOURCE}"
 

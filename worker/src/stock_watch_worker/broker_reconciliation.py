@@ -225,7 +225,11 @@ def _expected_positions(connection: sqlite3.Connection) -> dict[str, float]:
         ORDER BY instruments.symbol
         """
     ).fetchall()
-    return {str(row["symbol"]): float(row["quantity"]) for row in rows}
+    result = {str(row["symbol"]): float(row["quantity"]) for row in rows}
+    from .systems.stocks import system_positions
+    for symbol, quantity in system_positions(connection).items():
+        result[symbol] = result.get(symbol, 0.0) + quantity
+    return result
 
 
 def _actual_positions(positions: Sequence[AlpacaPosition]) -> dict[str, float]:

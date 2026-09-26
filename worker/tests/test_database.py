@@ -49,7 +49,7 @@ class DatabaseMigrationTests(unittest.TestCase):
                 "012_shared_research",
                 "013_assessment_controls",
                 "014_news_revisions",
-                "015_exit_timing",
+                "015_exit_timing", "016_systems",
             ],
         )
 

@@ -5,6 +5,7 @@ import { Navigation } from '@/components/Navigation'
 jest.mock('next/navigation', () => ({
   useRouter: () => ({ push: jest.fn() }),
   usePathname: () => '/signals',
+  useSearchParams: () => new URLSearchParams(),
 }))
 jest.mock('@/lib/use-shared-watchlist', () => ({ useSharedWatchlist: () => ({ add: jest.fn() }) }))
 const originalFetch = global.fetch

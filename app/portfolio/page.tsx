@@ -1,3 +1,4 @@
+import { SystemPortfolio } from '@/components/dashboard/SystemPortfolio'
 import { PerformanceSummary } from '@/components/dashboard/PerformanceSummary'
 import { PaperLots } from '@/components/dashboard/PaperLots'
 import { AssessmentControls } from '@/components/dashboard/AssessmentControls'
@@ -24,6 +25,7 @@ export default function PortfolioPage() {
             Automatically placed strategy lots and performance against SPY.
           </p>
         </div>
+        <SystemPortfolio />
         <PerformanceSummary />
         <section className="rounded-xl border bg-card p-4">
           <h2 className="font-semibold">Next scheduled exit</h2>

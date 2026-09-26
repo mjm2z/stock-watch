@@ -1,0 +1,11 @@
+[Unit]
+Description=Schedule Stock Watch systems-research
+
+[Timer]
+OnBootSec=2min
+OnUnitInactiveSec=60s
+AccuracySec=1s
+Unit=stock-watch-systems-research.service
+
+[Install]
+WantedBy=timers.target

@@ -106,6 +106,11 @@ def _create_order_intent_locked(
             "existing", str(existing["order_id"]), str(existing["lot_id"])
         )
 
+    from .systems.stocks import legacy_entries_disabled
+    if legacy_entries_disabled(connection):
+        _audit_rejection(connection, signal_id, 'replaced_by_stock_system')
+        return OrderIntentResult('rejected', None, None, 'replaced_by_stock_system')
+
     rejection = _eligibility_rejection(signal)
     if rejection:
         _audit_rejection(connection, signal_id, rejection)

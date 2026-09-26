@@ -1,0 +1,11 @@
+[Unit]
+Description=Schedule Stock Watch systems-stock-shadow
+
+[Timer]
+OnBootSec=2min
+OnUnitInactiveSec=15min
+AccuracySec=1s
+Unit=stock-watch-systems-stock-shadow.service
+
+[Install]
+WantedBy=timers.target

@@ -1,3 +1,4 @@
+import { Suspense } from 'react'
 import { DashboardRefresh } from '@/components/dashboard/DashboardRefresh'
 import type { Metadata } from 'next'
 import { Inter } from 'next/font/google'
@@ -21,13 +22,16 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             <a href="#main-content" className="sr-only focus:not-sr-only focus:block focus:p-3">
               Skip to main content
             </a>
-            <Navigation />
+            <Suspense fallback={<div className="h-24 border-b" />}>
+              <Navigation />
+            </Suspense>
             <div id="main-content" tabIndex={-1}>
               {children}
             </div>
             <footer className="container mx-auto flex flex-wrap items-center justify-between gap-3 border-t px-4 py-3 text-xs text-muted-foreground">
               <span>
-                Paper trading · Times shown in Eastern · Saved results refresh every minute
+                Paper trading · Stocks: Eastern time · Bitcoin: UTC · Saved results refresh every
+                minute
               </span>
               <DashboardRefresh />
             </footer>

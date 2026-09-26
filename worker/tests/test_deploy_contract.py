@@ -142,7 +142,10 @@ class DeployContractTests(unittest.TestCase):
         )
 
         self.assertIn("systemctl is-enabled --quiet", update)
-        self.assertIn('systemctl stop "${TIMER_UNITS[@]}"', update)
+        self.assertIn('for unit in "${TIMER_UNITS[@]}" "${SERVICE_UNITS[@]}" stock-watch-web.service', update)
+        self.assertIn('systemctl stop "$unit"', update)
+        self.assertIn('not-found', update)
+        self.assertIn('stock-watch-systems-research.timer', update)
         self.assertIn("stock-watch-web.service", update)
         self.assertIn("bootstrap-a1347-j.sh", update)
         self.assertIn('systemctl enable --now "${enabled_timers[@]}"', update)

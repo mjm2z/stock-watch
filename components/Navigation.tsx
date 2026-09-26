@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { usePathname } from 'next/navigation'
+import { usePathname, useSearchParams } from 'next/navigation'
 import {
   Activity,
   BriefcaseBusiness,
@@ -16,13 +16,26 @@ const navItems = [
   { href: '/', label: 'Overview', icon: LayoutDashboard },
   { href: '/signals', label: 'Signals', icon: Activity },
   { href: '/portfolio', label: 'Paper', icon: BriefcaseBusiness },
-  { href: '/backtests', label: 'Backtests', icon: FlaskConical },
+  { href: '/systems', label: 'Systems', icon: FlaskConical },
   { href: '/operations', label: 'Ops', icon: ServerCog },
   { href: '/research', label: 'Research', icon: Search },
 ]
 
 export function Navigation() {
   const pathname = usePathname()
+  const params = useSearchParams()
+  const bitcoin =
+    pathname === '/bitcoin' || (pathname === '/systems' && params.get('asset') === 'bitcoin')
+  const items = bitcoin
+    ? [
+        { href: '/bitcoin', label: 'Overview', icon: LayoutDashboard },
+        { href: '/bitcoin?view=signals', label: 'Signals', icon: Activity },
+        { href: '/bitcoin?view=paper', label: 'Paper', icon: BriefcaseBusiness },
+        { href: '/systems?asset=bitcoin', label: 'Systems', icon: FlaskConical },
+        { href: '/bitcoin?view=operations', label: 'Ops', icon: ServerCog },
+        { href: '/bitcoin?view=blockchain', label: 'Blockchain', icon: Search },
+      ]
+    : navItems
 
   return (
     <nav aria-label="Main navigation" className="border-b bg-card">
@@ -33,12 +46,36 @@ export function Navigation() {
             <span className="hidden lg:inline">StockWatch</span>
           </Link>
 
+          <div aria-label="Asset context" className="flex gap-1 text-sm">
+            <Link
+              href={pathname === '/systems' ? '/systems' : '/'}
+              aria-current={!bitcoin ? 'true' : undefined}
+              className={cn('rounded px-3 py-2', !bitcoin && 'bg-primary/10 text-primary')}
+            >
+              Stocks
+            </Link>
+            <Link
+              href={pathname === '/systems' ? '/systems?asset=bitcoin' : '/bitcoin'}
+              aria-current={bitcoin ? 'true' : undefined}
+              className={cn('rounded px-3 py-2', bitcoin && 'bg-primary/10 text-primary')}
+            >
+              Bitcoin
+            </Link>
+          </div>
           <div className="grid grid-cols-6 gap-0.5 lg:ml-auto lg:flex lg:items-center lg:gap-1">
-            {navItems.map(({ href, label, icon: Icon }) => {
-              const isActive =
-                href === '/'
+            {items.map(({ href, label, icon: Icon }) => {
+              const isActive = bitcoin
+                ? pathname +
+                    (pathname === '/systems'
+                      ? '?asset=bitcoin'
+                      : params.get('view')
+                        ? '?view=' + params.get('view')
+                        : '') ===
+                  href
+                : href === '/'
                   ? pathname === href
                   : pathname.startsWith(href) ||
+                    (href === '/systems' && pathname === '/backtests') ||
                     (href === '/research' &&
                       (pathname.startsWith('/stock/') || pathname === '/watchlist'))
 

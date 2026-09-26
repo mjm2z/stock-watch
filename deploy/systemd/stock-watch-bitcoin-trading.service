@@ -1,0 +1,27 @@
+[Unit]
+Description=Stock Watch bitcoin-trading
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=stock-watch
+Group=stock-watch
+WorkingDirectory=/opt/stock-watch/worker
+EnvironmentFile=/etc/stock-watch/stock-watch.env
+EnvironmentFile=-/etc/stock-watch/systems.env
+Environment=PYTHONUNBUFFERED=1
+ExecStart=/opt/stock-watch/.venv/bin/stock-watch-systems --database ${STOCK_WATCH_DATABASE_PATH} tick
+TimeoutStartSec=55
+CPUQuota=100%
+MemoryMax=384M
+Nice=10
+IOSchedulingClass=idle
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=strict
+ReadWritePaths=/var/lib/stock-watch
+StandardOutput=journal
+StandardError=journal

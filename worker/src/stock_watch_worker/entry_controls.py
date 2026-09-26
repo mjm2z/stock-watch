@@ -16,6 +16,9 @@ def check_entry(connection, order_id, broker, now):
         v.config_json,i.symbol FROM paper_orders o JOIN signals s ON s.id=o.signal_id
         JOIN strategy_versions v ON v.id=s.strategy_version_id JOIN instruments i ON i.id=s.instrument_id
         WHERE o.id=?""",(order_id,)).fetchone()
+    from .systems.stocks import legacy_entries_disabled
+    if legacy_entries_disabled(connection):
+        return _record(connection,row,'reject','replaced_by_stock_system',{},now)
     policy=json.loads(row['config_json']).get('entry_policy',{})
     if not policy.get('enabled'): return 'allow','legacy_policy'
     existing=connection.execute('SELECT * FROM deferred_entries WHERE order_id=?',(order_id,)).fetchone()
