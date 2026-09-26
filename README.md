@@ -470,7 +470,7 @@ Repeating the same test 100 times does not create 100 independent observations. 
 - Exactly 100 completed, valid scenarios.
 - A scenario passes only with positive net return after costs and drawdown no greater than 10%.
 - At least the configured fraction of all 100 scenarios passes; default 80/100.
-- At least 30 unique closed trades across base profiles, deduplicated across overlapping windows.
+- At least 30 unique closed trades across base profiles, deduplicated by symbol and entry time across overlapping windows, even when exits differ.
 - At least five nonoverlapping chronological windows.
 - Positive median base-profile return.
 - Positive mean return for every execution profile.
@@ -498,7 +498,7 @@ A passing, unexpired Bitcoin trial can authorize a system only when:
 
 Authorization allocates capital; it does not submit an order. The existing coordinator waits for the next valid completed-bar entry signal, fresh collection/quotes, broker constraints, and risk checks.
 
-Daily evidence expires after eight days. Intraday evidence expires after 36 hours. Weekly/monthly evidence expires at the next monthly review plus 48 hours. Expiry blocks new entries while owned exits continue to be managed.
+Daily evidence expires after eight days. Intraday evidence expires after 36 hours. Weekly/monthly evidence expires at the next monthly review plus 48 hours. Expiry or a newer completed failing evaluation blocks new entries while owned exits continue to be managed.
 
 ### Retained forward-observed path
 
@@ -817,7 +817,7 @@ npm run build
 PYTHONPATH=worker/src python3.12 -m unittest discover -s worker/tests
 ```
 
-The research-control implementation was checked with 334 Python tests and 74 web tests, production build, and browser smoke checks at 390px and 1440px widths. Tests use isolated fixtures and fake brokers; they do not establish production deployment or strategy profitability.
+The research-control implementation was checked with 336 Python tests and 74 web tests, production build, and browser smoke checks at 390px and 1440px widths. Tests use isolated fixtures and fake brokers; they do not establish production deployment or strategy profitability.
 
 Coverage includes:
 

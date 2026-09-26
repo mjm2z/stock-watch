@@ -21,6 +21,8 @@ def eligible(db,version,now):
     if not row or row['status']!='active' or row['policy_id']!=p['id'] or not row['active'] or row['paused'] or not row['started_at']:return None
     if row['account_id']!=db.execute('SELECT account_id FROM btc_allocations WHERE version_id=?',(version,)).fetchone()[0]:return None
     if row['trial_status']!='completed' or not row['expires_at'] or instant(row['expires_at'])<=now:return None
+    latest=db.execute("SELECT id FROM discovery_trials WHERE version_id=? AND policy_id=? AND status='completed' ORDER BY finished_at DESC,id DESC LIMIT 1",(version,p['id'])).fetchone()
+    if not latest or latest[0]!=row['trial_id']:return None
     result=json.loads(row['result_json'] or '{}')
     if not result.get('passed') or result.get('scenario_count')!=100 or result.get('scenario_pass_rate',0)<p['threshold']:return None
     if D(row['allocated_budget'])!=D(row['tested_budget']) or D(row['budget'])!=D(row['allocated_budget']):return None

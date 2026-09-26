@@ -24,6 +24,13 @@ class MetricsTests(unittest.TestCase):
         self.assertAlmostEqual(m['realized_closed_pnl'],12.8)
         self.assertEqual(m['net_pnl'],9)
         self.assertAlmostEqual(m['open_and_partial_pnl'],-3.8)
+    def test_same_entry_with_different_exits_is_one_unique_trade(self):
+        report={'starting_cash':200,'ending_equity':201,'fills':[
+            {'at':'entry','symbol':'BTC/USD','side':'buy','qty':1,'price':100,'fee':0},
+            {'at':'exit1','symbol':'BTC/USD','side':'sell','qty':1,'price':101,'fee':0}]}
+        first=trade_metrics(report,'bitcoin')['trades'][0]['id']
+        report['fills'][-1]['at']='exit2'
+        self.assertEqual(first,trade_metrics(report,'bitcoin')['trades'][0]['id'])
     def test_missing_or_sampled_evidence_is_not_zero(self):
         self.assertFalse(trade_metrics({},'bitcoin')['available'])
         self.assertFalse(trade_metrics({'fills':[],'fills_in_full_artifact':120,'starting_cash':300,'ending_equity':300},'bitcoin')['available'])
@@ -82,6 +89,12 @@ class AutomaticPaperTests(unittest.TestCase):
         self.assertTrue(order.startswith('btc2-'))
         with self.assertRaisesRegex(ValueError,'outstanding'):
             reserve(self.db,self.version,'buy',.4,100,NOW,'trial','duplicate')
+    def test_new_failed_evaluation_suspends_old_automatic_authority(self):
+        self.prepare()
+        with self.db:self.db.execute("INSERT INTO discovery_trials(id,batch_id,version_id,asset,policy_id,budget,status,created_at,finished_at,expires_at,result_json) VALUES ('new-trial','batch',?,'bitcoin',1,'200','completed',?,?,?,?)",
+            (self.version,NOW.isoformat(),(NOW+timedelta(seconds=1)).isoformat(),(NOW+timedelta(days=8)).isoformat(),canonical({'passed':False,'scenario_count':100,'scenario_pass_rate':.79})))
+        self.assertIsNone(eligible(self.db,self.version,NOW+timedelta(seconds=2)))
+        self.assertEqual(self.db.execute('SELECT COUNT(*) FROM btc_allocations').fetchone()[0],1)
     def test_policy_pause_expiry_and_budget_change_block_entries(self):
         self.prepare()
         with self.db:self.db.execute('UPDATE research_policies SET enabled=0')

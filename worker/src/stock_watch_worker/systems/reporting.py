@@ -24,7 +24,7 @@ def trade_metrics(report,asset):
                 return {'version':VERSION,'available':False,'reason':'Incomplete or unmatched fills'}
             p['quantity']-=q;p['proceeds']+=q*price-fee
             if p['quantity']<1e-8:
-                trades.append({'id':hashlib.sha256(f"{symbol}|{p['at']}|{fill['at']}".encode()).hexdigest(),
+                trades.append({'id':hashlib.sha256(f"{symbol}|{p['at']}".encode()).hexdigest(),
                                'symbol':symbol,'entry_at':p['at'],'exit_at':fill['at'],
                                'cost':p['spent'],'pnl':p['proceeds']-p['spent']})
                 del held[symbol]
