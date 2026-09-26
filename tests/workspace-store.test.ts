@@ -15,9 +15,35 @@ beforeEach(() => {
   db.close()
 })
 afterEach(() => {
+  jest.useRealTimers()
   if (original === undefined) delete process.env.STOCK_WATCH_DATABASE_PATH
   else process.env.STOCK_WATCH_DATABASE_PATH = original
   rmSync(directory, { recursive: true, force: true })
+})
+test('recent history remains visible during rollover, without substituting custom windows', () => {
+  jest.useFakeTimers().setSystemTime(new Date('2026-09-26T20:01:00Z'))
+  chartRequest('1Y')
+  const db = new DatabaseSync(process.env.STOCK_WATCH_DATABASE_PATH!)
+  const job = db.prepare('SELECT id,payload_json FROM workspace_jobs').get()!
+  const payload = JSON.parse(String(job.payload_json))
+  const bars = [{ at: '2026-09-25T00:00:00Z', close: 100 }]
+  db.prepare('INSERT INTO crypto_chart_cache VALUES (?,?,?)').run(
+    payload.key,
+    JSON.stringify({ bars, resolution: '1Day' }),
+    new Date().toISOString()
+  )
+  // A daily chart shares the hour's work, instead of discarding it every five minutes.
+  jest.setSystemTime(new Date('2026-09-26T20:51:00Z'))
+  expect(chartRequest('1Y').bars).toEqual(bars)
+  expect(db.prepare('SELECT count(*) AS n FROM workspace_jobs').get()!.n).toBe(1)
+  jest.setSystemTime(new Date('2026-09-26T21:01:00Z'))
+  const next = chartRequest('1Y')
+  expect(next.bars).toEqual(bars)
+  expect(next.stale).toBe(true)
+  expect(next.refreshing).toBe(true)
+  expect(db.prepare('SELECT count(*) AS n FROM workspace_jobs').get()!.n).toBe(2)
+  expect(chartRequest('custom', '2025-09-26T00:00:00Z', '2026-09-26T00:00:00Z').bars).toEqual([])
+  db.close()
 })
 test('drafts remain editable while queued publication is frozen and idempotent', () => {
   const d = workspaceCommand({

@@ -3,6 +3,7 @@ import Link from 'next/link'
 import { PaperTradingGuide } from './PaperTradingGuide'
 import { PageHeader } from './PageHeader'
 import { CryptoMarketChart } from './MarketChart'
+import { BitcoinSystemResearch } from './BitcoinSystemResearch'
 import { useCallback, useEffect, useState } from 'react'
 import { OperatorAccess } from './SystemsWorkspace'
 type Row = Record<string, unknown>
@@ -79,15 +80,29 @@ export function BitcoinWorkspace({ view }: { view: string }) {
   }
   return (
     <main className="container mx-auto space-y-6 p-4 sm:p-8">
-      <PageHeader title={view === 'overview' ? 'Crypto overview' : view === 'paper' ? 'Crypto paper portfolio' : view === 'blockchain' ? 'Blockchain research' : view === 'signals' ? 'Crypto signals' : 'Crypto operations'} description="Bitcoin · BTC/USD · Continuous market · Paper trading only" action={<Link className="sw-button" href="/systems?asset=bitcoin">Explore systems</Link>} />
+      <PageHeader
+        title={
+          view === 'overview'
+            ? 'Crypto overview'
+            : view === 'paper'
+              ? 'Crypto paper portfolio'
+              : view === 'blockchain'
+                ? 'Blockchain research'
+                : view === 'signals'
+                  ? 'Crypto signals'
+                  : 'Crypto operations'
+        }
+        description="Bitcoin · BTC/USD · Continuous market · Paper trading only"
+      />
       {view === 'paper' && <PaperTradingGuide asset="bitcoin" />}
       {view === 'overview' && <CryptoMarketChart />}
+      {view === 'overview' && <BitcoinSystemResearch compact />}
       {error && (
         <p role="alert" className="rounded border border-amber-500 p-3">
           {error}
         </p>
       )}
-      {view === 'overview' && (
+      {view === 'overview' && !!quote.bp && (
         <section className="rounded-xl border p-5">
           <h2 className="text-xl font-semibold">BTC/USD market</h2>
           <div className="mt-3 grid gap-4 sm:grid-cols-3">
@@ -115,7 +130,21 @@ export function BitcoinWorkspace({ view }: { view: string }) {
           </p>
         </section>
       )}
-      {view === 'overview' || view === 'paper' ? (
+      {view === 'overview' && !account.id && !portfolio && (
+        <section className="sw-panel flex flex-wrap items-center justify-between gap-4">
+          <div>
+            <h2>From research to paper trading</h2>
+            <p className="sw-muted mt-2">
+              No paper system is active. Start with a researched idea, review a backtest, then
+              collect forward observations.
+            </p>
+          </div>
+          <Link className="sw-button" href="/crypto?view=paper">
+            Review paper setup
+          </Link>
+        </section>
+      )}
+      {(view === 'overview' && (account.id || portfolio)) || view === 'paper' ? (
         <section className="space-y-3 rounded-xl border p-5">
           <h2 className="text-xl font-semibold">Paper performance</h2>
           {account.id ? (
@@ -193,7 +222,9 @@ export function BitcoinWorkspace({ view }: { view: string }) {
           </p>
         </section>
       ) : null}
-      {view === 'overview' || view === 'signals' ? (
+      {(view === 'overview' &&
+        (observations.length > 0 || automatedVersions.some((v) => v.last_decision_at))) ||
+      view === 'signals' ? (
         <section className="space-y-3">
           <h2 className="text-xl font-semibold">Latest rule decisions</h2>
           {automatedVersions

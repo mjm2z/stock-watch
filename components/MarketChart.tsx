@@ -9,6 +9,19 @@ export type ChartBar = {
   close: number
   volume: number
 }
+type HistoryResponse = {
+  bars: ChartBar[]
+  status: string
+  observedAt?: string
+  coverageStart?: string
+  coverageEnd?: string
+  resolution?: string
+  error?: string
+  gaps?: number
+  partial?: boolean
+  refreshing?: boolean
+  stale?: boolean
+}
 export function InteractiveChart({
   bars,
   candles = false,
@@ -217,44 +230,41 @@ export function CryptoMarketChart() {
     [custom, setCustom] = useState({ start: '', end: '' }),
     [candles, setCandles] = useState(false),
     [volume, setVolume] = useState(false)
-  const [data, setData] = useState<{
-      bars: ChartBar[]
-      status: string
-      observedAt?: string
-      coverageStart?: string
-      coverageEnd?: string
-      resolution?: string
-      error?: string
-      gaps?: number
-      partial?: boolean
-    }>({ bars: [], status: 'loading' }),
+  const cache = useRef(new Map<string, HistoryResponse>())
+  const [data, setData] = useState<HistoryResponse>({ bars: [], status: 'loading' }),
     [error, setError] = useState('')
   useEffect(() => {
     if (range === 'custom' && (!custom.start || !custom.end)) return
     let active = true
     const abort = new AbortController()
+    const query = new URLSearchParams({ range, ...(range === 'custom' ? custom : {}) }).toString()
+    let timer: ReturnType<typeof setTimeout>
+    let pending = true
     async function load() {
       try {
-        const query = new URLSearchParams({ range, ...(range === 'custom' ? custom : {}) })
         const r = await fetch('/api/crypto/market/history?' + query, { signal: abort.signal })
         const d = await r.json()
         if (!r.ok) throw Error(d.error)
         if (active) {
+          pending = d.refreshing || !['ready', 'failed', 'canceled'].includes(d.status)
+          if (d.bars?.length) cache.current.set(query, d)
           setData((old) => (d.status === 'ready' ? d : { ...d, bars: old.bars }))
           setError(d.error || '')
         }
       } catch (e) {
         if (active && !abort.signal.aborted)
           setError(e instanceof Error ? e.message : 'Chart unavailable')
+      } finally {
+        if (active) timer = setTimeout(load, pending ? 2000 : 60000)
       }
     }
-    setData((old) => ({ ...old, status: 'loading', bars: [] }))
+    setData(cache.current.get(query) || { status: 'loading', bars: [] })
+    setError('')
     void load()
-    const timer = setInterval(load, 15000)
     return () => {
       active = false
       abort.abort()
-      clearInterval(timer)
+      clearTimeout(timer)
     }
   }, [range, custom])
   const first = data.bars[0],
@@ -338,6 +348,14 @@ export function CryptoMarketChart() {
           displayed-period change may cover less than the requested window.
         </p>
       ) : null}
+      {data.stale && (
+        <p className="sw-muted mb-3" role="status">
+          Showing previously collected history
+          {data.refreshing
+            ? ' · Refreshing in the background…'
+            : ' · Refresh unavailable; last collection time shown below.'}
+        </p>
+      )}
       {error && (
         <p role="alert" className="sw-notice sw-error mb-4">
           {error}
@@ -354,7 +372,9 @@ export function CryptoMarketChart() {
         <div className="sw-empty" style={{ minHeight: 420 }}>
           {data.status === 'ready'
             ? 'No historical prices cover this interval.'
-            : 'Preparing historical prices… The background worker collects available data independently of trading.'}
+            : data.status === 'failed' || data.status === 'canceled'
+              ? 'History collection did not complete. Try another range or check Crypto operations.'
+              : 'Collecting this range for the first time… Previously viewed ranges stay cached.'}
         </div>
       )}
       <p className="sw-muted mt-4">

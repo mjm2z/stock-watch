@@ -114,10 +114,11 @@ def execute(db,job,database):
     return {'command':job['id'],'state':'awaiting trading worker validation'}
 
 
-def run_workspace(db,database):
-    # Caller holds the existing research worker process lock.
-    with db:db.execute("UPDATE workspace_jobs SET status='failed',error='Worker interrupted; retry explicitly',finished_at=? WHERE status='running'",(now_iso(),))
-    job=db.execute("SELECT * FROM workspace_jobs WHERE status='queued' AND cancel_requested=0 ORDER BY created_at LIMIT 1").fetchone()
+def run_workspace(db,database,charts_only=False):
+    # Chart and research workers hold separate process locks and disjoint queues.
+    scope="kind='chart'" if charts_only else "kind!='chart'"
+    with db:db.execute(f"UPDATE workspace_jobs SET status='failed',error='Worker interrupted; retry explicitly',finished_at=? WHERE status='running' AND {scope}",(now_iso(),))
+    job=db.execute(f"SELECT * FROM workspace_jobs WHERE status='queued' AND cancel_requested=0 AND {scope} ORDER BY created_at LIMIT 1").fetchone()
     if not job:return
     with db:db.execute("UPDATE workspace_jobs SET status='running',started_at=?,progress=10 WHERE id=?",(now_iso(),job['id']))
     try:
@@ -129,3 +130,4 @@ def run_workspace(db,database):
     except Exception as error:
         canceled=db.execute('SELECT cancel_requested FROM workspace_jobs WHERE id=?',(job['id'],)).fetchone()[0]
         with db:db.execute('UPDATE workspace_jobs SET status=?,error=?,finished_at=? WHERE id=?',('canceled' if canceled else 'failed',None if canceled else str(error)[:500],now_iso(),job['id']))
+    return job['id']

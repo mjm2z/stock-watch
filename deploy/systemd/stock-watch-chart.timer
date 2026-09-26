@@ -1,0 +1,11 @@
+[Unit]
+Description=Refresh requested StockWatch charts independently of backtests
+
+[Timer]
+OnBootSec=15s
+OnUnitInactiveSec=5s
+AccuracySec=1s
+Unit=stock-watch-chart.service
+
+[Install]
+WantedBy=timers.target

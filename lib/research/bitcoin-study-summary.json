@@ -1,0 +1,606 @@
+{
+  "schema_version": 1,
+  "study_id": "bitcoin-daily-2026-09-26-v1",
+  "collected_at": "2026-09-26T21:01:06.255271+00:00",
+  "dataset_sha256": "2c20c78005584b5f905be928bd99585a736d8104f95487c23626e5b5db33d550",
+  "coverage": {
+    "first": "2021-01-02T00:00:00+00:00",
+    "last": "2026-09-26T00:00:00+00:00",
+    "bars": 2094
+  },
+  "methodology": [
+    "Three fixed rule sets, selected before calculating results; no parameter optimization or discarded losing candidates.",
+    "Five non-overlapping evaluation periods, each starting flat with $300. 2026 is a shorter YTD period. Prior bars provide warmup only.",
+    "Ten backtests per system: five base runs plus five double-cost stress runs. Stress runs are not independent evidence.",
+    "Daily completed-bar decisions, next-day open execution proxy; 0.25% fee and 0.05% slippage per side. Stress doubles both.",
+    "25% portfolio allocation per entry; 10% portfolio drawdown pauses further entries for that period. 12-month holding cap, 100% price profit cap.",
+    "Ending open positions are marked to market, not counted as closed wins. No forced liquidation or exit fee at the period boundary.",
+    "Benchmark: 25% buy-and-hold BTC with 75% idle cash, same initial execution cost model; full BTC is shown separately.",
+    "Daily bars cannot reproduce spreads, liquidity or intraday risk exits. Results are exploratory, retrospective and not forward qualification.",
+    "Comparing three candidates on shared history introduces selection bias. Repeated historical runs do not increase independent sample size."
+  ],
+  "systems": [
+    {
+      "id": "sma-200",
+      "name": "200-day trend",
+      "family": "Trend following",
+      "rules": "Enter above the 200-day simple moving average; exit below it.",
+      "adaptation": "Daily Bitcoin adaptation of moving-average timing; not a replication of the monthly, diversified Faber model.",
+      "source": {
+        "title": "Meb Faber: timing model FAQ",
+        "url": "https://mebfaber.com/timing-model/"
+      },
+      "config": {
+        "asset": "bitcoin",
+        "entry_rules": {
+          "op": "all",
+          "conditions": [
+            {
+              "op": "gt",
+              "left": {
+                "kind": "close"
+              },
+              "right": {
+                "kind": "sma",
+                "period": 200
+              }
+            }
+          ]
+        },
+        "exit_rules": {
+          "op": "all",
+          "conditions": [
+            {
+              "op": "lt",
+              "left": {
+                "kind": "close"
+              },
+              "right": {
+                "kind": "sma",
+                "period": 200
+              }
+            }
+          ]
+        },
+        "template": "visual",
+        "protocol": "visual-rules-v1",
+        "timeframe": "1Day",
+        "allocation": 0.25,
+        "holding_count": 12,
+        "holding_unit": "months",
+        "stop_loss": 1.0,
+        "take_profit": 1.0,
+        "fast": 20,
+        "slow": 250,
+        "entry": 250,
+        "exit": 20
+      },
+      "version": "6433f00446352da4ceb0ccd0e2aa04cd299d779e6f9cfd185b1a3c57eb0c9db5",
+      "windows": [
+        {
+          "label": "2022",
+          "start": "2022-01-01T00:00:00Z",
+          "end": "2023-01-01T00:00:00Z",
+          "net_return": 0.0,
+          "maximum_drawdown": 0.0,
+          "closed_trades": 0,
+          "win_rate": null,
+          "win_rate_interval": null,
+          "risk_paused": false,
+          "average_exposure": 0.0,
+          "warnings": [
+            "Coarse execution data: exploratory only",
+            "Fewer than 30 closed trades; performance evidence is limited",
+            "Risk replay uses hourly marks; minute-level drawdown execution is not reproduced",
+            "Synthetic bar execution proxies; historical spread and liquidity unavailable"
+          ],
+          "stress_return": 0.0,
+          "open_positions": 0,
+          "benchmark_return": -0.1608661925248417,
+          "btc_return": -0.6434647700993668
+        },
+        {
+          "label": "2023",
+          "start": "2023-01-01T00:00:00Z",
+          "end": "2024-01-01T00:00:00Z",
+          "net_return": 0.20466521527339565,
+          "maximum_drawdown": -0.061577376800226125,
+          "closed_trades": 2,
+          "win_rate": 0.5,
+          "win_rate_interval": {
+            "lower": 0.09453120573423074,
+            "upper": 0.9054687942657693,
+            "method": "Wilson 95%; does not adjust for correlated trades"
+          },
+          "risk_paused": false,
+          "average_exposure": 0.24545512714428952,
+          "warnings": [
+            "Coarse execution data: exploratory only",
+            "Fewer than 30 closed trades; performance evidence is limited",
+            "Risk replay uses hourly marks; minute-level drawdown execution is not reproduced",
+            "Synthetic bar execution proxies; historical spread and liquidity unavailable"
+          ],
+          "stress_return": 0.19948179339639394,
+          "open_positions": 1,
+          "benchmark_return": 0.38757554997142507,
+          "btc_return": 1.5503021998857007
+        },
+        {
+          "label": "2024",
+          "start": "2024-01-01T00:00:00Z",
+          "end": "2025-01-01T00:00:00Z",
+          "net_return": 0.17629083499184017,
+          "maximum_drawdown": -0.09727953217290985,
+          "closed_trades": 5,
+          "win_rate": 0.4,
+          "win_rate_interval": {
+            "lower": 0.11762077423264783,
+            "upper": 0.769275718723987,
+            "method": "Wilson 95%; does not adjust for correlated trades"
+          },
+          "risk_paused": false,
+          "average_exposure": 0.2428258223741792,
+          "warnings": [
+            "Coarse execution data: exploratory only",
+            "Fewer than 30 closed trades; performance evidence is limited",
+            "Risk replay uses hourly marks; minute-level drawdown execution is not reproduced",
+            "Synthetic bar execution proxies; historical spread and liquidity unavailable"
+          ],
+          "stress_return": 0.05875009958722943,
+          "open_positions": 1,
+          "benchmark_return": 0.3011074253630337,
+          "btc_return": 1.2044297014521343
+        },
+        {
+          "label": "2025",
+          "start": "2025-01-01T00:00:00Z",
+          "end": "2026-01-01T00:00:00Z",
+          "net_return": -0.05144494162463065,
+          "maximum_drawdown": -0.09587007826930194,
+          "closed_trades": 9,
+          "win_rate": 0.1111111111111111,
+          "win_rate_interval": {
+            "lower": 0.019890887638544907,
+            "upper": 0.434999705576656,
+            "method": "Wilson 95%; does not adjust for correlated trades"
+          },
+          "risk_paused": false,
+          "average_exposure": 0.19594195294084937,
+          "warnings": [
+            "Coarse execution data: exploratory only",
+            "Fewer than 30 closed trades; performance evidence is limited",
+            "Risk replay uses hourly marks; minute-level drawdown execution is not reproduced",
+            "Synthetic bar execution proxies; historical spread and liquidity unavailable"
+          ],
+          "stress_return": -0.07178617634833184,
+          "open_positions": 0,
+          "benchmark_return": -0.016479807876388253,
+          "btc_return": -0.06591923150555301
+        },
+        {
+          "label": "2026 YTD",
+          "start": "2026-01-01T00:00:00Z",
+          "end": "2026-09-26T00:00:00.000Z",
+          "net_return": 0.052325998805679674,
+          "maximum_drawdown": -0.019606135622729504,
+          "closed_trades": 0,
+          "win_rate": null,
+          "win_rate_interval": null,
+          "risk_paused": false,
+          "average_exposure": 0.03862136782845229,
+          "warnings": [
+            "Coarse execution data: exploratory only",
+            "Fewer than 30 closed trades; performance evidence is limited",
+            "Risk replay uses hourly marks; minute-level drawdown execution is not reproduced",
+            "Synthetic bar execution proxies; historical spread and liquidity unavailable"
+          ],
+          "stress_return": 0.05141766236392953,
+          "open_positions": 1,
+          "benchmark_return": -0.010513420861467226,
+          "btc_return": -0.04205368344586913
+        }
+      ],
+      "backtest_count": 10,
+      "period_count": 5,
+      "profitable_periods": 3,
+      "closed_trades": 16,
+      "win_rate": 0.25,
+      "median_return": 0.052325998805679674,
+      "worst_drawdown": -0.09727953217290985
+    },
+    {
+      "id": "channel-20-10",
+      "name": "20/10-day breakout",
+      "family": "Channel breakout",
+      "rules": "Enter when the close exceeds the prior 20-day high; exit below the prior 10-day low.",
+      "adaptation": "Long-only, close-confirmed 20/10-day adaptation. The cited example uses intrabar stops, a five-bar channel and short reversals.",
+      "source": {
+        "title": "TradingView: Channel BreakOut Strategy",
+        "url": "https://www.tradingview.com/support/solutions/43000599828-channel-breakout-strategy/"
+      },
+      "config": {
+        "asset": "bitcoin",
+        "entry_rules": {
+          "op": "all",
+          "conditions": [
+            {
+              "op": "gt",
+              "left": {
+                "kind": "close"
+              },
+              "right": {
+                "kind": "prior_high",
+                "period": 20
+              }
+            }
+          ]
+        },
+        "exit_rules": {
+          "op": "all",
+          "conditions": [
+            {
+              "op": "lt",
+              "left": {
+                "kind": "close"
+              },
+              "right": {
+                "kind": "prior_low",
+                "period": 10
+              }
+            }
+          ]
+        },
+        "template": "visual",
+        "protocol": "visual-rules-v1",
+        "timeframe": "1Day",
+        "allocation": 0.25,
+        "holding_count": 12,
+        "holding_unit": "months",
+        "stop_loss": 1.0,
+        "take_profit": 1.0,
+        "fast": 20,
+        "slow": 250,
+        "entry": 250,
+        "exit": 20
+      },
+      "version": "4258b17e33bd08d7ca40b42c6fb1a4a0be4dcd04132dea5edcffddc201c9d12d",
+      "windows": [
+        {
+          "label": "2022",
+          "start": "2022-01-01T00:00:00Z",
+          "end": "2023-01-01T00:00:00Z",
+          "net_return": -0.1029438997625024,
+          "maximum_drawdown": -0.10575325046458883,
+          "closed_trades": 5,
+          "win_rate": 0.0,
+          "win_rate_interval": {
+            "lower": 0.0,
+            "upper": 0.43448246478317476,
+            "method": "Wilson 95%; does not adjust for correlated trades"
+          },
+          "risk_paused": true,
+          "average_exposure": 0.07474900933758657,
+          "warnings": [
+            "Coarse execution data: exploratory only",
+            "Fewer than 30 closed trades; performance evidence is limited",
+            "Risk replay uses hourly marks; minute-level drawdown execution is not reproduced",
+            "Synthetic bar execution proxies; historical spread and liquidity unavailable"
+          ],
+          "stress_return": -0.10211369982541274,
+          "open_positions": 0,
+          "benchmark_return": -0.1608661925248417,
+          "btc_return": -0.6434647700993668
+        },
+        {
+          "label": "2023",
+          "start": "2023-01-01T00:00:00Z",
+          "end": "2024-01-01T00:00:00Z",
+          "net_return": 0.16216433404962927,
+          "maximum_drawdown": -0.043336835649722905,
+          "closed_trades": 3,
+          "win_rate": 0.6666666666666666,
+          "win_rate_interval": {
+            "lower": 0.2076596008020477,
+            "upper": 0.9385080552796037,
+            "method": "Wilson 95%; does not adjust for correlated trades"
+          },
+          "risk_paused": false,
+          "average_exposure": 0.13325193546002698,
+          "warnings": [
+            "Coarse execution data: exploratory only",
+            "Fewer than 30 closed trades; performance evidence is limited",
+            "Risk replay uses hourly marks; minute-level drawdown execution is not reproduced",
+            "Synthetic bar execution proxies; historical spread and liquidity unavailable"
+          ],
+          "stress_return": 0.1554825803298232,
+          "open_positions": 1,
+          "benchmark_return": 0.38757554997142507,
+          "btc_return": 1.5503021998857007
+        },
+        {
+          "label": "2024",
+          "start": "2024-01-01T00:00:00Z",
+          "end": "2025-01-01T00:00:00Z",
+          "net_return": 0.03753785618562633,
+          "maximum_drawdown": -0.10188655544458214,
+          "closed_trades": 5,
+          "win_rate": 0.2,
+          "win_rate_interval": {
+            "lower": 0.03622410863243014,
+            "upper": 0.6244653702374747,
+            "method": "Wilson 95%; does not adjust for correlated trades"
+          },
+          "risk_paused": true,
+          "average_exposure": 0.10612738768176667,
+          "warnings": [
+            "Coarse execution data: exploratory only",
+            "Fewer than 30 closed trades; performance evidence is limited",
+            "Risk replay uses hourly marks; minute-level drawdown execution is not reproduced",
+            "Synthetic bar execution proxies; historical spread and liquidity unavailable"
+          ],
+          "stress_return": 0.036979438125604114,
+          "open_positions": 0,
+          "benchmark_return": 0.3011074253630337,
+          "btc_return": 1.2044297014521343
+        },
+        {
+          "label": "2025",
+          "start": "2025-01-01T00:00:00Z",
+          "end": "2026-01-01T00:00:00Z",
+          "net_return": -0.05740658605869253,
+          "maximum_drawdown": -0.08460979998095364,
+          "closed_trades": 6,
+          "win_rate": 0.3333333333333333,
+          "win_rate_interval": {
+            "lower": 0.09677141110578041,
+            "upper": 0.700006684861608,
+            "method": "Wilson 95%; does not adjust for correlated trades"
+          },
+          "risk_paused": false,
+          "average_exposure": 0.0862833998939263,
+          "warnings": [
+            "Coarse execution data: exploratory only",
+            "Fewer than 30 closed trades; performance evidence is limited",
+            "Risk replay uses hourly marks; minute-level drawdown execution is not reproduced",
+            "Synthetic bar execution proxies; historical spread and liquidity unavailable"
+          ],
+          "stress_return": -0.06560383914637247,
+          "open_positions": 0,
+          "benchmark_return": -0.016479807876388253,
+          "btc_return": -0.06591923150555301
+        },
+        {
+          "label": "2026 YTD",
+          "start": "2026-01-01T00:00:00Z",
+          "end": "2026-09-26T00:00:00.000Z",
+          "net_return": 0.005689624461385767,
+          "maximum_drawdown": -0.050799127105011777,
+          "closed_trades": 4,
+          "win_rate": 0.5,
+          "win_rate_interval": {
+            "lower": 0.15003898915214947,
+            "upper": 0.8499610108478506,
+            "method": "Wilson 95%; does not adjust for correlated trades"
+          },
+          "risk_paused": false,
+          "average_exposure": 0.11812765227935518,
+          "warnings": [
+            "Coarse execution data: exploratory only",
+            "Fewer than 30 closed trades; performance evidence is limited",
+            "Risk replay uses hourly marks; minute-level drawdown execution is not reproduced",
+            "Synthetic bar execution proxies; historical spread and liquidity unavailable"
+          ],
+          "stress_return": -0.0011208247948043537,
+          "open_positions": 1,
+          "benchmark_return": -0.010513420861467226,
+          "btc_return": -0.04205368344586913
+        }
+      ],
+      "backtest_count": 10,
+      "period_count": 5,
+      "profitable_periods": 3,
+      "closed_trades": 23,
+      "win_rate": 0.30434782608695654,
+      "median_return": 0.005689624461385767,
+      "worst_drawdown": -0.10575325046458883
+    },
+    {
+      "id": "rsi-14",
+      "name": "RSI reversal",
+      "family": "Mean reversion",
+      "rules": "Enter when RSI (14) crosses above 30; exit when it crosses below 70.",
+      "adaptation": "Long-only adaptation of the documented RSI reversal: sell to cash instead of reversing short. Thresholds frozen at 30/70.",
+      "source": {
+        "title": "TradingView: RSI Strategy",
+        "url": "https://www.tradingview.com/support/solutions/43000645066-rsi-strategy/"
+      },
+      "config": {
+        "asset": "bitcoin",
+        "entry_rules": {
+          "op": "all",
+          "conditions": [
+            {
+              "op": "crosses_above",
+              "left": {
+                "kind": "rsi",
+                "period": 14
+              },
+              "right": {
+                "kind": "number",
+                "value": 30
+              }
+            }
+          ]
+        },
+        "exit_rules": {
+          "op": "all",
+          "conditions": [
+            {
+              "op": "crosses_below",
+              "left": {
+                "kind": "rsi",
+                "period": 14
+              },
+              "right": {
+                "kind": "number",
+                "value": 70
+              }
+            }
+          ]
+        },
+        "template": "visual",
+        "protocol": "visual-rules-v1",
+        "timeframe": "1Day",
+        "allocation": 0.25,
+        "holding_count": 12,
+        "holding_unit": "months",
+        "stop_loss": 1.0,
+        "take_profit": 1.0,
+        "fast": 20,
+        "slow": 250,
+        "entry": 250,
+        "exit": 20
+      },
+      "version": "223d491a0c31a0319bd3b08928c9335abc196f6c119e91b803af6506ac12668d",
+      "windows": [
+        {
+          "label": "2022",
+          "start": "2022-01-01T00:00:00Z",
+          "end": "2023-01-01T00:00:00Z",
+          "net_return": -0.06662763884621103,
+          "maximum_drawdown": -0.10549967972294949,
+          "closed_trades": 2,
+          "win_rate": 0.5,
+          "win_rate_interval": {
+            "lower": 0.09453120573423074,
+            "upper": 0.9054687942657693,
+            "method": "Wilson 95%; does not adjust for correlated trades"
+          },
+          "risk_paused": true,
+          "average_exposure": 0.07677848384327826,
+          "warnings": [
+            "Coarse execution data: exploratory only",
+            "Fewer than 30 closed trades; performance evidence is limited",
+            "Risk replay uses hourly marks; minute-level drawdown execution is not reproduced",
+            "Synthetic bar execution proxies; historical spread and liquidity unavailable"
+          ],
+          "stress_return": -0.06911431822536052,
+          "open_positions": 0,
+          "benchmark_return": -0.1608661925248417,
+          "btc_return": -0.6434647700993668
+        },
+        {
+          "label": "2023",
+          "start": "2023-01-01T00:00:00Z",
+          "end": "2024-01-01T00:00:00Z",
+          "net_return": 0.14924010021778344,
+          "maximum_drawdown": -0.029710040107728597,
+          "closed_trades": 2,
+          "win_rate": 1.0,
+          "win_rate_interval": {
+            "lower": 0.34238022750665303,
+            "upper": 1.0,
+            "method": "Wilson 95%; does not adjust for correlated trades"
+          },
+          "risk_paused": false,
+          "average_exposure": 0.06088976234770609,
+          "warnings": [
+            "Coarse execution data: exploratory only",
+            "Fewer than 30 closed trades; performance evidence is limited",
+            "Risk replay uses hourly marks; minute-level drawdown execution is not reproduced",
+            "Synthetic bar execution proxies; historical spread and liquidity unavailable"
+          ],
+          "stress_return": 0.1451007410420444,
+          "open_positions": 0,
+          "benchmark_return": 0.38757554997142507,
+          "btc_return": 1.5503021998857007
+        },
+        {
+          "label": "2024",
+          "start": "2024-01-01T00:00:00Z",
+          "end": "2025-01-01T00:00:00Z",
+          "net_return": 0.020644539138562124,
+          "maximum_drawdown": -0.0563569963217897,
+          "closed_trades": 1,
+          "win_rate": 1.0,
+          "win_rate_interval": {
+            "lower": 0.20654931437723745,
+            "upper": 1.0,
+            "method": "Wilson 95%; does not adjust for correlated trades"
+          },
+          "risk_paused": false,
+          "average_exposure": 0.08016840406483824,
+          "warnings": [
+            "Coarse execution data: exploratory only",
+            "Fewer than 30 closed trades; performance evidence is limited",
+            "Risk replay uses hourly marks; minute-level drawdown execution is not reproduced",
+            "Synthetic bar execution proxies; historical spread and liquidity unavailable"
+          ],
+          "stress_return": 0.019020467904009353,
+          "open_positions": 0,
+          "benchmark_return": 0.3011074253630337,
+          "btc_return": 1.2044297014521343
+        },
+        {
+          "label": "2025",
+          "start": "2025-01-01T00:00:00Z",
+          "end": "2026-01-01T00:00:00Z",
+          "net_return": 0.01118000271584596,
+          "maximum_drawdown": -0.05095105306056735,
+          "closed_trades": 1,
+          "win_rate": 1.0,
+          "win_rate_interval": {
+            "lower": 0.20654931437723745,
+            "upper": 1.0,
+            "method": "Wilson 95%; does not adjust for correlated trades"
+          },
+          "risk_paused": false,
+          "average_exposure": 0.07210028110044721,
+          "warnings": [
+            "Coarse execution data: exploratory only",
+            "Fewer than 30 closed trades; performance evidence is limited",
+            "Risk replay uses hourly marks; minute-level drawdown execution is not reproduced",
+            "Synthetic bar execution proxies; historical spread and liquidity unavailable"
+          ],
+          "stress_return": 0.008820837684053728,
+          "open_positions": 1,
+          "benchmark_return": -0.016479807876388253,
+          "btc_return": -0.06591923150555301
+        },
+        {
+          "label": "2026 YTD",
+          "start": "2026-01-01T00:00:00Z",
+          "end": "2026-09-26T00:00:00.000Z",
+          "net_return": 0.02366865678403207,
+          "maximum_drawdown": -0.08038732914898394,
+          "closed_trades": 1,
+          "win_rate": 1.0,
+          "win_rate_interval": {
+            "lower": 0.20654931437723745,
+            "upper": 1.0,
+            "method": "Wilson 95%; does not adjust for correlated trades"
+          },
+          "risk_paused": false,
+          "average_exposure": 0.18699652327235716,
+          "warnings": [
+            "Coarse execution data: exploratory only",
+            "Fewer than 30 closed trades; performance evidence is limited",
+            "Risk replay uses hourly marks; minute-level drawdown execution is not reproduced",
+            "Synthetic bar execution proxies; historical spread and liquidity unavailable"
+          ],
+          "stress_return": 0.02202643889404432,
+          "open_positions": 0,
+          "benchmark_return": -0.010513420861467226,
+          "btc_return": -0.04205368344586913
+        }
+      ],
+      "backtest_count": 10,
+      "period_count": 5,
+      "profitable_periods": 4,
+      "closed_trades": 7,
+      "win_rate": 0.8571428571428571,
+      "median_return": 0.020644539138562124,
+      "worst_drawdown": -0.10549967972294949
+    }
+  ]
+}

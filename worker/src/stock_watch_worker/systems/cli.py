@@ -110,6 +110,7 @@ def main(argv=None):
     commands = parser.add_subparsers(dest='command',required=True)
     commands.add_parser('init')
     commands.add_parser('run-next')
+    commands.add_parser('chart-next')
     commands.add_parser('monitor')
     commands.add_parser('tick')
     commands.add_parser('automation-tick')
@@ -166,6 +167,11 @@ def main(argv=None):
                 print(register_version(db,SystemConfig(args.asset,args.template),args.hypothesis))
             elif args.command == 'import-dataset':
                 print(register_dataset(db,args.path,args.storage))
+            elif args.command == 'chart-next':
+                from .workspace import run_workspace
+                # Display collection cannot run a backtest, authorize or place an order.
+                for _ in range(10):
+                    if not run_workspace(db,args.database,charts_only=True):break
             elif args.command == 'run-next':
                 from .workspace import run_workspace
                 run_workspace(db,args.database)

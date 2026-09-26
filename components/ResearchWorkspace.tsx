@@ -5,6 +5,8 @@ import { useCallback, useEffect, useState } from 'react'
 import { PageHeader } from './PageHeader'
 import { useOperator } from './OperatorSession'
 import { SystemEquityChart } from './dashboard/SystemEquityChart'
+import { BitcoinSystemResearch } from './BitcoinSystemResearch'
+import bitcoinStudy from '@/lib/research/bitcoin-study-summary.json'
 type Operand = { kind: string; period?: number; value?: number }
 type Condition = { op: string; left: Operand; right: Operand }
 type Group = { op: 'all' | 'any'; conditions: (Condition | Group)[] }
@@ -322,6 +324,8 @@ export function ResearchWorkspace({
   mode?: 'systems' | 'backtesting'
 }) {
   const params = useSearchParams()
+  const storageKey =
+    'stockwatch-draft-' + asset + (params.get('template') ? '-' + params.get('template') : '')
   const session = useOperator(),
     [data, setData] = useState<State>(initial),
     [error, setError] = useState(''),
@@ -330,7 +334,7 @@ export function ResearchWorkspace({
     [filter, setFilter] = useState('All'),
     [selected, setSelected] = useState(params.get('version') || ''),
     [compare, setCompare] = useState<string[]>([])
-  const [editing, setEditing] = useState(false),
+  const [editing, setEditing] = useState(params.get('create') === '1' || !!params.get('template')),
     [step, setStep] = useState(0),
     [draftId, setDraftId] = useState(''),
     [name, setName] = useState(''),
@@ -360,28 +364,39 @@ export function ResearchWorkspace({
   }, [load])
   useEffect(() => {
     try {
-      const saved = sessionStorage.getItem('stockwatch-draft-' + asset)
+      const saved = sessionStorage.getItem(storageKey)
       if (saved) {
         const d = JSON.parse(saved)
         setDoc(d.document)
         setName(d.name)
         setDraftId(d.id || '')
+        if (params.get('create') === '1' || params.get('template')) setEditing(true)
+        return
       }
     } catch {
       /* storage is optional */
     }
-  }, [asset])
+    const template =
+      asset === 'bitcoin'
+        ? bitcoinStudy.systems.find((s) => s.id === params.get('template'))
+        : undefined
+    if (template) {
+      setDoc(template.config as Document)
+      setName(template.name + ' · My copy')
+      setDraftId('')
+      setEditing(true)
+      return
+    }
+    if (params.get('create') === '1') setEditing(true)
+  }, [asset, params, storageKey])
   useEffect(() => {
     if (!editing) return
     try {
-      sessionStorage.setItem(
-        'stockwatch-draft-' + asset,
-        JSON.stringify({ name, document: doc, id: draftId })
-      )
+      sessionStorage.setItem(storageKey, JSON.stringify({ name, document: doc, id: draftId }))
     } catch {
       /* draft stays in memory */
     }
-  }, [doc, name, draftId, asset, editing])
+  }, [doc, name, draftId, storageKey, editing])
   async function command(body: Record<string, unknown>) {
     setBusy(true)
     setNotice('')
@@ -488,6 +503,7 @@ export function ResearchWorkspace({
       )}
       {mode === 'systems' && (
         <>
+          {asset === 'bitcoin' && !editing && <BitcoinSystemResearch />}
           <div className="sw-tabs" aria-label="System lifecycle">
             {['All', 'Ideas', 'Research', 'Ready for paper', 'Running', 'Paused', 'Archived'].map(
               (f) => (

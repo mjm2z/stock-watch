@@ -55,6 +55,21 @@ class WorkspaceJobTests(unittest.TestCase):
             main(['--database',str(self.path),'automation-data'])
             broker.assert_not_called()
 
+    def test_chart_worker_does_not_wait_for_or_interrupt_research(self):
+        self.enqueue('backtest', {'asset':'bitcoin'}, 'research')
+        self.enqueue('chart', {'asset':'bitcoin','key':'cached'}, 'chart')
+        with self.db:self.db.execute("UPDATE workspace_jobs SET status='running' WHERE id='research'")
+        with patch('stock_watch_worker.systems.workspace.chart',return_value={'bars':[]}):
+            run_workspace(self.db,self.path,charts_only=True)
+        self.assertEqual(self.db.execute("SELECT status FROM workspace_jobs WHERE id='research'").fetchone()[0],'running')
+        self.assertEqual(self.db.execute("SELECT status FROM workspace_jobs WHERE id='chart'").fetchone()[0],'succeeded')
+
+    def test_research_worker_leaves_running_chart_alone(self):
+        self.enqueue('chart', {'asset':'bitcoin'}, 'chart')
+        with self.db:self.db.execute("UPDATE workspace_jobs SET status='running' WHERE id='chart'")
+        self.assertIsNone(run_workspace(self.db,self.path))
+        self.assertEqual(self.db.execute("SELECT status FROM workspace_jobs WHERE id='chart'").fetchone()[0],'running')
+
     def test_publish_is_frozen_and_preserves_draft_and_version(self):
         doc=asdict(RuleConfig('stocks',group(),group('lt')))
         with self.db:self.db.execute('INSERT INTO workspace_drafts(id,name,asset,document_json,updated_at) VALUES (?,?,?,?,?)',('draft','Edited later','stocks','{}','now'))

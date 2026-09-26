@@ -267,9 +267,10 @@ export function chartRequest(range: string, startInput?: string | null, endInput
     throw new SystemsInputError('Choose an ordered range up to ten years.')
   const span = (+endAt - +start) / 86400000,
     frame = span <= 2 ? '5Min' : span <= 32 ? '1Hour' : span <= 190 ? '4Hour' : '1Day'
-  // Round cache endpoints so repeated page views share the same collection job.
-  endAt.setUTCMinutes(Math.floor(endAt.getUTCMinutes() / 5) * 5, 0, 0)
-  start.setUTCMinutes(0, 0, 0)
+  // Daily charts do not need a new multi-year download every five minutes.
+  if (!endInput)
+    endAt.setUTCMinutes(frame === '1Day' ? 0 : Math.floor(endAt.getUTCMinutes() / 5) * 5, 0, 0)
+  if (!startInput) start.setUTCMinutes(0, 0, 0)
   const payload = {
     asset: 'bitcoin',
     start: start.toISOString(),
@@ -287,14 +288,38 @@ export function chartRequest(range: string, startInput?: string | null, endInput
       db.prepare(
         "INSERT INTO workspace_jobs(id,kind,payload_json,created_at) SELECT ?,?,?,? WHERE (SELECT COUNT(*) FROM workspace_jobs WHERE kind='chart' AND status IN ('queued','running'))<10"
       ).run('chart-' + key, 'chart', JSON.stringify({ ...payload, key }), new Date().toISOString())
+    // Keep a recent matching window visible while its replacement is collected.
+    // Custom dates require an exact match; never substitute a different interval.
+    const previous =
+      !cached && !startInput && !endInput && range !== 'custom'
+        ? db
+            .prepare(
+              `SELECT c.payload_json FROM crypto_chart_cache c
+          JOIN workspace_jobs j ON j.id='chart-' || c.key
+          WHERE json_extract(j.payload_json,'$.range')=?
+          AND json_extract(j.payload_json,'$.frame')=?
+          AND datetime(c.updated_at)>datetime('now','-2 days')
+          ORDER BY c.updated_at DESC LIMIT 1`
+            )
+            .get(range, frame)
+        : undefined
+    const fallback = previous ? parse(previous.payload_json) : null
     return cached
       ? { ...parse(cached.payload_json), status: 'ready' }
-      : {
-          status: job?.status || 'queued',
-          error: job?.error || null,
-          bars: [],
-          provider: 'Alpaca US',
-          ...payload,
-        }
+      : fallback?.bars?.length
+        ? {
+            ...fallback,
+            status: 'ready',
+            refreshing: !['failed', 'canceled'].includes(String(job?.status)),
+            stale: true,
+            error: job?.error || null,
+          }
+        : {
+            status: job?.status || 'queued',
+            error: job?.error || null,
+            bars: [],
+            provider: 'Alpaca US',
+            ...payload,
+          }
   })
 }
