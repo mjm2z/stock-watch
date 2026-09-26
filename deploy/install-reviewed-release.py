@@ -2,6 +2,7 @@
 """Install a prebuilt release on the authoritative host with retained recovery data."""
 from datetime import datetime
 from contextlib import closing
+import argparse
 import hashlib
 import json
 import os
@@ -43,13 +44,28 @@ def verify_files(source, manifest):
                 raise RuntimeError('Staged release changed: ' + name)
 
 
+def verify_environment_files(source, manifest):
+    for path in source.glob('.env*'):
+        # Only the checksum-verified, tracked example is a release artifact.
+        if (path.name != '.env.example' or path.is_symlink() or not path.is_file()
+                or path.name not in manifest['files']):
+            raise RuntimeError('Release staging contains an unapproved environment file: ' + path.name)
+        with path.open('rb') as stream:
+            if hashlib.file_digest(stream, 'sha256').hexdigest() != manifest['files'][path.name]:
+                raise RuntimeError('Environment example differs from reviewed source')
+
+
 def main():
-    if os.geteuid() != 0 or socket.gethostname().split('.')[0] != 'a1347-m':
-        raise SystemExit('Run as root on a1347-m only')
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('source', type=Path)
+    parser.add_argument('--check', action='store_true', help='Verify staging without changing files or services')
+    args = parser.parse_args()
+    if socket.gethostname().split('.')[0] != 'a1347-m' or (os.geteuid() != 0 and not args.check):
+        raise SystemExit('Run on a1347-m; installation requires root')
     now = datetime.now(ZoneInfo('America/New_York'))
     if now.weekday() < 5 and 570 <= now.hour * 60 + now.minute < 960:
         raise SystemExit('Run outside US market hours')
-    source = Path(sys.argv[1]).resolve()
+    source = args.source.resolve()
     if source.parent != Path('/home/mjm2z/stock-watch-releases'):
         raise SystemExit('Unexpected release staging directory')
     manifest = json.loads((source / 'reviewed-release.json').read_text())
@@ -57,11 +73,13 @@ def main():
     for required in ('.next/BUILD_ID', 'package-lock.json', 'worker/migrations/016_systems.sql'):
         if required not in manifest['files']:
             raise RuntimeError('Incomplete reviewed release: ' + required)
-    if any(source.glob('.env*')):
-        raise RuntimeError('Release staging must not contain environment files')
+    verify_environment_files(source, manifest)
     wheels = list((source / 'release-wheels').glob('stock_watch_worker-*.whl'))
     if len(wheels) != 1:
         raise RuntimeError('Expected one prebuilt worker wheel')
+    if args.check:
+        print('Release preflight passed; no files or services changed. Revision:', manifest['revision'])
+        return
     runtime = Path('/opt/stock-watch')
     database = Path('/var/lib/stock-watch/stock-watch.db')
     stamp = datetime.now(ZoneInfo('UTC')).strftime('%Y%m%dT%H%M%SZ')
