@@ -56,6 +56,7 @@ export function InteractiveChart({
             height,
             width: container.current.clientWidth,
             layout: {
+              attributionLogo: false,
               background: { type: ColorType.Solid, color: dark ? '#181c22' : '#ffffff' },
               textColor: dark ? '#929cab' : '#657184',
             },
@@ -156,6 +157,11 @@ export function InteractiveChart({
         aria-label={`${label} interactive chart. Data table available below.`}
         style={{ height }}
       />
+      <p className="mt-2 text-right text-xs text-muted-foreground">
+        <a href="https://www.tradingview.com/" target="_blank" rel="noopener noreferrer">
+          Charts by TradingView
+        </a>
+      </p>
       <details className="mt-4 text-xs text-muted-foreground">
         <summary>Accessible chart data ({bars.length.toLocaleString()} observations)</summary>
         <div className="flex gap-3 items-center mt-3">
