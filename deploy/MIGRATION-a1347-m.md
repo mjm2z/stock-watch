@@ -41,18 +41,23 @@ web/network/backup units are enabled on M with the source timer timestamp.
 All five collector configs now use the direct LAN endpoint (Linux resolvers did
 not resolve the local browser names); credentials and local queues were preserved.
 Config predecessors remain as `before-homeops-final-20260926` copies. The generator
-host default is M. The notifier and existing M watchdog are running against M,
-with their state preserved. Independent watchdog activation on J remains pending;
-do not activate it concurrently with the old watchdog. DNS still points to a1990;
+host default is M. The notifier is running against M. The old M watchdog is now disabled/stopped;
+its final incident state was transferred to J with matching SHA-256
+`0918b295278e77e4583e38c91c26820f6a3400ef2dc2723dc5d8231ff6adeb29`.
+J production configuration and cutover marker are ready. Its guarded system-unit
+installer is staged and unit validation passed; sudo installation is pending.
+There is a watchdog alerting gap until that activation; do not restart M alongside J. DNS still points to a1990;
 use the direct IP links until its guarded privileged switch completes.
 
 Fourteen earlier HomeOps/StockWatch off-host SQLite recovery points on D were
 hard-linked outside routine retention into
 `app-migration-20260924/pre-cutover-offhost-recovery`, with copied metadata and
 an inode/size manifest. Retain these for at least 30 days. D's collector config
-and narrowly deployed StockWatch backup module now select M. The first new
-HomeOps snapshot is running; verify its explicit success receipt and subsequent
-D integrity-checked pull before calling the new HomeOps backup chain verified.
+and narrowly deployed StockWatch backup module now select M. HomeOps snapshot
+`home-ops-20260926T123334.459+0000.sqlite` passed source integrity/reopen checks;
+D pulled it from M and passed integrity/reopen with 1,564,028 events at 13:16 UTC.
+StockWatch off-host snapshot `stock-watch-20260926T051409691642Z.db` passed
+SQLite quick_check and 51-table schema reopen on D at 07:54 UTC (37,045,923,840 bytes).
 
 The daily 08:30 UTC PostgreSQL snapshot timer is enabled on a1347-m. The first
 production backup completed at 20:20 ET; its independent a1347-d pull completed
@@ -75,7 +80,10 @@ checks, SHA-256 `79221e8fa07306252dee47970941a63dd3ce4318f25166a311782858b4c2040
 All 10,582 artifacts (2,670,543,883 bytes) passed verification. The private
 paper-state receipt records no pending orders and a matching last reconciliation.
 The source's exact enabled unit set and persistent timer timestamps are retained.
-Original database/artifacts remain on a1347-j; no target StockWatch writers start.
+Original database/artifacts remain on a1347-j. The user completed guarded target
+publication and activation; M web and all seven original timers are active.
+J web is inactive and no StockWatch timer is active. Overview JSON succeeds on M
+and from a1990. HomeOps, Radar, and JobWatch worker health also pass from a1990.
 Database compression, roundtrip verification, transfer, and destination
 uncompressed SHA-256 verification completed. All artifacts were unpacked and
 checksum-verified on M. The compressed DB recovery archive is 5,073,850,531 bytes,
@@ -93,8 +101,8 @@ Without `--activate`, no services start. With `--activate
 --source-writers-stopped`, successful publication is followed by HomeOps readiness,
 StockWatch web readiness, and enabling only the original recorded timer set.
 Corrupted archive/database refusal and enabled-unit allowlist tests pass.
-Target publication/activation still requires the user's sudo password. J's web
-and timers were reconfirmed inactive after final transfer. M had 430 GB free and
+Target publication/activation is complete. J's web
+and timers were reconfirmed inactive after activation. M had 430 GB free and
 6.4 GiB available memory before StockWatch activation.
 
 
