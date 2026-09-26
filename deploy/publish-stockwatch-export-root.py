@@ -1,11 +1,13 @@
 #!/usr/bin/env python3
 """Publish a verified final StockWatch export on a1347-m; NEVER start services.
 
-The source export stays intact. The destination must still be the empty staging
-installation. Any existing database, data files, environment, or active unit
-causes refusal rather than replacement.
+The destination must still be the empty staging installation. By default the
+source export stays intact. --use-verified-transfer-copy publishes the already
+decompressed file directly, retaining its verified compressed recovery archive
+and the original source-host data. No existing database/configuration is replaced.
 """
 import argparse
+import hashlib
 from datetime import datetime
 import importlib.util
 import json
@@ -25,9 +27,37 @@ def load(name,filename):
     return result
 
 
+def checksum(path):
+    digest=hashlib.sha256()
+    with path.open('rb') as stream:
+        for chunk in iter(lambda:stream.read(8*1024*1024),b''):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def verify_transfer(source,manifest):
+    """Prove byte identity with the source's integrity-checked SQLite snapshot."""
+    archive=source/'stock-watch.db.gz'
+    metadata=source/'stock-watch.db.gz.json'
+    database=source/'stock-watch.db'
+    if any(p.is_symlink() or not p.is_file() for p in (archive,metadata,database)):
+        raise RuntimeError('Verified archive, metadata and decompressed file are required')
+    transfer=json.loads(metadata.read_text())
+    if (transfer.get('roundtrip_verified') is not True or
+        transfer.get('source_bytes')!=manifest['bytes'] or
+        transfer.get('source_sha256')!=manifest['sha256']):
+        raise RuntimeError('Transfer metadata does not match the verified source snapshot')
+    if (archive.stat().st_size!=transfer['compressed_bytes'] or
+        checksum(archive)!=transfer['compressed_sha256']):
+        raise RuntimeError('Compressed recovery archive failed verification')
+    if database.stat().st_size!=manifest['bytes'] or checksum(database)!=manifest['sha256']:
+        raise RuntimeError('Decompressed database differs from verified source snapshot')
+
+
 def main():
     parser=argparse.ArgumentParser(description=__doc__)
     parser.add_argument('export',type=Path)
+    parser.add_argument('--use-verified-transfer-copy',action='store_true')
     args=parser.parse_args()
     if os.geteuid()!=0 or socket.gethostname().split('.')[0]!='a1347-m':
         raise SystemExit('Run as root on a1347-m only')
@@ -69,7 +99,8 @@ def main():
             raise RuntimeError('Unexpected timer timestamp name')
         if (Path('/var/lib/systemd/timers')/name).exists():
             raise RuntimeError('Existing destination timer history requires review: '+name)
-    if shutil.disk_usage(root).free < manifest['bytes']+20*1024**3:
+    needed=(0 if args.use_verified_transfer_copy else manifest['bytes'])+20*1024**3
+    if shutil.disk_usage(root).free < needed:
         raise RuntimeError('Insufficient disk reserve')
     artifacts=load('artifacts','verify-artifact-export.py')
     artifact_manifest=json.loads((source/'artifacts/manifest.json').read_text())
@@ -79,17 +110,30 @@ def main():
     if (source/'stock-watch.db').is_symlink(): raise RuntimeError('Unexpected database symlink')
     staged=root/('.'+source.name)
     staged.mkdir(mode=0o700)
-    print('Copying final database; source export remains intact...',flush=True)
-    shutil.copyfile(source/'stock-watch.db',staged/'stock-watch.db')
-    with (staged/'stock-watch.db').open('rb') as stream: os.fsync(stream.fileno())
-    snapshot=load('snapshot','sqlite-migration-snapshot.py')
-    actual=snapshot.fingerprint(staged/'stock-watch.db',progress=True)
-    if actual!=manifest: raise RuntimeError('Destination database failed final snapshot verification')
+    if args.use_verified_transfer_copy:
+        if (source/'stock-watch.db').stat().st_dev!=root.stat().st_dev:
+            raise RuntimeError('Direct publication requires the same filesystem')
+        print('Verifying compressed recovery archive and decompressed database SHA-256...',flush=True)
+        verify_transfer(source,manifest)
+        published_database=source/'stock-watch.db'
+        actual=manifest
+    else:
+        print('Copying final database; source export remains intact...',flush=True)
+        shutil.copyfile(source/'stock-watch.db',staged/'stock-watch.db')
+        with (staged/'stock-watch.db').open('rb') as stream: os.fsync(stream.fileno())
+        snapshot=load('snapshot','sqlite-migration-snapshot.py')
+        actual=snapshot.fingerprint(staged/'stock-watch.db',progress=True)
+        if actual!=manifest: raise RuntimeError('Destination database failed final snapshot verification')
+        published_database=staged/'stock-watch.db'
+    verified_signature=published_database.stat()
     shutil.copytree(source/'artifacts/data',staged/'artifacts/data')
     shutil.copyfile(source/'artifacts/manifest.json',staged/'artifacts/manifest.json')
     artifacts.verify(staged/'artifacts')
     owner=pwd.getpwnam('stock-watch')
-    for path in [staged/'stock-watch.db',staged/'artifacts/data',*(staged/'artifacts/data').rglob('*')]:
+    current=published_database.stat()
+    if (current.st_ino,current.st_size,current.st_mtime_ns)!=(verified_signature.st_ino,verified_signature.st_size,verified_signature.st_mtime_ns):
+        raise RuntimeError('Database changed after verification')
+    for path in [published_database,staged/'artifacts/data',*(staged/'artifacts/data').rglob('*')]:
         os.chown(path,owner.pw_uid,owner.pw_gid)
         os.chmod(path,0o700 if path.is_dir() else 0o600)
     # Preserve the staging unit definitions before replacing them with the exact
@@ -103,8 +147,8 @@ def main():
         target.write_text(content);os.chmod(target,0o644)
     with environment.open('x') as stream: stream.write(text)
     os.chmod(environment,0o600)
-    os.link(staged/'stock-watch.db',database)  # Exclusive: never replace an existing database.
-    (staged/'stock-watch.db').unlink()
+    os.link(published_database,database)  # Exclusive: never replace an existing database.
+    published_database.unlink()
     (staged/'artifacts/data').rename(data)  # Replaces only the confirmed empty directory.
     for name,mtime_ns in stamp_metadata.items():
         target_stamp=Path('/var/lib/systemd/timers')/name
@@ -115,6 +159,7 @@ def main():
     subprocess.run(['systemctl','daemon-reload'],check=True)
     (staged/'published.json').write_text(json.dumps(dict(
         source=str(source),database_sha256=actual['sha256'],services_started=False,
+        compressed_recovery_retained=args.use_verified_transfer_copy,
         published_at=datetime.now(ZoneInfo('UTC')).isoformat()),indent=2)+'\n')
     print('Final database, artifacts, config and source units installed. No services started.',flush=True)
     print('Before activation, confirm source is still stopped and reconcile pending paper-order state.')

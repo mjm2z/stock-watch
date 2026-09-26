@@ -26,7 +26,8 @@ checks, another-LAN-host/loopback health, and supervised restart passed.
 Shared PostgreSQL/Data Engine on a1347-d remain up. A source-retired marker and
 startup/deployment guards prevent restarting the stale source.
 
-HomeOps and StockWatch are still hosted on their original machines. HomeOps's
+HomeOps still runs on a1990. StockWatch's source web and all seven timers are
+now stopped on a1347-j after the user's successful final export. HomeOps's
 live site and collector configs were narrowly updated for JobWatch/Radar only;
 credentials, collector databases/cursors, endpoints, other apps and existing
 backup policies were preserved. Direct IP app links work before DNS handoff.
@@ -49,20 +50,40 @@ view reports JobWatch readiness, worker health and Radar reachable on the new
 host. Nineteen migration regression tests pass; Radar's actual-rsync deployment
 preservation fixture and all deployment shell syntax checks pass.
 
-Next privileged prerequisite: run on a1347-j (helpers are staged and read-only
-preflight passed):
+StockWatch final export `stockwatch-final-20260926T012033Z` completed at 02:23 UTC
+September 26. Its 37,045,923,840-byte database passed source integrity/count
+checks, SHA-256 `79221e8fa07306252dee47970941a63dd3ce4318f25166a311782858b4c20400`.
+All 10,582 artifacts (2,670,543,883 bytes) passed verification. The private
+paper-state receipt records no pending orders and a matching last reconciliation.
+The source's exact enabled unit set and persistent timer timestamps are retained.
+Original database/artifacts remain on a1347-j; no target StockWatch writers start.
+Database compression/roundtrip verification and final transfer are in progress.
+The artifact/config archive is 2,630,032,089 bytes, SHA-256
+`9cb01866001e29c475a9de9d818c21e4a36c7b1b67111ff869d15d3202b52a42`.
 
-```sh
-sudo python3 /home/mjm2z/app-migration-20260924/final-stockwatch-export-root.py --freeze-export
-```
+The StockWatch publisher supports `--use-verified-transfer-copy`: it verifies
+both the compressed recovery archive and decompressed database against the
+source manifest, then exclusively publishes that file without a second full
+database copy. The compressed recovery copy and original source-host data remain.
+No services start. Corrupted archive/database refusal tests pass.
 
-This disables source StockWatch timers, drains jobs, stops its web service and
-exports/verifies fresh database/artifacts, retaining original data. It may take
-several minutes. No target StockWatch writers start. After it finishes, inspect
-its receipt/paper-order state, compress/transfer/verify the final export, and
-complete HomeOps then StockWatch target activation. Root target publication,
-independent watchdog installation and DNS handoff remain pending. StockWatch
-has not yet been stopped; HomeOps's database has not yet moved.
+HomeOps's deployed Python modules match between source and destination. The
+exact source dashboard is staged, and four disabled, marker-gated user units
+are installed on a1347-m. The source drain helper is staged on a1990; its default
+read-only preflight passed. Final drain requires both `--freeze-export` and
+`--notifier-stopped`; it has not run. Source HomeOps remains available.
+
+Actual resolver checks found Linux hosts cannot resolve logs.home.arpa; the Mac
+can. Collector relocation now uses verified IP http://192.168.4.35:9100, while
+browser links retain planned DNS names. HomeOps commit `0f938ff` is pushed and
+the protected relocation preview regenerated; no live endpoints changed yet.
+Twenty migration tests pass. Root StockWatch publication, final HomeOps move,
+independent watchdog installation, timer activation and DNS handoff remain.
+
+Unrelated Systems/Bitcoin feature edits appeared in the local StockWatch tree
+during this migration. Preserve them. Continue with the rehearsed deployed
+StockWatch runtime; do not deploy the changing local application tree as part
+of this data/host move.
 
 Pushed revisions: StockWatch tooling `c6b13b8`, JobWatch `c6eb9a0`, Radar
 `82f834b`. JobWatch runtime code remains the rehearsed `4a3b394`; the later
@@ -75,7 +96,7 @@ Node 24.16.0 and PostgreSQL 16.15 are installed on a1347-m; PostgreSQL listens
 on localhost. The user also completed separate app/rehearsal database provisioning.
 StockWatch's disabled destination installation
 and protected source configuration export have completed successfully.
-StockWatch's seven production timers are active; do not interrupt market hours.
+StockWatch's seven production timers were active before the final source freeze.
 
 Verified at 11:00–11:07 ET on September 25: app-access service is enabled and
 active, and finalized-backup directory ACL grants mjm2z read/traverse only.
@@ -91,7 +112,7 @@ roundtrip checksums. Eighteen migration regression tests pass. The real StockWat
 rehearsal database compressed from 34,959,163,392 to 4,780,602,548 bytes in 695s;
 compression plus decompression verification took 923s. Original files remain.
 StockWatch helpers preserve exact enabled timers and persistent timer timestamps;
-they have not yet frozen or published production StockWatch data.
+the final source freeze is now complete, but target publication remains pending.
 
 Backup/DNS preparation completed at approximately 11:30 ET:
 
