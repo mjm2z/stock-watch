@@ -1,5 +1,10 @@
 # Bitcoin systems automation
 
+> Historical release document. Migration 019 adds a separate experimental historical
+> qualification path without the 30-day forward prerequisite. Existing allocations
+> are preserved rather than replaced by funding. See the [current README](../README.md)
+> for policy, account limits, and distinctions between the two paths.
+
 Bitcoin Systems (`/systems?asset=bitcoin`) now provides scheduled research and a
 shared, separately funded Bitcoin **paper** account. Stock systems, legacy stock
 paper trading, v1 strategy hashes, and earlier Bitcoin results remain intact.
@@ -41,16 +46,16 @@ Decision timeframes are 1 minute, 5 minutes, 15 minutes, 1 hour, 4 hours, 1 day,
 valid day, including leap years. The first partial fill starts the holding clock.
 Rule exits and risk limits can close positions earlier.
 
-| Process | Cadence |
-| --- | --- |
-| Shared collection and forward observation | Target every 10 seconds |
-| Account reconciliation, risk, deadlines, orders | Target every 10 seconds, separate service |
-| Decisions | Once per completed decision bar |
-| Minute/hour research | Daily, 00:15 UTC |
-| Daily-bar research | Monday, 00:15 UTC |
-| Weekly/monthly research | First of month, 00:15 UTC |
-| Forward-history continuity audit | Hourly, cached between checks |
-| Historical backfill | One paginated provider page per research-worker invocation |
+| Process                                         | Cadence                                                    |
+| ----------------------------------------------- | ---------------------------------------------------------- |
+| Shared collection and forward observation       | Target every 10 seconds                                    |
+| Account reconciliation, risk, deadlines, orders | Target every 10 seconds, separate service                  |
+| Decisions                                       | Once per completed decision bar                            |
+| Minute/hour research                            | Daily, 00:15 UTC                                           |
+| Daily-bar research                              | Monday, 00:15 UTC                                          |
+| Weekly/monthly research                         | First of month, 00:15 UTC                                  |
+| Forward-history continuity audit                | Hourly, cached between checks                              |
+| Historical backfill                             | One paginated provider page per research-worker invocation |
 
 Timers wait ten seconds after each completed invocation, preventing overlap even
 when an API call is slow. Ten seconds is a service target, not a fill guarantee. API latency, missing data,

@@ -1,5 +1,10 @@
 # Systems and Bitcoin release
 
+> Historical release document. Migration 019 adds a separate experimental historical
+> qualification path without the 30-day forward prerequisite. Existing allocations
+> are preserved rather than replaced by funding. See the [current README](../README.md)
+> for policy, account limits, and distinctions between the two paths.
+
 This release adds paper-only Bitcoin, watch-only blockchain monitoring, and
 versioned rule systems for stocks and BTC/USD. The stock scanner, existing lots,
 SPY cohort reports, and independent five-minute-before-close exit timer retain
