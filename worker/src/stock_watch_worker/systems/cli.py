@@ -178,12 +178,17 @@ def main(argv=None):
                     from .evaluation import run_one
                     history=connect_history(str(args.database)+'.bitcoin-history.db')
                     try:
-                        try: backfill_one(db,history,CryptoBroker(),datetime.now(timezone.utc))
+                        try:
+                            if db.execute('SELECT 1 FROM btc_enrollments WHERE active=1 LIMIT 1').fetchone():
+                                backfill_one(db,history,CryptoBroker(),datetime.now(timezone.utc))
                         except Exception as error: health(db,'backfill',datetime.now(timezone.utc),str(error)[:500])
                         stop=time.monotonic()+45
                         while time.monotonic()<stop and run_one(db,history): pass
                     finally: history.close()
             elif args.command in ('automation-tick','automation-data'):
+                # A newly installed collector has no work until observation is enrolled.
+                if args.command=='automation-data' and not db.execute('SELECT 1 FROM btc_enrollments WHERE active=1 LIMIT 1').fetchone():
+                    return
                 from .history import connect_history
                 from .automation_data import collect_forward
                 from .coordinator import tick as automation_tick

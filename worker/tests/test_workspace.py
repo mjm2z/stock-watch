@@ -49,6 +49,12 @@ class WorkspaceJobTests(unittest.TestCase):
     def tearDown(self):self.db.close();self.tmp.cleanup()
     def enqueue(self,kind,body,id='job'):
         with self.db:self.db.execute('INSERT INTO workspace_jobs(id,kind,payload_json,created_at) VALUES (?,?,?,?)',(id,kind,canonical(body),'2026-01-01T00:00:00Z'))
+    def test_unenrolled_collector_needs_no_broker_credentials(self):
+        from stock_watch_worker.systems.cli import main
+        with patch('stock_watch_worker.systems.cli.CryptoBroker') as broker:
+            main(['--database',str(self.path),'automation-data'])
+            broker.assert_not_called()
+
     def test_publish_is_frozen_and_preserves_draft_and_version(self):
         doc=asdict(RuleConfig('stocks',group(),group('lt')))
         with self.db:self.db.execute('INSERT INTO workspace_drafts(id,name,asset,document_json,updated_at) VALUES (?,?,?,?,?)',('draft','Edited later','stocks','{}','now'))

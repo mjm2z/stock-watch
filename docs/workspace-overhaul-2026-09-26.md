@@ -45,7 +45,7 @@ any strategy. Existing disabled execution workers are intentionally left disable
 
 ## Verification
 
-Local verification: 316 worker tests, 68 frontend/store tests, four release-guard tests,
+Local verification: 317 worker tests, 68 frontend/store tests, four release-guard tests,
 TypeScript checking and Next production build. Additional browser checks covered nine primary
 screens at widths 390/768/1280/1440, no horizontal overflow, aligned Stocks/Crypto headings,
 page titles/icons, operator login, draft publishing, preselected backtest version, chart controls,
