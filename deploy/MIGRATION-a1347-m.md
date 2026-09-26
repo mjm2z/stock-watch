@@ -8,7 +8,7 @@ source web and worker LaunchAgents are disabled/unloaded; a final consistent
 table fingerprints matched; target web and worker are enabled and running.
 LAN and loopback readiness, stale-worker HTTP 503 before activation, healthy
 worker HTTP 200 afterward, and supervised web restart passed. JobWatch is now
-authoritative at http://192.168.4.35:3020 (DNS handoff is still pending).
+authoritative at http://192.168.4.35:3020 (DNS handoff is complete).
 Do not restart its source without carrying authoritative data back.
 JobWatch's dedicated Mac PostgreSQL LaunchAgent is now disabled/unloaded too;
 its log confirms clean shutdown. Original cluster files remain. Source-retired
@@ -44,10 +44,21 @@ Config predecessors remain as `before-homeops-final-20260926` copies. The genera
 host default is M. The notifier is running against M. The old M watchdog is now disabled/stopped;
 its final incident state was transferred to J with matching SHA-256
 `0918b295278e77e4583e38c91c26820f6a3400ef2dc2723dc5d8231ff6adeb29`.
-J production configuration and cutover marker are ready. Its guarded system-unit
-installer is staged and unit validation passed; sudo installation is pending.
-There is a watchdog alerting gap until that activation; do not restart M alongside J. DNS still points to a1990;
-use the direct IP links until its guarded privileged switch completes.
+J's system watchdog is enabled and active, and its fresh heartbeat reports M
+reachable with zero failures. The old M watchdog remains disabled. The user
+completed the guarded DNS switch: logs, stockwatch, jobwatch, and radar.home.arpa
+resolve to 192.168.4.35; Sandbox still resolves to 192.168.4.36. All four app
+hostname readiness requests return HTTP 200 through the Mac's normal resolver.
+HomeOps's temporary IP browser links were replaced with the verified DNS names;
+the previous protected server config is retained. Its supervised restart passed.
+
+Final observation found D/J collectors still running with pre-migration configs
+in memory: cron launches a persistent, lock-protected process, not a one-shot.
+Their exact collector processes were terminated to allow cron to reload the
+updated endpoints; collector SQLite queues and cursors were retained. All five machines now report fresh heartbeats; direct read-only SQLite checks
+confirm D and J each have zero queued events. HomeOps reports the J watchdog
+running and reachable. Its detail label still says a1347-m in existing collector
+code; the monitored state file and physical observer are correctly on J.
 
 Fourteen earlier HomeOps/StockWatch off-host SQLite recovery points on D were
 hard-linked outside routine retention into
@@ -106,12 +117,14 @@ and timers were reconfirmed inactive after activation. M had 430 GB free and
 6.4 GiB available memory before StockWatch activation.
 
 
-Actual resolver checks found Linux hosts cannot resolve logs.home.arpa; the Mac
-can. Collector relocation now uses verified IP http://192.168.4.35:9100, while
-browser links retain planned DNS names. HomeOps commit `0f938ff` is pushed and
-the protected relocation preview regenerated; no live endpoints changed yet.
-Twenty migration tests pass. Root StockWatch publication, final HomeOps move,
-independent watchdog installation, timer activation and DNS handoff remain.
+## Remaining acceptance
+
+Observe the next full trading day (September 28) for scheduled work, paper-order
+reconciliation, and host resource pressure. Retain all original data and migration
+recovery points for at least 30 days and until acceptance. The relocation itself
+is complete; do not restart retired source applications with stale data.
+
+## Earlier preparation record (historical, superseded by execution status)
 
 Unrelated Systems/Bitcoin feature edits appeared in the local StockWatch tree
 during this migration. Preserve them. Continue with the rehearsed deployed
@@ -342,7 +355,7 @@ Narrowly patch DNS and host/origin allowlists. Restrict app access to loopback
 and 192.168.4.0/22; PostgreSQL stays loopback-only. Do not redirect Sandbox or
 Data Engine clients. Preserve existing physical-machine IDs/history in HomeOps.
 
-## Required remaining work
+## Original migration checklist
 
 1. Inventory live deployed revisions, privileged configuration/data paths,
    schedules, in-flight jobs, backup sizes, and mutable files. Preserve unrelated
