@@ -69,3 +69,11 @@ US trading session plus continuous Crypto observation. If readiness fails, keep 
 inspect the installer recovery path, and restore the previous runtime with compatible data before
 restarting only the recorded timer set. Do not overwrite a database that has received new writes
 without reconciling those writes and broker-owned orders first.
+
+## Live-provider follow-up
+
+The production provider paginated the month chart after 172 hourly bars. The follow-up worker fix
+follows bounded continuation tokens, deduplicates page overlaps and detects repeated tokens.
+Its three regression tests bring the worker suite to 320 tests. The code-only installer preserves
+the old wheel/source/receipt, drains and restores previously active worker timers, and leaves the
+web app and all database/history files untouched. No second full-database backup is needed.

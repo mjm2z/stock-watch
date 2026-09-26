@@ -10,25 +10,33 @@ from .research import now_iso,register_version,audit
 from ..http import UrllibTransport,require_success
 
 
-def chart(payload):
+def chart(payload,transport=None):
     prefix='BITCOIN_ALPACA' if os.environ.get('BITCOIN_ALPACA_API_KEY_ID') and os.environ.get('BITCOIN_ALPACA_API_SECRET_KEY') else 'ALPACA'
     headers={'APCA-API-KEY-ID':os.environ.get(prefix+'_API_KEY_ID',''),'APCA-API-SECRET-KEY':os.environ.get(prefix+'_API_SECRET_KEY','')}
     if not all(headers.values()):raise ValueError('Market-data credentials are not configured; no funded account is required')
     params={'symbols':'BTC/USD','timeframe':payload['frame'],'start':payload['start'],'end':payload['end'],'limit':10000,'sort':'asc'}
-    response=UrllibTransport().request('GET','https://data.alpaca.markets/v1beta3/crypto/us/bars?'+urlencode(params),headers=headers,timeout=30)
-    result=require_success('crypto-chart',response)
-    bars=[]
-    for row in result.get('bars',{}).get('BTC/USD',[]):
-        if not all(isinstance(row.get(k),(int,float)) and math.isfinite(row[k]) for k in ('o','h','l','c','v')):raise ValueError('Provider returned invalid prices')
-        if not 0<row['l']<=min(row['o'],row['c'])<=max(row['o'],row['c'])<=row['h'] or row['v']<0:raise ValueError('Provider returned invalid price range')
-        bars.append({'at':row['t'],'open':row['o'],'high':row['h'],'low':row['l'],'close':row['c'],'volume':row['v']})
-    bars=list({r['at']:r for r in bars}.values());bars.sort(key=lambda r:r['at'])
-    if len(bars)>6000:raise ValueError('Chart exceeds display limit; choose a shorter range')
+    transport=transport or UrllibTransport()
+    by_time={};seen_tokens=set();partial=False
+    for _ in range(40):
+        response=transport.request('GET','https://data.alpaca.markets/v1beta3/crypto/us/bars?'+urlencode(params),headers=headers,timeout=30)
+        result=require_success('crypto-chart',response)
+        for row in result.get('bars',{}).get('BTC/USD',[]):
+            if not all(isinstance(row.get(k),(int,float)) and math.isfinite(row[k]) for k in ('o','h','l','c','v')):raise ValueError('Provider returned invalid prices')
+            if not 0<row['l']<=min(row['o'],row['c'])<=max(row['o'],row['c'])<=row['h'] or row['v']<0:raise ValueError('Provider returned invalid price range')
+            instant(row['t'])
+            by_time[row['t']]={'at':row['t'],'open':row['o'],'high':row['h'],'low':row['l'],'close':row['c'],'volume':row['v']}
+            if len(by_time)>6000:raise ValueError('Chart exceeds display limit; choose a shorter range')
+        token=result.get('next_page_token')
+        partial=bool(token)
+        if not token:break
+        if not isinstance(token,str) or token in seen_tokens:raise ValueError('Provider repeated or invalid pagination token')
+        seen_tokens.add(token);params['page_token']=token
+    bars=sorted(by_time.values(),key=lambda row:instant(row['at']))
     from .timeframes import advance
     gaps=sum(instant(b['at'])>advance(instant(a['at']),payload['frame']) for a,b in zip(bars,bars[1:]))
     return {'gaps':gaps,'bars':bars,'provider':'Alpaca US','resolution':payload['frame'],'requestedStart':payload['start'],'requestedEnd':payload['end'],
             'coverageStart':bars[0]['at'] if bars else None,'coverageEnd':bars[-1]['at'] if bars else None,
-            'observedAt':now_iso(),'partial':bool(result.get('next_page_token')),'note':'Display history only; not forward-observed execution evidence'}
+            'observedAt':now_iso(),'partial':partial,'note':'Display history only; not forward-observed execution evidence'}
 
 
 def execute(db,job,database):

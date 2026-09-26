@@ -91,3 +91,27 @@ class MigrationPreservationTests(unittest.TestCase):
         self.assertEqual(db.execute('SELECT started_at FROM btc_allocations WHERE version_id=?',(old,)).fetchone()[0],'original-date')
         self.assertIsNone(db.execute('SELECT started_at FROM btc_allocations WHERE version_id=?',(funded,)).fetchone()[0])
         db.close()
+
+class ChartPaginationTests(unittest.TestCase):
+    def payload(self):return {'frame':'1Hour','start':'2026-08-27T00:00:00Z','end':'2026-09-26T00:00:00Z'}
+    def bar(self,day):return {'t':f'2026-09-{day:02}T00:00:00Z','o':100,'h':110,'l':90,'c':105,'v':1}
+    def fetch(self,transport):
+        from stock_watch_worker.systems.workspace import chart
+        with patch.dict('os.environ',{'ALPACA_API_KEY_ID':'fixture','ALPACA_API_SECRET_KEY':'fixture'},clear=True):return chart(self.payload(),transport)
+    def test_follows_pages_deduplicates_and_finishes_requested_history(self):
+        from fakes import FakeTransport,json_response
+        transport=FakeTransport(json_response({'bars':{'BTC/USD':[self.bar(1)]},'next_page_token':'next'}),json_response({'bars':{'BTC/USD':[self.bar(1),self.bar(25)]},'next_page_token':None}))
+        result=self.fetch(transport)
+        self.assertEqual(len(result['bars']),2)
+        self.assertEqual(result['coverageEnd'],'2026-09-25T00:00:00Z')
+        self.assertFalse(result['partial'])
+        self.assertIn('page_token=next',transport.requests[1].url)
+    def test_repeated_page_token_cannot_loop(self):
+        from fakes import FakeTransport,json_response
+        page={'bars':{'BTC/USD':[self.bar(1)]},'next_page_token':'same'}
+        with self.assertRaisesRegex(ValueError,'pagination token'):self.fetch(FakeTransport(json_response(page),json_response(page)))
+    def test_page_limit_remains_explicitly_partial(self):
+        from fakes import FakeTransport,json_response
+        transport=FakeTransport(*[json_response({'bars':{'BTC/USD':[self.bar(1)]},'next_page_token':str(i)}) for i in range(40)])
+        self.assertTrue(self.fetch(transport)['partial'])
+        self.assertEqual(len(transport.requests),40)
