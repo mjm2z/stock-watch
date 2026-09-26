@@ -10,10 +10,64 @@ LAN and loopback readiness, stale-worker HTTP 503 before activation, healthy
 worker HTTP 200 afterward, and supervised web restart passed. JobWatch is now
 authoritative at http://192.168.4.35:3020 (DNS handoff is still pending).
 Do not restart its source without carrying authoritative data back.
-Radar's managed cron block was backed up and removed, jobs drained, and source
-server stopped. Its final snapshot and mutable-file archive are in progress in
-`radar-final-20260925T195808` on a1347-d; shared PostgreSQL/Data Engine remain up.
-HomeOps and StockWatch sources, DNS and backup policies are unchanged.
+JobWatch's dedicated Mac PostgreSQL LaunchAgent is now disabled/unloaded too;
+its log confirms clean shutdown. Original cluster files remain. Source-retired
+markers and installer guards prevent accidental revival of stale source data.
+
+Radar is now authoritative at http://192.168.4.35:5210. Its managed source cron
+block was backed up and removed, jobs drained, and source server stopped.
+The final snapshot and mutable-file archive remain in
+`radar-final-20260925T195808` on a1347-d. All 22 destination table fingerprints
+matched, including 2,432,354 score snapshots and 60,111 raw posts. Twenty mutable
+files were copied with checksum verification; prior target staging files were
+retained. Its API and 13 timers are enabled on a1347-m, preserving actual UTC
+schedules with no catch-up jobs and dry-run retention. All 28 live page/API
+checks, another-LAN-host/loopback health, and supervised restart passed.
+Shared PostgreSQL/Data Engine on a1347-d remain up. A source-retired marker and
+startup/deployment guards prevent restarting the stale source.
+
+HomeOps and StockWatch are still hosted on their original machines. HomeOps's
+live site and collector configs were narrowly updated for JobWatch/Radar only;
+credentials, collector databases/cursors, endpoints, other apps and existing
+backup policies were preserved. Direct IP app links work before DNS handoff.
+Each changed live config has a `before-app-cutover-20260925` recovery copy.
+The original full-relocation preview was archived, then regenerated from the
+updated actual configs for the remaining move. DNS is unchanged.
+
+The daily 08:30 UTC PostgreSQL snapshot timer is enabled on a1347-m. The first
+production backup completed at 20:20 ET; its independent a1347-d pull completed
+at 20:23 ET. Both explicit receipts report successful SHA-256 and pg_restore
+archive-listing checks for both apps. Bundle `20260926T001635592470Z` is retained
+on both hosts. This production-bundle check is distinct from the earlier full
+off-host rehearsal restore. The daily 09:15 UTC pull is installed on a1347-d,
+preserving every other cron entry. No source data or backups have been pruned.
+
+Autobot's protected runtime TREND_RADAR_URL now points to a1347-m, with its old
+env retained privately in staging. Its existing service was reloaded, retaining
+message offsets/state; no test notification was sent. HomeOps's live network
+view reports JobWatch readiness, worker health and Radar reachable on the new
+host. Nineteen migration regression tests pass; Radar's actual-rsync deployment
+preservation fixture and all deployment shell syntax checks pass.
+
+Next privileged prerequisite: run on a1347-j (helpers are staged and read-only
+preflight passed):
+
+```sh
+sudo python3 /home/mjm2z/app-migration-20260924/final-stockwatch-export-root.py --freeze-export
+```
+
+This disables source StockWatch timers, drains jobs, stops its web service and
+exports/verifies fresh database/artifacts, retaining original data. It may take
+several minutes. No target StockWatch writers start. After it finishes, inspect
+its receipt/paper-order state, compress/transfer/verify the final export, and
+complete HomeOps then StockWatch target activation. Root target publication,
+independent watchdog installation and DNS handoff remain pending. StockWatch
+has not yet been stopped; HomeOps's database has not yet moved.
+
+Pushed revisions: StockWatch tooling `c6b13b8`, JobWatch `c6eb9a0`, Radar
+`82f834b`. JobWatch runtime code remains the rehearsed `4a3b394`; the later
+commit changes hosting docs/installer only. Radar runtime code remains the
+rehearsed `21cfe81`; the later commit changes deployment/docs only.
 Connectivity was restored after switching
 Wi-Fi; SSH now succeeds to all four servers. All four reject noninteractive sudo
 with "a password is required". The user ran runtime preparation successfully:

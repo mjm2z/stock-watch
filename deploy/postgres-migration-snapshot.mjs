@@ -75,6 +75,7 @@ try {
     }
     await client.query('CLOSE migration_rows');
     fingerprints[name] = { rows: count, sha256: hash.digest('hex') };
+    console.log(JSON.stringify({ fingerprinted: name, rows: count }));
   }
   await client.query('COMMIT');
   const manifest = { format: 3, serialization: 'UTC/ISO-YMD/postgres/float3/PK', tables: fingerprints };
