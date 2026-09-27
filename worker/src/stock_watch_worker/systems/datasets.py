@@ -54,7 +54,9 @@ def bitcoin_dataset(start, end, transport=None, timeframe="1Hour", canceled=lamb
                                       'Bar marks cannot reproduce continuous risk execution']}}
 
 
-def stock_dataset(db):
+def stock_dataset(db, start='1900-01-01T00:00:00Z', end='9999-01-01T00:00:00Z'):
+    from ..stock_prerequisites import require_stock_inputs
+    require_stock_inputs(db, start, end)
     universe=db.execute('SELECT MAX(id) FROM universe_snapshots').fetchone()[0]
     instruments=db.execute("SELECT i.id,i.symbol,c.sector FROM instruments i LEFT JOIN instrument_context c ON c.instrument_id=i.id WHERE i.id IN (SELECT instrument_id FROM universe_memberships WHERE snapshot_id=?) OR i.symbol='SPY' ORDER BY i.symbol",(universe,)).fetchall()
     sessions={s['trading_date']:s for s in db.execute('SELECT * FROM market_sessions ORDER BY trading_date')}

@@ -2,6 +2,7 @@
 import Link from 'next/link'
 import { ResearchActivity } from './ResearchActivity'
 import { ResearchControl } from './ResearchControl'
+import { StockDataPreflight } from './StockDataPreflight'
 import { useSearchParams } from 'next/navigation'
 import { useCallback, useEffect, useState } from 'react'
 import { PageHeader } from './PageHeader'
@@ -348,6 +349,7 @@ export function ResearchWorkspace({
       end: new Date().toISOString().slice(0, 10),
     }),
     [cost, setCost] = useState(1)
+  const [stockInputsReady, setStockInputsReady] = useState(false)
   const load = useCallback(async () => {
     try {
       const r = await fetch('/api/systems/workspace?asset=' + asset, { cache: 'no-store' })
@@ -992,7 +994,17 @@ export function ResearchWorkspace({
                 intraday requests are bounded; shorten the interval if collection reaches its limit.
               </p>
             </details>
-            <button className="sw-button primary" disabled={disabled || !selected}>
+            {asset === 'stocks' && (
+              <StockDataPreflight
+                start={dates.start}
+                end={dates.end}
+                onReady={setStockInputsReady}
+              />
+            )}
+            <button
+              className="sw-button primary"
+              disabled={disabled || !selected || (asset === 'stocks' && !stockInputsReady)}
+            >
               Prepare data & run backtest
             </button>
           </form>

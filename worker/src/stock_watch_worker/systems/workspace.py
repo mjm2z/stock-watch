@@ -77,7 +77,7 @@ def execute(db,job,database):
         from .datasets import bitcoin_dataset,stock_dataset,save_dataset
         config=json.loads(version['config_json'])
         stage(db,job['id'],'Collecting and freezing historical data')
-        data=bitcoin_dataset(body['start'],body['end'],timeframe=config.get('timeframe','1Hour'),canceled=lambda:bool(db.execute('SELECT cancel_requested FROM workspace_jobs WHERE id=?',(job['id'],)).fetchone()[0])) if asset=='bitcoin' else stock_dataset(db)
+        data=bitcoin_dataset(body['start'],body['end'],timeframe=config.get('timeframe','1Hour'),canceled=lambda:bool(db.execute('SELECT cancel_requested FROM workspace_jobs WHERE id=?',(job['id'],)).fetchone()[0])) if asset=='bitcoin' else stock_dataset(db, start=body['start'], end=body['end'])
         data['bars']=[r for r in data['bars'] if instant(body['start'])<=instant(r['at'])<instant(body['end'])]
         if not data['bars']:raise ValueError('No captured bars cover this interval; choose a covered range')
         for key,rows in data.get('benchmarks',{}).items():data['benchmarks'][key]=[r for r in rows if instant(body['start'])<=instant(r['at'])<instant(body['end'])]

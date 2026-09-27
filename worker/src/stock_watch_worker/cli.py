@@ -197,7 +197,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     historical_bars = commands.add_parser(
         "backfill-bars",
-        help="backfill versioned adjusted daily bars for a universe and SPY",
+        help="backfill versioned daily bars for a universe and SPY; adjusted by default",
     )
     historical_bars.add_argument("--database", type=Path, required=True)
     historical_bars.add_argument("--data-path", type=Path, required=True)
@@ -209,6 +209,8 @@ def build_parser() -> argparse.ArgumentParser:
         "--feed", choices=("iex", "sip", "delayed_sip"), default="iex"
     )
     historical_bars.add_argument("--point-in-time-universe", action="store_true")
+    historical_bars.add_argument("--adjustment", choices=("all", "raw"), default="all",
+                                 help="Use raw for visual stock research; existing scanner history stays adjusted")
 
     historical_calendar = commands.add_parser(
         "backfill-calendar",
@@ -745,6 +747,7 @@ def _run_command(args: argparse.Namespace, operation: OperationMonitor) -> int:
                 end=args.end,
                 symbol_chunk_size=args.symbol_chunk_size,
                 feed=args.feed,
+                adjustment=args.adjustment,
                 point_in_time_universe=args.point_in_time_universe,
             )
         finally:

@@ -1,0 +1,12 @@
+CREATE TABLE instruments(id INTEGER PRIMARY KEY,symbol TEXT);
+CREATE TABLE universe_snapshots(id INTEGER PRIMARY KEY);
+CREATE TABLE universe_memberships(snapshot_id INTEGER,instrument_id INTEGER);
+CREATE TABLE instrument_context(instrument_id INTEGER PRIMARY KEY,sector TEXT);
+CREATE TABLE market_sessions(trading_date TEXT,closes_at TEXT);
+CREATE TABLE market_bars(instrument_id INTEGER,timestamp TEXT,timeframe TEXT,adjustment TEXT,provider TEXT);
+INSERT INTO instruments VALUES (1,'AAPL'),(2,'MSFT'),(3,'SPY');
+INSERT INTO universe_snapshots VALUES (1);
+INSERT INTO universe_memberships VALUES (1,1),(1,2);
+INSERT INTO instrument_context VALUES (1,'Technology');
+INSERT INTO market_sessions VALUES ('2026-01-02','2026-01-02T21:00:00Z'),('2026-01-05','2026-01-05T21:00:00Z');
+INSERT INTO market_bars VALUES (1,'2026-01-02T05:00:00Z','1Day','all','alpaca');

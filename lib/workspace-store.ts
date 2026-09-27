@@ -2,6 +2,7 @@ import 'server-only'
 import { randomUUID, createHash } from 'node:crypto'
 import { researchDatabase } from './research-store'
 import { SystemsInputError } from './systems-store'
+import { stockPrerequisites } from './stock-prerequisites'
 export type Asset = 'stocks' | 'bitcoin'
 export function assetOf(value: unknown): Asset {
   if (value === 'stocks') return 'stocks'
@@ -241,6 +242,15 @@ export function workspaceCommand(body: Record<string, unknown>) {
         JSON.stringify({ ...body, asset })
     )
       throw new SystemsInputError('Request identifier was already used for a different command.')
+    if (!existing && action === 'backtest' && asset === 'stocks') {
+      const inputs = stockPrerequisites(
+        db,
+        new Date(String(body.start)).toISOString(),
+        new Date(String(body.end)).toISOString()
+      )
+      if (!inputs.canPrepare)
+        throw new SystemsInputError('Stock data prerequisites: ' + inputs.blockers.join('; '))
+    }
     if (
       !existing &&
       Number(

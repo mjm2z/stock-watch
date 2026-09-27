@@ -80,6 +80,29 @@ Recovery remains broker-aware: stop new entries under the existing incident proc
 
 ## User workflow and navigation
 
+### Stock research input preflight and raw-history collection
+
+The stock-input follow-up adds `GET /api/systems/preflight?asset=stocks&start=<UTC timestamp>&end=<UTC timestamp>`. It reports the current universe ID, requested calendar sessions, raw/usable bar counts, usable instruments, missing sectors, unmatched calendar rows, ambiguous symbol/session sources, benchmark bar count, and actual covered session closes. The interval includes its start and excludes its end. HTTP 200 means the inspection succeeded; inspect `canPrepare` and `blockers` for missing inputs. Invalid asset/interval returns 400; unavailable storage returns 503. It is read-only and performs no provider collection.
+
+The Stocks backtest form displays this report and disables submission when basic inputs are missing. The API rechecks before creating a new job; the worker rechecks queued requests using the same SQL. Retries of an existing request retain their idempotent behavior. Crypto is unaffected. Partial instrument/history coverage and absent benchmark data remain explicit: `canPrepare` means some usable inputs exist, **not** sufficient warmup, fold/holdout coverage, verified corporate actions, qualification, or authorization. Full per-system history planning remains a separately scoped follow-up.
+
+The existing `stock-watch-worker backfill-bars` command now exposes `--adjustment raw|all`, defaulting to `all` as before. Use explicit `--feed iex --adjustment raw` for the current visual stock exporter. Feed/adjustment are part of the ingestion identity and recorded provenance; raw rows coexist with adjusted history, and a successfully completed identical request is reused without new provider calls. SIP observations stay isolated in the provenance store and are **not** silently selected by this exporter. No collection runs automatically on page load or deployment.
+
+After installing this release, a reviewed operator collection uses the existing protected environment and service user, a universe ID from the preflight report, explicit completed dates, and a small symbol chunk. Example worker arguments (replace the snapshot placeholder; this is not an automatic schedule):
+
+```sh
+/opt/stock-watch/.venv/bin/stock-watch-worker backfill-bars \
+  --database /var/lib/stock-watch/stock-watch.db \
+  --data-path /var/lib/stock-watch/data \
+  --universe-snapshot-id SNAPSHOT_ID \
+  --start 2022-09-26 --end 2026-09-26 \
+  --feed iex --adjustment raw --symbol-chunk-size 10
+```
+
+Review disk capacity and the selected universe/date range first. Collect exchange-calendar coverage separately if the report says it is missing; raw bars do not manufacture sessions or sector history. Retain response artifacts, ingestion records and existing adjusted data. Refresh the preflight after collection, then deliberately queue a new research request if appropriate. Existing blocked/failed trials remain historical records. Current-universe survivorship bias, approximate daily execution and unverified corporate actions still apply; raw collection cannot turn a stock strategy into a qualified paper strategy.
+
+This follow-up adds no migration and changes neither initialization nor execution policy. Its reviewed installer should select code-only mode against the verified 020 installation; runtime status remains the installed revision until the operator completes deployment. Local verification: 366 Python tests, 32 deployment tests and 86 web tests; type-check, lint and production build passed with the same three existing lint warnings. Browser fixture checks at 390px/1440px verified visible blockers, disabled submission, no horizontal overflow or JavaScript exceptions, and no stock gate on Crypto. Live collection and Linux package verification are recorded separately in the release audit.
+
 Stocks and Crypto share the navigation shell. Crypto currently means BTC/USD; it is not a claim that other cryptocurrencies are supported.
 
 | Section       | Purpose                                                                            |

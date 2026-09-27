@@ -192,6 +192,7 @@ class CliTests(unittest.TestCase):
                 "2025-12-31",
             ]
         )
+        self.assertEqual(args.adjustment, 'all')
 
         self.assertEqual(args.feed, "iex")
         self.assertEqual(args.symbol_chunk_size, 100)

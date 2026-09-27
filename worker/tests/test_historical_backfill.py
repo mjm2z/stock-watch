@@ -73,6 +73,31 @@ class HistoricalBackfillTests(unittest.TestCase):
     def tearDown(self) -> None:
         self.connection.close()
 
+    def test_raw_collection_preserves_adjusted_history_and_feed_identity(self):
+        from dataclasses import replace
+        class RawProvider(FakeBarsProvider):
+            def get_historical_bars(self, *args, **kwargs):
+                self.adjustment = kwargs['adjustment']
+                self.feed = kwargs['feed']
+                return [replace(bar, open=200, high=204, low=198, close=202)
+                        for bar in super().get_historical_bars(*args, **kwargs)]
+        args = dict(universe_snapshot_id=1, start=date(2026,1,1), end=date(2026,1,31))
+        backfill_historical_bars(self.connection, provider=FakeBarsProvider(), **args)
+        adjusted = [tuple(r) for r in self.connection.execute("SELECT * FROM market_bars WHERE adjustment='all'")]
+        provider = RawProvider()
+        raw = backfill_historical_bars(self.connection, provider=provider, adjustment='raw', feed='iex', **args)
+        self.assertEqual((provider.adjustment, provider.feed), ('raw', 'iex'))
+        self.assertEqual(raw.bars_inserted, 3)
+        self.assertEqual(adjusted, [tuple(r) for r in self.connection.execute("SELECT * FROM market_bars WHERE adjustment='all'")])
+        self.assertTrue(backfill_historical_bars(self.connection, provider=provider, adjustment='raw', feed='iex', **args).already_succeeded)
+        self.assertEqual(len(provider.calls), 1)
+        backfill_historical_bars(self.connection, provider=RawProvider(), adjustment='raw', feed='sip', **args)
+        self.assertEqual(self.connection.execute("SELECT COUNT(*) FROM market_bars WHERE adjustment='raw'").fetchone()[0], 3)
+        self.assertEqual(self.connection.execute('SELECT COUNT(*) FROM market_observations').fetchone()[0], 3)
+        sources = [json.loads(row[0]) for row in self.connection.execute("SELECT payload_json FROM source_provenance WHERE entity_type='ingestion'")]
+        self.assertIn(('iex','raw'), [(s['feed'],s['adjustment']) for s in sources])
+        self.assertIn(('sip','raw'), [(s['feed'],s['adjustment']) for s in sources])
+
     def test_backfills_universe_and_spy_then_reuses_succeeded_ingestion(self) -> None:
         provider = FakeBarsProvider()
 
