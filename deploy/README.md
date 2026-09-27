@@ -1,4 +1,10 @@
-# a1347-j deployment
+# Deployment notes
+
+**Current host: a1347-m.** Use the [canonical reviewed-release process](../README.md#reviewed-release-process) for updates. The a1347-j bootstrap instructions below are historical context, not the current release procedure. Migration 020 adds correctness measurements; its release needs a fresh recovery backup of the main database, sibling Bitcoin-history database, and retained artifacts, with all writers drained. Do not restore an old ledger over fills accumulated since the backup. Keep the recorded enabled timer set, previous runtime, protected configuration, and recovery evidence together.
+
+Code-only releases with unchanged schema/initialization still skip database copying. A root installation and live verification remain necessary after staging; GitHub commits do not deploy services.
+
+## Historical a1347-j deployment
 
 These units run the dashboard, check the exchange calendar every five minutes,
 process durable jobs once per minute, check the approved S&P universe source

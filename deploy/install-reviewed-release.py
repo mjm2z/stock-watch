@@ -106,6 +106,68 @@ def deployment_plan(source, runtime, database, force_backup=False):
             'initialization_changed': initialization_changed, 'forced_backup': force_backup}
 
 
+
+def recovery_inputs(database):
+    databases = [database]
+    history = database.with_name(database.name + '.bitcoin-history.db')
+    if history.exists(): databases.append(history)
+    return databases, [p for p in database.parent.iterdir() if p.is_dir()]
+
+
+def artifact_files(database, recovery=None):
+    databases, _ = recovery_inputs(database)
+    excluded = {str(p) + suffix for p in databases for suffix in ('', '-wal', '-shm', '-journal')}
+    for path in database.parent.rglob('*'):
+        if recovery and (path == recovery or path.is_relative_to(recovery)):
+            continue
+        if path.is_symlink():
+            raise RuntimeError('Review artifact symlink before migration: ' + str(path))
+        if path.is_file() and str(path) not in excluded:
+            yield path
+
+
+def verify_artifact_locations(database):
+    with closing(sqlite3.connect(database.as_uri() + '?mode=ro', uri=True)) as db:
+        if not db.execute("SELECT 1 FROM sqlite_master WHERE name='system_datasets'").fetchone(): return
+        for identifier, value in db.execute('SELECT id,path FROM system_datasets'):
+            path = Path(value)
+            if not path.is_absolute() or not path.resolve().is_relative_to(database.parent.resolve()) or not path.is_file():
+                raise RuntimeError('Dataset requires reviewed recovery mapping before migration: ' + str(identifier))
+        for identifier, value, result in db.execute("SELECT r.id,d.path,r.result_json FROM system_runs r JOIN system_datasets d ON d.id=r.dataset_id WHERE r.result_json IS NOT NULL"):
+            expected = json.loads(result).get('result_artifact_sha256')
+            if expected:
+                path = Path(value).parent / (identifier + '.result.json')
+                if not path.is_file():
+                    raise RuntimeError('Missing retained result artifact: ' + identifier)
+                with path.open('rb') as stream:
+                    if hashlib.file_digest(stream, 'sha256').hexdigest() != expected:
+                        raise RuntimeError('Retained result artifact hash mismatch: ' + identifier)
+
+
+def preserve_supporting_evidence(database, recovery):
+    verify_artifact_locations(database)
+    databases, _ = recovery_inputs(database)
+    for path in databases[1:]:
+        print('Backing up auxiliary database: ' + path.name, flush=True)
+        with closing(sqlite3.connect(path.as_uri() + '?mode=ro', uri=True)) as original:
+            with closing(sqlite3.connect(recovery / path.name)) as backup:
+                original.backup(backup, pages=4096)
+                if backup.execute('PRAGMA quick_check').fetchall() != [('ok',)]:
+                    raise RuntimeError('Auxiliary database verification failed')
+    manifest = {}
+    for path in artifact_files(database, recovery):
+        relative = path.relative_to(database.parent)
+        destination = recovery / 'artifacts' / relative
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(path, destination)
+        with path.open('rb') as src, destination.open('rb') as dest:
+            digest = hashlib.file_digest(src, 'sha256').hexdigest()
+            if digest != hashlib.file_digest(dest, 'sha256').hexdigest():
+                raise RuntimeError('Artifact recovery verification failed: ' + str(relative))
+        manifest[str(relative)] = digest
+    (recovery / 'artifact-manifest.json').write_text(json.dumps(manifest, indent=2))
+
+
 def preserve_database(database, recovery, plan):
     with closing(sqlite3.connect(database.as_uri() + '?mode=ro', uri=True)) as old:
         before = counts(old)
@@ -122,6 +184,7 @@ def preserve_database(database, recovery, plan):
                 print('Verifying fresh recovery database...', flush=True)
                 if backup.execute('PRAGMA quick_check').fetchall() != [('ok',)] or counts(backup) != before:
                     raise RuntimeError('Backup verification failed; release not installed')
+            preserve_supporting_evidence(database, recovery)
             (recovery / 'backup-verified.json').write_text(json.dumps({'counts': before, 'verified': True}))
         else:
             print('Code-only release: database backup and initialization skipped; existing database retained.', flush=True)
@@ -144,7 +207,7 @@ def main():
         raise SystemExit('Unexpected release staging directory')
     manifest = json.loads((source / 'reviewed-release.json').read_text())
     verify_files(source, manifest)
-    for required in ('.next/BUILD_ID', 'package-lock.json', 'worker/migrations/019_research_control.sql'):
+    for required in ('.next/BUILD_ID', 'package-lock.json', 'worker/migrations/020_correctness.sql'):
         if required not in manifest['files']:
             raise RuntimeError('Incomplete reviewed release: ' + required)
     verify_environment_files(source, manifest)
@@ -160,9 +223,12 @@ def main():
     print('Deployment plan: ' + json.dumps(plan), flush=True)
     stamp = datetime.now(ZoneInfo('UTC')).strftime('%Y%m%dT%H%M%SZ')
     recovery = Path('/var/backups/stock-watch-releases') / stamp
-    backup_bytes = database.stat().st_size if plan['mode'] == 'database' else 0
+    databases, artifact_directories = recovery_inputs(database)
+    backup_bytes = (sum(p.stat().st_size for p in databases) +
+                    sum(p.stat().st_size for p in artifact_files(database))) if plan['mode'] == 'database' else 0
     if shutil.disk_usage('/').free < backup_bytes + 20 * 1024**3:
         raise RuntimeError('Insufficient room for fresh backup and reserve')
+    if plan['mode'] == 'database': verify_artifact_locations(database)
     os.umask(0o077)
     recovery.mkdir(parents=True)
     (recovery / 'deployment-plan.json').write_text(json.dumps(plan, indent=2))

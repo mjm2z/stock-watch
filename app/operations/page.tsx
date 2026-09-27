@@ -1,3 +1,5 @@
+import { DataCapabilities } from '@/components/dashboard/DataCapabilities'
+import { ScanFunnel } from '@/components/dashboard/ScanFunnel'
 import { PageHeader } from '@/components/PageHeader'
 import { OperationHistory } from '@/components/dashboard/OperationHistory'
 import { incidentText } from '@/lib/dashboard-presentation'
@@ -15,8 +17,13 @@ export default function OperationsPage() {
     const operations = readDashboardOperations()
     return (
       <main className="container mx-auto space-y-8 p-4 sm:p-8">
-        <PageHeader title="Operations" description="Job attempts, provider ingestion, and actionable failures." />
+        <PageHeader
+          title="Operations"
+          description="Job attempts, provider ingestion, and actionable failures."
+        />
         <ExecutionStatus />
+        <ScanFunnel />
+        <DataCapabilities />
         <section>
           <h2 className="mb-4 text-xl font-semibold">Broker reconciliation</h2>
           {operations.brokerReconciliation ? (

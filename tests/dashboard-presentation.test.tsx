@@ -25,7 +25,7 @@ test('execution labels distinguish qualification from data blocks and actual ord
     'previously collected news article changed'
   )
 })
-test('equity chart breaks missing benchmark segments and exposes exact contribution values', () => {
+test('equity chart breaks missing benchmark segments and exposes exact entry-cost values', () => {
   const history = [0, 1, 2].map((i) => ({
     observedAt: `2026-09-0${i + 1}T20:00:00Z`,
     equity: 10 + i,
@@ -39,7 +39,7 @@ test('equity chart breaks missing benchmark segments and exposes exact contribut
   expect(spyPath.match(/M/g)).toHaveLength(2)
   expect(spyPath).not.toContain('L')
   fireEvent.change(screen.getByRole('slider', { name: 'Snapshot' }), { target: { value: '1' } })
-  expect(screen.getByText(/SPY Unavailable · Contributions \$10.00/)).toBeInTheDocument()
+  expect(screen.getByText(/SPY Unavailable · Accumulated entry cost \$10.00/)).toBeInTheDocument()
 })
 test('unfilled orders and pending exits are not presented as zero returns', () => {
   render(

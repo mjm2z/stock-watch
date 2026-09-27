@@ -3,6 +3,7 @@ import Link from 'next/link'
 import { PaperTradingGuide } from './PaperTradingGuide'
 import { PageHeader } from './PageHeader'
 import { CryptoMarketChart } from './MarketChart'
+import { AccountPerformanceClient } from './AccountPerformanceClient'
 import { BitcoinSystemResearch } from './BitcoinSystemResearch'
 import { useCallback, useEffect, useState } from 'react'
 import { OperatorAccess } from './SystemsWorkspace'
@@ -96,6 +97,7 @@ export function BitcoinWorkspace({ view }: { view: string }) {
       />
       {view === 'paper' && <PaperTradingGuide asset="bitcoin" />}
       {view === 'overview' && <CryptoMarketChart />}
+      {(view === 'overview' || view === 'paper') && <AccountPerformanceClient />}
       {view === 'overview' && <BitcoinSystemResearch compact />}
       {error && (
         <p role="alert" className="rounded border border-amber-500 p-3">

@@ -94,4 +94,28 @@ class DeploymentPlanTests(unittest.TestCase):
         with sqlite3.connect(recovery / 'stock-watch.db') as db:
             self.assertEqual(db.execute('SELECT id FROM paper_orders').fetchall(), [(42,)])
 
+    def test_recovery_preserves_auxiliary_database_and_all_artifact_hashes(self):
+        import json, hashlib
+        history = self.database.with_name(self.database.name + '.bitcoin-history.db')
+        with sqlite3.connect(history) as db:
+            db.executescript('CREATE TABLE observations(value); INSERT INTO observations VALUES(123);')
+        artifact = self.root / 'captured' / 'evidence.json'
+        artifact.parent.mkdir(); artifact.write_text('{"history":"original"}')
+        top = self.root / 'top.json'; top.write_text('{}')
+        recovery = self.root / 'recovery'; recovery.mkdir()
+        installer.preserve_database(self.database, recovery, self.plan(True))
+        with sqlite3.connect(recovery / history.name) as db:
+            self.assertEqual(db.execute('SELECT value FROM observations').fetchone()[0], 123)
+        manifest = json.loads((recovery / 'artifact-manifest.json').read_text())
+        self.assertEqual(manifest['captured/evidence.json'], hashlib.sha256(artifact.read_bytes()).hexdigest())
+        self.assertEqual((recovery / 'artifacts/top.json').read_bytes(), top.read_bytes())
+        self.assertNotIn(history.name, manifest)
+        self.assertFalse(any('recovery/' in path for path in manifest))
+
+    def test_external_dataset_blocks_unreviewed_recovery(self):
+        with sqlite3.connect(self.database) as db:
+            db.executescript("CREATE TABLE system_datasets(id,path); INSERT INTO system_datasets VALUES('external','/outside/evidence.json');")
+        with self.assertRaisesRegex(RuntimeError, 'reviewed recovery mapping'):
+            installer.verify_artifact_locations(self.database)
+
 if __name__=='__main__':unittest.main()

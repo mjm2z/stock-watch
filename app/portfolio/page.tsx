@@ -21,7 +21,10 @@ export default function PortfolioPage() {
       .sort((a, b) => a.targetExitAt!.localeCompare(b.targetExitAt!))[0]?.targetExitAt
     return (
       <main className="container mx-auto space-y-10 p-4 sm:p-8">
-        <PageHeader title="Paper portfolio" description="Automatically placed strategy lots and performance against SPY." />
+        <PageHeader
+          title="Paper portfolio"
+          description="Automatically placed strategy lots and performance against SPY."
+        />
         <PaperTradingGuide asset="stocks" />
         <SystemPortfolio />
         <PerformanceSummary />
@@ -35,9 +38,9 @@ export default function PortfolioPage() {
         </section>
         <section className="rounded-xl border bg-card p-5 shadow-sm">
           <div className="mb-5">
-            <h2 className="text-xl font-semibold">Equity versus SPY</h2>
+            <h2 className="text-xl font-semibold">Fill-cohort equity versus SPY</h2>
             <p className="text-sm text-muted-foreground">
-              Actual fill cohorts versus equal contributions to SPY
+              Scanner fill cohorts versus matched entry-cost SPY cohorts; excludes idle account cash
             </p>
           </div>
           <EquityCurve history={portfolio.history} />
@@ -74,7 +77,10 @@ export default function PortfolioPage() {
     if (error instanceof WorkerDatabaseUnavailable) {
       return (
         <main className="container mx-auto space-y-10 p-4 sm:p-8">
-          <PageHeader title="Paper portfolio" description="Automated strategy results appear after the worker database is connected." />
+          <PageHeader
+            title="Paper portfolio"
+            description="Automated strategy results appear after the worker database is connected."
+          />
           <DatabaseUnavailable reason={error.message} />
           <details className="space-y-5 border-t pt-8">
             <summary className="font-semibold">Legacy manual sandbox · This browser only</summary>

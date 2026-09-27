@@ -137,6 +137,7 @@ class AlpacaScanCollector:
                     provider="alpaca",
                     ingestion_id=ingestion_id,
                     allow_revisions=True,
+                    feed="iex",
                 )
                 # Freeze the complete response for this scan. A later feed
                 # correction must not change the inputs of a successful scan.
@@ -185,6 +186,9 @@ class AlpacaScanCollector:
                 **asdict(metrics),
                 "news_coverage_complete": True,
                 "bar_snapshot_version": 1,
+                "bar_source": {"provider": "alpaca", "feed": "iex", "venue": "IEX",
+                               "adjustment": "all", "timeframe": "1Day",
+                               "availability": "retrieved scan response; publication timing not verified"},
             }
             with connection:
                 connection.execute(

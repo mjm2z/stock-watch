@@ -113,6 +113,7 @@ def capture_and_reconcile_broker(
     discrepancies_json = _canonical_json(discrepancies)
     corporate_actions_json = _canonical_json(corporate_actions)
     inserted_activities = 0
+    newly_observed_activities = []
     with connection:
         cursor = connection.execute(
             """
@@ -159,9 +160,9 @@ def capture_and_reconcile_broker(
                 ),
             )
         for activity in activities:
-            inserted_activities += _insert_activity(
-                connection, activity=activity, captured_at=timestamp
-            )
+            inserted = _insert_activity(connection, activity=activity, captured_at=timestamp)
+            inserted_activities += inserted
+            if inserted: newly_observed_activities.append(activity)
         cursor = connection.execute(
             """
             INSERT INTO broker_reconciliations(
@@ -197,6 +198,14 @@ def capture_and_reconcile_broker(
                 ),
             ),
         )
+    # Measurement must never prevent owned exits/reconciliation from running.
+    try:
+        from .performance import record_stock_account
+        record_stock_account(connection, account, timestamp, activities, status == 'matched', newly_observed_activities)
+    except Exception as error:
+        with connection:
+            connection.execute("INSERT INTO audit_events(event_type,entity_type,entity_id,payload_json) VALUES ('performance_unavailable','broker_reconciliation',?,?)",
+                               (str(reconciliation_id), _canonical_json({'error':type(error).__name__})))
     return BrokerReconciliationResult(
         reconciliation_id=reconciliation_id,
         account_snapshot_id=account_snapshot_id,

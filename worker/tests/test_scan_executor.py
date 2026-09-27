@@ -69,6 +69,36 @@ class ScanExecutorTests(unittest.TestCase):
     def tearDown(self) -> None:
         self.connection.close()
 
+    def test_scan_diagnostics_reconcile_assessments_and_do_not_change_authority(self):
+        from stock_watch_worker.scan_diagnostics import diagnostic
+        from unittest.mock import patch
+        self._seed("development")
+        inputs = self._complete_inputs()
+        with self.assertLogs('stock_watch_worker.scan_executor', level='ERROR'), patch('stock_watch_worker.scan_diagnostics.capture', side_effect=RuntimeError('reporting failure')):
+            result = execute_scan(self.connection, inputs=inputs, now=NOW)
+        self.assertEqual(result.status, 'succeeded')
+        funnel = diagnostic(self.connection, inputs.scan_run_id)
+        self.assertEqual(funnel['unique_instruments'], 1)
+        self.assertEqual(funnel['assessments'], 4)
+        self.assertEqual(sum(funnel['primary'].values()), 4)
+        self.assertEqual(sum(funnel['by_horizon'].values()), 4)
+        self.assertEqual(funnel['veto_free_qualified'], result.qualified_signals)
+        self.assertEqual(funnel['execution_eligible'], 0)
+
+    def test_zero_qualified_funnel_explains_candidate_failure(self):
+        from dataclasses import replace
+        from stock_watch_worker.scan_diagnostics import diagnostic
+        self._seed("development")
+        inputs = self._complete_inputs()
+        inputs = replace(inputs, candidates=(replace(inputs.candidates[0], bars=(), fundamentals=None),))
+        execute_scan(self.connection, inputs=inputs, now=NOW)
+        funnel = diagnostic(self.connection, inputs.scan_run_id)
+        self.assertEqual(funnel['veto_free_qualified'], 0)
+        self.assertEqual(sum(funnel['primary'].values()), funnel['assessments'])
+        self.assertEqual(funnel['candidate_failures'], 1)
+        self.assertEqual(funnel['candidate_instruments'], 1)
+        self.assertEqual(funnel['assessments'], 0)
+
     def test_persists_explainable_signals_and_is_idempotent(self) -> None:
         self._seed("development")
         inputs = self._complete_inputs()

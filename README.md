@@ -8,6 +8,7 @@ The current application host is **a1347-m**. The Mac is a development machine. T
 
 ## Contents
 
+- [Correctness release 1](#correctness-release-1)
 - [User workflow and navigation](#user-workflow-and-navigation)
 - [Architecture and data ownership](#architecture-and-data-ownership)
 - [Stock research and signal scoring](#stock-research-and-signal-scoring)
@@ -24,6 +25,40 @@ The current application host is **a1347-m**. The Mac is a development machine. T
 - [Deployment, monitoring, and recovery](#deployment-monitoring-and-recovery)
 - [Verification and research limitations](#verification-and-research-limitations)
 - [Code and documentation map](#code-and-documentation-map)
+
+## Correctness release 1
+
+This stage adds measurement and diagnostics under migration **020_correctness**. It does not change published strategy hashes, scanner thresholds, automatic Bitcoin qualification, budget limits, ownership, or execution schedules. Later research-validation and UI stages remain separate work. Resource changes are bounded SQLite reporting writes, up to four scan backfills per research tick, and at most one Bitcoin account mark per minute; there is no new paid service or additional periodic broker request. Historical backfill adds no network traffic. See the [code-backed audit and remaining dependencies](docs/correctness-release-audit.md).
+
+### Stock data identity and coverage
+
+The established collector explicitly requests Alpaca **IEX**, daily bars, `adjustment=all`. IEX is a single-exchange feed; its dollar volume is not consolidated-market dollar volume. Existing absolute-volume thresholds remain an identified interpretation limitation. They are not lowered or silently recalibrated in this release.
+
+New ingestions retain provider, feed, venue, adjustment, interval, ingestion identity, and retrieval-based provenance. `market_series` identifies these dimensions. Non-IEX historical observations are isolated in `market_observations`, including content hashes and revisions; they cannot overwrite the legacy IEX bar key. Historical source availability is unknown unless retained, not inferred from the bar's date. Existing frozen scan payloads/revision records remain authoritative for published scanner decisions. Old rows are not retroactively assigned a guessed feed.
+
+Operations → **Data sources and qualification limitations** and `GET /api/systems/capabilities` show the latest 20 dataset manifests, observed series, and explicit verified/approximate/unavailable capabilities for membership, sectors, delistings, splits, dividends, spin-offs, symbol identity, volume adjustments, missing sessions, and revisions. A verified claim requires retained evidence; an approximate claim requires its reason. These are evidence declarations, not a new independent validation engine. Unverified stock datasets remain research-only. Requesting adjusted bars alone does not verify corporate actions or survivorship coverage.
+
+A bounded read-only probe, `deploy/check-data-capabilities.py`, compares AAPL daily IEX/SIP access and last-session volume over a seven-day historical request ending two days ago. It reads `ALPACA_API_KEY_ID` and `ALPACA_API_SECRET_KEY` from the protected service environment and prints no credentials. Running this probe does not switch feeds, place orders, or purchase access. Actual account entitlement must be checked before planning a versioned consolidated-feed strategy.
+
+### Scan explanations and fundamentals shadow report
+
+Operations → **Scan decisions and coverage**, or `GET /api/dashboard/scans?id=<scan-id>`, distinguishes unique instruments from horizon assessments, legacy weighted-pillar coverage, score-qualified assessments, qualification after vetoes, allowed entry checks, submitted orders, and orders with fills. Primary outcomes count each retained assessment exactly once; secondary reasons can overlap. Candidate failures are separate from retained assessments. Coverage here is the published score's completeness test, not proof every underlying feature exists. A missing order intent does not establish execution eligibility.
+
+Diagnostics use the frozen strategy configuration and are captured after a scan; their capture time is shown. Later fills are not retroactively added to that snapshot. The research worker also captures up to four older completed scans per `run-next` invocation using retained data, without a network re-fetch. Historical diagnostics describe records available when captured. Reporting failures are logged and cannot change the scan's trading result.
+
+`fundamentals-review-v2` is a **shadow-only** report stored in `source_provenance`; the last five reports are inspectable in Operations and the capabilities API. It preserves selected CompanyFacts document/hash, accessions, fiscal periods, USD concepts, filing identities, and decision cutoff. It uses explicit timezone-aware acceptance timestamps where supplied; date-only filings wait until the next retained exchange opening after the filing date. Unknown calendar availability remains unavailable. Compatible cumulative fiscal periods are differenced into quarters and four adjacent quarters form TTM values. Insufficient periods or inconsistent metric periods are reported, not filled. This does not replace the existing published annual feature calculation or fabricate historical SEC vintages.
+
+### Account returns versus fill cohorts
+
+`performance.py` owns prospective **account-unitized-observations-v1** measurements. Both Stocks and Crypto use `GET /api/dashboard/performance?asset=stocks|bitcoin` and the same stored result/return-index chart. A result includes account scope and owner, period, as-of timestamp, observation count, method, cash/equity, return, observed drawdown, and unavailable reasons. Account measurements are separate from sleeve metrics and legacy scanner fill cohorts.
+
+Stock marks are recorded after the existing broker reconciliation; Bitcoin marks are limited to one per minute after registered-account reconciliation. No new broker calls are introduced by measurement. An unregistered Bitcoin account has no measurements even if credentials exist. Dollar equity comes from the actual paper broker, including idle cash. Stock external cash activities and reconciled Bitcoin cash-flow records are kept distinct from internal purchases, sales, allocations, dividends, and fees.
+
+The return index starts at 100. A complete no-flow interval links by ending/beginning equity. A verified flow at the ending valuation links by `(ending equity - external flow) / beginning equity`. A flow between retained marks, unknown cash activity, late external activity, unreconciled account, or missing flow-event valuation makes the full-period return unavailable. Net-zero flows still need event valuations. This is conservative observed-snapshot accounting, not a claim of continuous intraday valuation or GIPS compliance. There is no automatic baseline reset after a broken interval. Historical snapshots are not invented. Maximum drawdown uses the running full-resolution return index and peak; between-observation drawdowns remain unknown.
+
+The interactive chart shows the latest 500 marks with hover and keyboard inspection, breaks unavailable intervals, and does not recompute headline metrics from the display window. A matching account-funded benchmark and sleeve-level unitization are **not yet available**. Their absence does not become zero return. Broker paper dividends are not invented as cash; any future economic total-return simulation needs a separate ledger and matching benchmark convention.
+
+The retained **legacy fill-cohort** view measures scanner-owned lots against accumulated entry cost and a matched entry-cost SPY bar-price proxy. Each purchase adds capital to this constructed cohort; it is not an external account deposit. Idle broker cash is excluded. Realized and unrealized P/L have separate cards. The secondary equity chart now labels accumulated entry cost explicitly. Its SPY proxy is not a funding-matched whole-account total-return benchmark.
 
 ## User workflow and navigation
 
@@ -746,12 +781,12 @@ Cadence is a target after service completion, not a promise that API calls or ex
 The installer is [install-reviewed-release.py](deploy/install-reviewed-release.py). It selects a deployment mode automatically after checking the reviewed files:
 
 - **Code-only:** all staged migrations are already applied and match the installed SQL exactly, and the database/CLI initialization code is unchanged. No database copy, full integrity scan, migration, or baseline seeding runs. Existing history stays in place. The installer still drains workers, briefly stops the web app, preserves the previous runtime and protected configuration, installs the build/wheel, compares ledger counts and trading authority, restores timers, and checks readiness.
-- **Database:** pending migrations or changed initialization code require a fresh SQLite recovery copy, integrity check, and ledger comparison before installing and initializing the release. A many-gigabyte database can take substantial time to copy and verify; this path still keeps writers offline during backup.
+- **Database:** pending migrations or changed initialization code require consistent recovery copies of the main and available sibling Bitcoin-history databases, verified retained artifacts, integrity checks, and ledger comparison before installing and initializing the release. A many-gigabyte database can take substantial time to copy and verify; this path still keeps writers offline during backup.
 - **Explicit recovery copy:** `--full-backup` requests the database path even for an otherwise code-only release. Use this for reviewed data-changing work outside normal SQL migrations. Never hide data migrations inside ordinary startup code.
 
 Applied migrations cannot be edited or removed. Unknown database migrations block downgrade deployment; add a new migration instead. The installer rechecks migration state after draining writers. `--check` verifies staged files only; the root installation determines the mode from the protected production database and prints its plan before stopping services.
 
-Both modes retain a 20 GiB free-space reserve; the database path additionally reserves room for the database copy. Both retain the previous code directory, configuration, enabled-timer record, and pre-install ledger counts. The receipt records `deployment_plan` and `database_backup_created`: a code-only recovery directory **does not contain a new database snapshot**. Keep scheduled backups and existing verified snapshots independently of release mode. A code rollback must preserve the current database and requires schema-compatible code; never overwrite new trading history with an old snapshot simply to roll back a UI update.
+Both modes retain a 20 GiB free-space reserve; the database path additionally reserves room for both databases and retained artifacts. Referenced datasets must exist under the state directory; external paths or artifact symlinks require a reviewed recovery mapping. Retained result artifacts are checked against their recorded hashes, and copied artifacts receive a SHA-256 manifest. All writers are drained before the backup. Both retain the previous code directory, configuration, enabled-timer record, and pre-install ledger counts. The receipt records `deployment_plan` and `database_backup_created`: a code-only recovery directory **does not contain a new database snapshot**. Keep scheduled backups and existing verified snapshots independently of release mode. A code rollback must preserve the current database and requires schema-compatible code; never overwrite new trading history with an old snapshot simply to roll back a UI update.
 
 Code-only releases avoid the lengthy backup phase, but worker drain, file installation, and readiness checks can still take time. Installation runs under a supervised systemd unit so SSH can disconnect safely. Watch its journal with `journalctl -fu stock-watch-release-<revision>.service`; Ctrl+C stops log watching only. Do not terminate a healthy migration backup merely because its integrity-check phase is quiet.
 
@@ -763,7 +798,8 @@ Installation needs root on the Linux host. A prepared GitHub commit or a success
 
 `/api/health` retains the established stock operations response, including its legacy HTTP behavior. Use the new `/api/systems/health` for research-worker readiness:
 
-- Enabled discovery: heartbeat within 27 hours.
+- Enabled discovery: heartbeat within 27 hours. A missing heartbeat is healthy `not_yet_due` only when systemd confirms an active timer, a future first trigger, and no prior trigger. An unknown schedule cannot receive that exemption.
+- Discovery distinguishes queued/running, blocked prerequisites, disabled timers, failed services, and stale heartbeats. Policy-disabled discovery is intentionally inactive; an unexpectedly disabled timer is unhealthy. These states describe operation, not profitability.
 - Active Bitcoin observation: data heartbeat within 120 seconds.
 - Started paper allocations: account, orders, and quote health within 120 seconds.
 - Missing, future-dated, stale, or errored expected observations fail readiness.
@@ -811,7 +847,7 @@ npm run build
 PYTHONPATH=worker/src python3.12 -m unittest discover -s worker/tests
 ```
 
-The research-control implementation was checked with 338 Python tests and 74 web tests, production build, and browser smoke checks at 390px and 1440px widths. Tests use isolated fixtures and fake brokers; they do not establish production deployment or strategy profitability.
+The prior research-control release was checked with 338 Python tests and 74 web tests. Correctness release 1 was checked locally with 360 Python tests and 79 web tests, TypeScript, production build, and browser smoke checks at 390px and 1440px widths (Overview, Paper trading, Operations, Crypto; no overflow or JavaScript exceptions). The build retains three existing lint warnings. The new APIs returned 200 against fixtures; invalid assets returned 400 and missing worker readiness returned 503. Tests use isolated fixtures and fake brokers; they do not establish production deployment or strategy profitability.
 
 Coverage includes:
 
@@ -878,7 +914,10 @@ These are gaps to address, not features silently assumed present.
 | UI queue and publication               | [workspace.py](worker/src/stock_watch_worker/systems/workspace.py), [workspace-store.ts](lib/workspace-store.ts)                                                      |
 | Activity, policy, evidence API         | [research-control.ts](lib/research-control.ts)                                                                                                                        |
 | Research UI                            | [ResearchWorkspace.tsx](components/ResearchWorkspace.tsx), [SystemEvidence.tsx](components/SystemEvidence.tsx), [ResearchControl.tsx](components/ResearchControl.tsx) |
-| New schema                             | [019_research_control.sql](worker/migrations/019_research_control.sql)                                                                                                |
+| Correctness accounting and provenance | [performance.py](worker/src/stock_watch_worker/performance.py), [provenance.py](worker/src/stock_watch_worker/provenance.py), [020_correctness.sql](worker/migrations/020_correctness.sql) |
+| Scan and fundamentals diagnostics | [scan_diagnostics.py](worker/src/stock_watch_worker/scan_diagnostics.py), [fundamental_review.py](worker/src/stock_watch_worker/fundamental_review.py) |
+| Readiness and release audit | [worker-readiness.ts](lib/worker-readiness.ts), [correctness-release-audit.md](docs/correctness-release-audit.md) |
+| Research-control schema                             | [019_research_control.sql](worker/migrations/019_research_control.sql)                                                                                                |
 
 Additional design/history:
 

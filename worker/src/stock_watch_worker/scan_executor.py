@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import sqlite3
 import uuid
 from dataclasses import dataclass
@@ -216,6 +217,11 @@ def execute_scan(
                 inputs.scan_run_id,
             ),
         )
+    from .scan_diagnostics import capture
+    try:
+        capture(connection, inputs.scan_run_id)
+    except Exception:
+        logging.getLogger(__name__).exception("Scan diagnostics unavailable for %s", inputs.scan_run_id)
     return ScanExecutionResult(
         scan_run_id=inputs.scan_run_id,
         status=status,

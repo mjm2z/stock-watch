@@ -161,6 +161,7 @@ def persist_market_bars(
     provider: str,
     ingestion_id: int | None = None,
     allow_revisions: bool = False,
+    feed: str = "unknown",
 ) -> PersistResult:
     values = tuple(bars)
     symbol_ids = _instrument_ids(connection, {bar.symbol for bar in values})
@@ -171,7 +172,16 @@ def persist_market_bars(
     inserted = 0
     unchanged = 0
     revised = 0
+    if feed not in ('unknown', 'iex', 'sip', 'delayed_sip'):
+        raise ValueError('Unsupported stock feed')
+    from .provenance import persist_series
     with connection:
+        for bar in values:
+            _validate_bar(bar)
+        separate = persist_series(connection, values, symbol_ids, provider=provider, feed=feed,
+                                  adjustment=adjustment, timeframe=timeframe, ingestion_id=ingestion_id)
+        if separate is not None:
+            return PersistResult(inserted=separate, unchanged=len(values)-separate)
         for bar in values:
             _validate_bar(bar)
             row = (

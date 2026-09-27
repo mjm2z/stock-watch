@@ -6,6 +6,7 @@ export function ResearchControl({ asset }: { asset: string }) {
   const session = useOperator(),
     [data, setData] = useState<any>(),
     [error, setError] = useState(''),
+    [readiness, setReadiness] = useState<any>(),
     [notice, setNotice] = useState('')
   const load = useCallback(async () => {
     try {
@@ -13,6 +14,14 @@ export function ResearchControl({ asset }: { asset: string }) {
         d = await r.json()
       if (!r.ok) throw Error(d.error)
       setData(d)
+      const h = await fetch('/api/systems/health')
+        .then((r) => r.json())
+        .catch(() => ({
+          checks: [
+            { worker: 'discovery', state: 'unavailable', reason: 'Worker readiness unavailable' },
+          ],
+        }))
+      setReadiness(h.checks?.find((c: any) => c.worker === 'discovery'))
       setError('')
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Unavailable')
@@ -121,8 +130,11 @@ export function ResearchControl({ asset }: { asset: string }) {
         <div className="space-y-3 mt-3">
           {!data.trials.length && (
             <p className="sw-muted">
-              The first nightly batch has not run yet. Existing historical studies remain available
-              below.
+              Discovery: {readiness?.state?.replaceAll('_', ' ') || 'status unavailable'}.{' '}
+              {readiness?.nextAt &&
+                `Next scheduled run: ${new Date(readiness.nextAt).toLocaleString()}. `}
+              {readiness?.error ||
+                'No evaluation results yet. Existing historical studies remain available.'}
             </p>
           )}
           {data.trials.map((t: any) => (

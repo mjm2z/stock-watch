@@ -243,6 +243,12 @@ def tick(db,history,broker,now):
         matching=reconcile(db,broker,account,now)
     except Exception as error: health(db,'account',now,str(error)[:500])
     else: health(db,'account',now,None if matching else 'Account reconciliation or fee ownership unresolved; entries blocked')
+    try:
+        from ..performance import record_bitcoin_account
+        record_bitcoin_account(db,account,now.isoformat(),matching)
+    except Exception as error:
+        health(db,'performance',now,type(error).__name__)
+    else: health(db,'performance',now)
     try: quote=broker.quote(now)
     except Exception as error: health(db,'quote',now,str(error)[:500])
     else: health(db,'quote',now)

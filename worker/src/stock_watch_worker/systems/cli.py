@@ -194,6 +194,12 @@ def main(argv=None):
                 print(run_next(db))
                 from .reporting import backfill
                 backfill(db)
+                from ..scan_diagnostics import backfill as backfill_diagnostics
+                try:
+                    backfill_diagnostics(db)
+                except Exception:
+                    import logging
+                    logging.getLogger(__name__).exception('Scan diagnostics backfill unavailable')
                 if db.execute('SELECT 1 FROM btc_enrollments LIMIT 1').fetchone():
                     from .history import connect_history
                     from .automation_data import backfill_one,health

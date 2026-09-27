@@ -47,7 +47,7 @@ export function EquityCurve({ history }: { history: DashboardPortfolio['history'
       <div className="flex flex-wrap gap-4 text-sm">
         <span>━ Paper equity</span>
         <span className="text-slate-500">┄ Matched SPY</span>
-        <span className="text-amber-700">··· Contributions</span>
+        <span className="text-amber-700">··· Accumulated entry cost</span>
       </div>
       <svg
         viewBox="0 0 800 250"
@@ -100,12 +100,12 @@ export function EquityCurve({ history }: { history: DashboardPortfolio['history'
       </label>
       <p className="text-sm" aria-live="polite">
         {formatTimestamp(point.observedAt)} ET · Equity {formatCurrency(point.equity)} · SPY{' '}
-        {point.spyValue === null ? 'Unavailable' : formatCurrency(point.spyValue)} · Contributions{' '}
-        {formatCurrency(point.contributedCapital)}
+        {point.spyValue === null ? 'Unavailable' : formatCurrency(point.spyValue)} · Accumulated
+        entry cost {formatCurrency(point.contributedCapital)}
       </p>
       <p className="text-xs text-muted-foreground">
-        Latest {history.length} snapshots. Contribution increases are deposits, not returns. Gaps in
-        SPY indicate missing benchmark values.
+        Latest {history.length} snapshots. Entry-cost increases represent added lots, not broker
+        deposits or profit. Gaps in SPY indicate missing benchmark values.
       </p>
     </div>
   )

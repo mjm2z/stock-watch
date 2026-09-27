@@ -19,7 +19,11 @@ export default function Home() {
 
   return (
     <main className="container mx-auto space-y-8 p-4 sm:p-8">
-      <PageHeader title="Stocks overview" description="S&P 500 signals, paper execution, and performance against SPY." action={<StockSearch />} />
+      <PageHeader
+        title="Stocks overview"
+        description="S&P 500 signals, paper execution, and performance against SPY."
+        action={<StockSearch />}
+      />
 
       <ExecutionStatus />
       {!overview.available ? (
@@ -61,7 +65,7 @@ export default function Home() {
                       <div className="mt-2 flex flex-wrap justify-between gap-2 text-xs text-muted-foreground">
                         <time>{formatTimestamp(scan.scheduledFor)}</time>
                         <span>
-                          {scan.qualifiedSignals}/{scan.totalSignals} qualified
+                          {scan.qualifiedSignals}/{scan.totalSignals} horizon assessments qualified
                         </span>
                       </div>
                       {scan.error ? (

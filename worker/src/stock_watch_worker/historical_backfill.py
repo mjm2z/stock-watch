@@ -164,6 +164,7 @@ def backfill_historical_bars(
                 adjustment=adjustment,
                 provider="alpaca",
                 ingestion_id=ingestion_id,
+                feed=feed,
             )
             observed += len(bars)
             inserted += result.inserted

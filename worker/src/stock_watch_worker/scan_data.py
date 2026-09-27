@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import sqlite3
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta, timezone
@@ -113,6 +114,8 @@ def load_scan_inputs(
         cutoff=cutoff,
     )
 
+    sessions = [(r["trading_date"], r["opens_at"]) for r in connection.execute(
+        "SELECT trading_date,opens_at FROM market_sessions ORDER BY trading_date")]
     candidates: list[CandidateData] = []
     for row in member_rows:
         instrument_id = int(row["id"])
@@ -146,6 +149,16 @@ def load_scan_inputs(
                 }
             except (TypeError, ValueError):
                 vetoes.append("fundamental_parse_error")
+            else:
+                # Reporting must never change baseline qualification or interrupt exits.
+                try:
+                    from .fundamental_review import review
+                    from .provenance import record_source
+                    with connection:
+                        record_source(connection, 'fundamental_review_v2', f'{scan_run_id}:{instrument_id}',
+                                      {**review(facts, str(scan['data_cutoff']), sessions), **fact_refs, 'decision_at': str(scan['data_cutoff'])})
+                except Exception:
+                    logging.getLogger(__name__).exception('Fundamentals diagnostic unavailable for %s', instrument_id)
         if not bool(row["active"]):
             vetoes.append("instrument_inactive")
         if row["fractionable"] != 1:
