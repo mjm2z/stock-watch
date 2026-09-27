@@ -2,7 +2,7 @@
 
 Status: proposed next assignment; no shared-tree implementation or production access granted. The StockWatch integration owner retains deployment/merge ownership.
 
-Base: the closeout commit containing this file (exact SHA supplied in the final handoff), whose parent is `4b2d267850f283f01c8b9412154047588c0b840e`. Start an isolated worktree at that SHA only after ownership is handed back. Do not base work on the installed runtime or on older Bitcoin checkpoint commits.
+Base: closeout implementation commit `39ab223b8450eff2a62733dd65cbeecee1d4f053`, whose parent is `4b2d267850f283f01c8b9412154047588c0b840e`. Subsequent documentation records the corrected report command and protected host findings without changing research/runtime code. Start an isolated worktree at the latest closeout documentation descendant supplied at handoff, retaining this implementation base, only after ownership is handed back. Do not base work on the installed runtime or on older Bitcoin checkpoint commits.
 
 Permitted change: only `docs/history-preflight-design.md`. Read current research/evaluation/discovery/workspace code and tests; do not modify them. Produce a code-backed design and fixture inventory for a later implementation release.
 
