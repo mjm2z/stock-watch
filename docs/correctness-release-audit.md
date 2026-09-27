@@ -73,10 +73,12 @@ The root-only database, recovery metadata and protected environment cannot be re
 Run the staged report from the Mac (the sudo password is entered on a1347-m; no backup or application restart):
 
 ```sh
-ssh -t a1347-m "sudo systemd-run --wait --pipe --collect -p 'EnvironmentFile=/etc/stock-watch/stock-watch.env /etc/stock-watch/systems.env' /usr/bin/python3.12 /home/mjm2z/stock-watch-closeout-20260927/closeout-report.py --manifest /home/mjm2z/stock-watch-releases/62bcffd/reviewed-release.json --broker-readonly"
+ssh -t a1347-m "sudo systemd-run --wait --pipe --collect -p EnvironmentFile=/etc/stock-watch/stock-watch.env -p EnvironmentFile=/etc/stock-watch/systems.env /usr/bin/python3.12 /home/mjm2z/stock-watch-closeout-20260927/closeout-report.py --manifest /home/mjm2z/stock-watch-releases/62bcffd/reviewed-release.json --broker-readonly"
 ```
 
 Review the resulting schema, recovery, input presence, broker identity/positions and reconciliation timestamp sections. Any unavailable section remains unverified; a successful report process is not a clean bill of health. Do not paste environment files or credentials into the handoff.
+
+Launch correction: the first operator command combined both environment paths into one `EnvironmentFile` property. Unit `run-u227376.service` failed before Python started with `Failed to load environment files: No such file or directory` (result `resources`); the report did not execute. Use one property per file as above. This exact repeated-property form was verified on a1347-m in an isolated user service with two temporary non-sensitive environment files; both values loaded and the test exited zero. No application service was changed.
 
 ### Closeout verification (2026-09-27)
 
