@@ -50,15 +50,29 @@ def counts(db):
             for n in names if n in existing}
 
 
+# Quiescent migration invariants, not post-resumption trading snapshots. Keep
+# observed health/research activity out of this list; preserve actual authority,
+# immutable definitions, and all owned cash/share/fill/reservation records.
+PRESERVED_TABLES = (
+    'strategy_versions', 'system_versions', 'system_deployments',
+    'system_stock_control', 'system_orders', 'paper_orders', 'paper_fills',
+    'paper_trade_lots', 'paper_exit_orders', 'paper_exit_fills',
+    'paper_exit_timing_policies', 'btc_accounts', 'btc_allocations',
+    'btc_enrollments', 'btc_orders', 'btc_fills', 'btc_fees',
+    'btc_fee_allocations', 'btc_qualifications', 'btc_evaluations',
+    'paper_authorizations', 'research_policies', 'paper_cashflows',
+)
+
+
 def authority(db, baseline=None):
     """Snapshot trading authority and ownership, allowing only additive schema changes."""
     existing={r[0] for r in db.execute("SELECT name FROM sqlite_master WHERE type='table'")}
     result={}
-    for name in ('system_deployments','system_stock_control','system_orders','btc_accounts','btc_allocations','btc_enrollments','btc_orders'):
+    for name in PRESERVED_TABLES:
         if name not in existing:continue
         columns=baseline[name]['columns'] if baseline and name in baseline else [r[1] for r in db.execute('PRAGMA table_info("'+name+'")')]
         rows=db.execute('SELECT '+','.join('"'+c+'"' for c in columns)+' FROM "'+name+'"').fetchall()
-        result[name]={'columns':columns,'rows':sorted(json.dumps(row,sort_keys=True) for row in rows)}
+        result[name]={'columns':columns,'rows':sorted(json.dumps(tuple(row),sort_keys=True) for row in rows)}
     return result
 
 

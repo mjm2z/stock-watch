@@ -157,6 +157,61 @@ class DatabaseMigrationTests(unittest.TestCase):
         apply_migrations(self.connection, MIGRATIONS_DIR)
         self.assertEqual(apply_migrations(self.connection, MIGRATIONS_DIR), [])
 
+    def test_020_preserves_populated_stock_and_bitcoin_ownership(self):
+        import importlib.util
+        installer = Path(__file__).resolve().parents[2] / 'deploy/install-reviewed-release.py'
+        spec = importlib.util.spec_from_file_location('release_preservation', installer)
+        release = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(release)
+        with tempfile.TemporaryDirectory() as directory:
+            for source in MIGRATIONS_DIR.glob('*.sql'):
+                if source.name < '020':
+                    shutil.copy(source, Path(directory) / source.name)
+            apply_migrations(self.connection, directory)
+        self._seed_trade_dependencies()
+        self.connection.executescript("""
+            UPDATE paper_orders SET status='partially_filled' WHERE id='order-1';
+            INSERT INTO paper_fills(id,order_id,filled_at,quantity,price,notional_usd)
+              VALUES ('fill','order-1','2026-01-02T15:00:00Z',.04,100,4);
+            INSERT INTO paper_trade_lots(id,signal_id,strategy_version_id,instrument_id,
+              horizon_trading_days,entry_order_id,status,entry_notional_usd,entry_quantity,entry_price)
+              VALUES ('lot','signal-1','strategy-v0',1,21,'order-1','open',10,.04,100);
+            INSERT INTO btc_accounts(id,initial_cash,cash,created_at)
+              VALUES ('separate-paper','300','100','2026-01-01T00:00:00Z');
+            INSERT INTO system_versions(id,asset,template,config_json,config_sha256,created_at)
+              VALUES ('manual-v1','bitcoin','trend','{}','retained-v1-hash','2026-01-01T00:00:00Z'),
+                     ('automatic-v1','bitcoin','trend','{}','retained-auto-hash','2026-01-01T00:00:00Z');
+            INSERT INTO btc_allocations(version_id,account_id,budget,cash,quantity,high_water,approved_at,started_at)
+              VALUES ('manual-v1','separate-paper','100','60','.4','100','2026-01-01','2026-01-01'),
+                     ('automatic-v1','separate-paper','100','100','0','100','2026-01-01','2026-01-01');
+            INSERT INTO btc_enrollments(version_id,enrolled_at,approved_at)
+              VALUES ('manual-v1','2026-01-01','2026-01-01'),('automatic-v1','2026-01-01','2026-01-01');
+            INSERT INTO btc_evaluations(id,version_id,cutoff,due_at,expires_at,created_at)
+              VALUES ('evaluation','manual-v1','2026-01-01','2026-01-01','2026-02-01','2026-01-01');
+            INSERT INTO btc_qualifications(version_id,evaluation_id,status,reason,checked_at,next_review_at)
+              VALUES ('manual-v1','evaluation','qualified','Observed forward evidence','2026-01-01','2026-02-01');
+            INSERT INTO btc_orders(id,version_id,account_id,side,quantity,reserved_cash,filled_qty,
+              filled_notional,status,reference_price,created_at,updated_at,reason)
+              VALUES ('uncertain','automatic-v1','separate-paper','buy','.5','50','0','0',
+                      'unknown','100','2026-01-01','2026-01-01','Uncertain submit retains reservation'),
+                     ('partial','manual-v1','separate-paper','buy','.5','10','.4','40',
+                      'partially_filled','100','2026-01-01','2026-01-01','Partial fill');
+            INSERT INTO btc_fills VALUES ('btc-fill','partial','2026-01-01','.4','40');
+            INSERT INTO btc_fees VALUES ('fee','separate-paper','partial','{}','attributed','2026-01-01');
+            INSERT INTO btc_fee_allocations VALUES ('fee','partial','.1','0','observed');
+            INSERT INTO discovery_batches(id,created_at,updated_at) VALUES ('batch','2026-01-01','2026-01-01');
+            INSERT INTO discovery_trials(id,batch_id,version_id,asset,policy_id,budget,status,created_at)
+              VALUES ('trial','batch','automatic-v1','bitcoin',1,'100','completed','2026-01-01');
+            INSERT INTO paper_authorizations VALUES ('automatic-v1','trial',1,'2026-01-01','100','separate-paper','active');
+        """)
+        before = release.authority(self.connection)
+        self.assertEqual(apply_migrations(self.connection, MIGRATIONS_DIR), ['020_correctness'])
+        self.assertEqual(before, release.authority(self.connection, before))
+        self.assertEqual(apply_migrations(self.connection, MIGRATIONS_DIR), [])
+        self.assertEqual(self.connection.execute('PRAGMA foreign_key_check').fetchall(), [])
+        self.assertEqual(self.connection.execute('SELECT COUNT(*) FROM paper_authorizations').fetchone()[0], 1)
+        self.assertEqual(self.connection.execute("SELECT reserved_cash FROM btc_orders WHERE id='uncertain'").fetchone()[0], '50')
+
     def test_partial_unique_index_prevents_duplicate_open_lots(self) -> None:
         apply_migrations(self.connection, MIGRATIONS_DIR)
         self._seed_trade_dependencies()

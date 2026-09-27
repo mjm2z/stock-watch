@@ -46,10 +46,19 @@ class ReleaseGuards(unittest.TestCase):
                 release.verify_files(Path(directory).resolve(), {'files': {'../outside': 'unused'}})
 
 
-if __name__ == '__main__':
-    unittest.main()
-
 class AuthorityMigrationGuards(unittest.TestCase):
+    def test_same_count_ledger_and_policy_changes_are_detected(self):
+        import sqlite3
+        for table in release.PRESERVED_TABLES:
+            with self.subTest(table=table), sqlite3.connect(':memory:') as db:
+                db.execute(f'CREATE TABLE "{table}" (id TEXT, value TEXT)')
+                db.execute(f'INSERT INTO "{table}" VALUES (\'owned\',\'original\')')
+                before = release.authority(db)
+                db.execute(f'UPDATE "{table}" SET value=\'changed\'')
+                self.assertNotEqual(before, release.authority(db, before))
+                db.execute(f'DROP TABLE "{table}"')
+                self.assertNotEqual(before, release.authority(db, before))
+
     def test_existing_authority_is_compared_without_new_column(self):
         import sqlite3
         db=sqlite3.connect(':memory:')
@@ -59,3 +68,7 @@ class AuthorityMigrationGuards(unittest.TestCase):
         self.assertEqual(before,release.authority(db,before))
         db.execute('UPDATE btc_allocations SET budget="301"')
         self.assertNotEqual(before,release.authority(db,before))
+
+
+if __name__ == '__main__':
+    unittest.main()
