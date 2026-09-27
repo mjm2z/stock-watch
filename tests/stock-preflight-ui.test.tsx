@@ -37,3 +37,33 @@ test('failed or unavailable inspection cannot leave entry enabled', async () => 
   expect(ready).toHaveBeenCalledWith(false)
   expect(ready).not.toHaveBeenCalledWith(true)
 })
+test('usable inputs allow exploration while quality blockers remain visible', async () => {
+  const quality = JSON.parse(
+    require('node:fs').readFileSync('worker/src/stock_watch_worker/stock_capabilities.json', 'utf8')
+  )
+  global.fetch = jest.fn().mockResolvedValue({
+    ok: true,
+    json: async () => ({
+      canPrepare: true,
+      blockers: [],
+      usableBars: 499463,
+      usableInstruments: 503,
+      instruments: 503,
+      missingSectors: 0,
+      barsWithoutCalendar: 0,
+      benchmarkBars: 1004,
+      coveredStart: null,
+      coveredEnd: null,
+      note: 'Input presence is not qualification.',
+      quality,
+    }),
+  })
+  const ready = jest.fn()
+  render(<StockDataPreflight start="2022-09-26" end="2026-09-26" onReady={ready} />)
+  expect(await screen.findByText('Dataset quality · qualification blocked')).toBeInTheDocument()
+  expect(ready).toHaveBeenCalledWith(true)
+  expect(screen.getByText(quality.assessmentBlockers[0])).toBeInTheDocument()
+  expect(
+    screen.getByText('Historical membership and delisted securities · unavailable')
+  ).toBeInTheDocument()
+})

@@ -22,6 +22,9 @@ const sql = readFileSync(
   join(process.cwd(), 'worker/src/stock_watch_worker/stock_prerequisites.sql'),
   'utf8'
 )
+const quality = JSON.parse(
+  readFileSync(join(process.cwd(), 'worker/src/stock_watch_worker/stock_capabilities.json'), 'utf8')
+)
 
 export function stockPrerequisites(db: DatabaseSync, start: string, end: string) {
   const row = db.prepare(sql).get({ start, end }) as unknown as InputCounts
@@ -43,6 +46,7 @@ export function stockPrerequisites(db: DatabaseSync, start: string, end: string)
     ...row,
     blockers,
     canPrepare: blockers.length === 0,
+    quality,
     note: 'Input presence is not qualification. Coverage can be partial; per-system warmup and evaluation-window sufficiency are not certified here. Corporate actions and historical membership remain unverified.',
   }
 }

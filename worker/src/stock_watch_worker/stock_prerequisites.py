@@ -1,5 +1,6 @@
 """Read-only input inspection; collection, execution and qualification stay separate."""
 from pathlib import Path
+import json
 
 SQL = Path(__file__).with_suffix('.sql').read_text()
 
@@ -20,7 +21,8 @@ def stock_prerequisites(db, start='1900-01-01T00:00:00Z', end='9999-01-01T00:00:
         blockers.append('Multiple raw daily sources cover the same symbol/session; select a canonical source')
     if not row['usableBars']:
         blockers.append('No raw bars join sector and calendar data in this requested interval')
-    return {**row, 'blockers': blockers, 'canPrepare': not blockers}
+    quality = json.loads(Path(__file__).with_name('stock_capabilities.json').read_text())
+    return {**row, 'blockers': blockers, 'canPrepare': not blockers, 'quality': quality}
 
 
 def require_stock_inputs(db, start='1900-01-01T00:00:00Z', end='9999-01-01T00:00:00Z'):

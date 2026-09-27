@@ -13,6 +13,11 @@ type Report = {
   coveredStart: string | null
   coveredEnd: string | null
   note: string
+  quality?: {
+    assessmentReady: boolean
+    assessmentBlockers: string[]
+    capabilities: { id: string; label: string; state: string; detail: string }[]
+  }
 }
 export function StockDataPreflight({
   start,
@@ -86,6 +91,33 @@ export function StockDataPreflight({
             calendar matches · {report.benchmarkBars} benchmark bars
           </p>
           <p className="sw-muted mt-2">{report.note}</p>
+          {report.quality && (
+            <details className="mt-3 rounded border border-white/10 p-3">
+              <summary className="cursor-pointer font-medium">
+                Dataset quality ·{' '}
+                {report.quality.assessmentReady ? 'reviewed' : 'qualification blocked'}
+              </summary>
+              <p className="mt-2">
+                Exploratory backtests remain available when inputs are present. They do not
+                establish readiness for paper trading.
+              </p>
+              <ul className="mt-2 list-disc pl-5">
+                {report.quality.assessmentBlockers.map((reason) => (
+                  <li key={reason}>{reason}</li>
+                ))}
+              </ul>
+              <dl className="mt-3 space-y-3">
+                {report.quality.capabilities.map((capability) => (
+                  <div key={capability.id}>
+                    <dt className="font-medium">
+                      {capability.label} · {capability.state}
+                    </dt>
+                    <dd className="sw-muted mt-1">{capability.detail}</dd>
+                  </div>
+                ))}
+              </dl>
+            </details>
+          )}
           {!report.canPrepare && (
             <p className="mt-2">
               Collect the missing raw history or calendar coverage through the reviewed worker

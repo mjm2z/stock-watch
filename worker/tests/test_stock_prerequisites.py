@@ -36,6 +36,8 @@ class StockPrerequisiteTests(unittest.TestCase):
         self.assertEqual(report['benchmarkBars'], 0)
         self.assertEqual(report['coveredEnd'], '2026-01-02T21:00:00Z')
         self.assertNotIn('qualified', report)
+        self.assertFalse(report['quality']['assessmentReady'])
+        self.assertEqual(len(report['quality']['assessmentBlockers']), 2)
 
     def test_requested_interval_excludes_later_bars_and_requires_calendar(self):
         self.raw()

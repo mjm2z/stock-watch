@@ -973,3 +973,9 @@ Additional design/history:
 - [Original technical design](docs/v1-technical-design.md)
 
 Older release documents describe the behavior at their release date. This README and the current source explain the newer experimental historical policy; preserve that distinction when interpreting old results.
+
+### Stock dataset quality and assessment readiness
+
+Basic raw-price/calendar availability and trading-quality evidence are separate. The stock backtest prerequisite panel now includes an expandable capability report for splits/dividends, historical constituents/sectors, symbol identity, volume, execution, benchmark, coverage and revisions. Exploratory backtests remain available with basic inputs; automatic stock discovery stops before replay or cached-result reuse when required corporate-action or historical-membership assertions are absent. Captured data currently does not meet those requirements. This neither qualifies a stock system nor changes Bitcoin paper automation.
+
+See [stock evidence readiness](docs/stock-evidence-readiness.md) for verified collection counts, the current safeguards, accounting gaps and the staged data-acquisition plan.

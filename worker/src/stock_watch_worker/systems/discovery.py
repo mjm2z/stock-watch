@@ -82,8 +82,32 @@ def prepare_data(db,trial,database,canceled=lambda:False):
     # All daily candidates in the same batch share one frozen dataset.
     existing=db.execute("SELECT dataset_id FROM discovery_trials WHERE batch_id=? AND asset=? AND dataset_id IS NOT NULL AND version_id IN (SELECT id FROM system_versions WHERE json_extract(config_json,'$.timeframe')=?) LIMIT 1",(trial['batch_id'],trial['asset'],config.timeframe)).fetchone()
     if existing:return existing[0]
+    if trial['asset']=='stocks':
+        from ..stock_prerequisites import require_stock_inputs
+        inputs=require_stock_inputs(db,first.isoformat(),cutoff.isoformat())
+        if not inputs['quality']['assessmentReady']:
+            raise ValueError('Stock assessment blocked: '+'; '.join(inputs['quality']['assessmentBlockers']))
     data=bitcoin_dataset(first.isoformat(),cutoff.isoformat(),timeframe=config.timeframe,canceled=canceled) if trial['asset']=='bitcoin' else stock_dataset(db)
     return save_dataset(db,data,Path(str(database)+'.systems-data'))
+
+def require_assessment_inputs(data):
+    """Reject known-ineligible stock evidence before replay or cached-result reuse.
+
+    These manifest assertions are necessary, not an independent certification of
+    a provider. Only a separately reviewed importer can establish their truth.
+    """
+    if data.get('asset')!='stocks':return
+    manifest=data.get('manifest',{})
+    missing=[]
+    if manifest.get('corporate_actions_verified') is not True:
+        missing.append('verified corporate-action coverage')
+    if manifest.get('point_in_time_membership') is not True:
+        missing.append('historical universe membership')
+    if manifest.get('point_in_time_sectors') is not True:
+        missing.append('historical sector membership')
+    if not data.get('bars') or any(type(row.get('eligible')) is not bool for row in data['bars']):
+        missing.append('explicit per-bar membership eligibility')
+    if missing:raise ValueError('Stock assessment blocked: '+', '.join(missing))
 
 def windows(config,data):
     end=instant(data['bars'][-1]['at'])
@@ -98,6 +122,7 @@ def windows(config,data):
     return values
 
 def scenario(config,data,start,end,profile,budget,canceled=lambda:False):
+    require_assessment_inputs(data)
     from .reporting import trade_metrics
     source=deepcopy(data)
     if profile in ('delayed_partial','combined'):
@@ -171,6 +196,11 @@ def run(db,database,seconds=1800,now=None):
             try:
                 with db:db.execute("UPDATE discovery_trials SET status='running',heartbeat_at=?,stage='Preparing frozen data' WHERE id=?",(now_iso(),trial['id']))
                 dataset=trial['dataset_id'] or prepare_data(db,trial,database,lambda:time.monotonic()>=stop)
+                record=db.execute('SELECT * FROM system_datasets WHERE id=?',(dataset,)).fetchone();raw=Path(record['path']).read_bytes()
+                if hashlib.sha256(raw).hexdigest()!=record['sha256']:raise ValueError('Dataset integrity failed')
+                data=json.loads(raw)
+                if data.get('asset')!=trial['asset']:raise ValueError('Dataset asset mismatch')
+                require_assessment_inputs(data)
                 cached=db.execute("SELECT * FROM discovery_trials WHERE version_id=? AND dataset_id=? AND policy_id=? AND budget=? AND id!=?",(trial['version_id'],dataset,trial['policy_id'],trial['budget'],trial['id'])).fetchone()
                 if cached:
                     if cached['status']!='completed':raise ValueError('Equivalent dataset evaluation already exists: '+cached['id'])
@@ -179,9 +209,7 @@ def run(db,database,seconds=1800,now=None):
                         db.execute('INSERT OR IGNORE INTO discovery_scenarios SELECT ?,window_index,profile,starts_at,ends_at,result_json FROM discovery_scenarios WHERE trial_id=?',(trial['id'],cached['id']))
                     continue
                 with db:db.execute('UPDATE discovery_trials SET dataset_id=? WHERE id=?',(dataset,trial['id']))
-                record=db.execute('SELECT * FROM system_datasets WHERE id=?',(dataset,)).fetchone();raw=Path(record['path']).read_bytes()
-                if hashlib.sha256(raw).hexdigest()!=record['sha256']:raise ValueError('Dataset integrity failed')
-                data=json.loads(raw);config=load_config(json.loads(db.execute('SELECT config_json FROM system_versions WHERE id=?',(trial['version_id'],)).fetchone()[0]))
+                config=load_config(json.loads(db.execute('SELECT config_json FROM system_versions WHERE id=?',(trial['version_id'],)).fetchone()[0]))
                 p=db.execute('SELECT * FROM research_policies WHERE id=?',(trial['policy_id'],)).fetchone()
                 finished=db.execute('SELECT COUNT(*) FROM discovery_scenarios WHERE trial_id=?',(trial['id'],)).fetchone()[0]
                 for i,(start,end) in enumerate(windows(config,data)):

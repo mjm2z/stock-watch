@@ -1,0 +1,26 @@
+# Stock evidence readiness
+
+## Verified collection, 2026-09-27
+
+Installed release c428dfa completed the additive IEX raw-bar and exchange-calendar collection using universe snapshot 2. The read-only production preflight for 2022-09-26 through 2026-09-26 reported 503 instruments, 499,463 usable stock bars, 1,004 sessions, 1,004 SPY bars, zero missing sectors, zero unmatched calendar dates and zero ambiguous symbol/session sources. First/last captured closes were 2022-09-26 and 2026-09-25. This proves basic inputs exist, not complete per-security coverage. The universe may contain recently listed securities.
+
+## Current change
+
+The API and backtest UI now expose a shared capability report for the captured stock exporter. Its status is deliberately independent of `canPrepare`: an exploratory replay may run while qualification remains blocked. Nine capabilities distinguish approximate execution/current sectors/price-return benchmark from unavailable corporate-action, historical membership, identity, volume-adjustment, per-security coverage and historical-availability evidence. These are capabilities of the current exporter, not a claim to have scanned a hidden corporate-action table.
+
+Automatic stock discovery now stops before exporting/replaying a known-ineligible captured dataset. Already frozen stock datasets are checked before cached-result reuse and before scenario evaluation. Necessary assertions include boolean corporate-action, historical universe and historical sector coverage plus boolean eligibility on every bar. Truthy strings or numbers do not qualify. These assertions are necessary conditions, not independent certification of source data; no new importer sets them in this release.
+
+Existing research records remain unchanged. Bitcoin research/automatic paper policy, execution algorithms, strategy hashes, database schema and timers are unchanged. Existing blocked trials are not reset or silently marked complete. The current exporter still cannot produce qualifying stock evidence; a later reviewed importer and accounting work are required.
+
+## Source review and acquisition plan
+
+Alpaca's current [corporate-actions endpoint](https://docs.alpaca.markets/us/reference/corporateactions-1) provides symbol/date-filtered event data but explicitly warns about provider/processing delays. The [older trading announcement client is deprecated](https://alpaca.markets/sdks/python/api_reference/trading/corporate-actions.html). Use the current data endpoint for a bounded access/coverage probe with existing credentials, without logging secrets. Provider access and historical completeness have not yet been verified for this account.
+
+1. Retain complete paginated raw responses, request bounds, retrieval timestamps, provider event IDs and checksums in an additive event store. Separate supported splits/cash dividends from unsupported mergers, spin-offs and security identity changes. Record absence only for requests with verified complete pagination; an empty/error response cannot certify a period.
+2. Build reviewed security-identity and constituent histories, including removed/delisted securities and historical sectors. Existing universe snapshot CSV support is an import mechanism, not a source of historical truth. Today's 503 symbols cannot reconstruct the historical universe. Do not buy a new source without a separate decision.
+3. Define split ratio direction, effective session, ex-date and payment timing. Preserve raw execution prices; adjust share quantities, entry basis, pending quantities/prices, indicator prices and volume consistently. Credit dividends once as receivables at entitlement and cash at payment. A dividend-adjusted return series cannot also receive the same cash dividend. Define a consistent total-return benchmark separately from current raw SPY price returns.
+4. Audit replay before certifying events: current split handling adjusts holdings and historical OHLC but does not fully normalize entry-price stops, pending order prices, indicator volume or precomputed momentum ordering. Duplicate cash-dividend events can overwrite entitlement keys. These are unresolved accounting dependencies; do not certify a dataset just by setting its manifest flag.
+5. Verify each security's expected sessions, listings/removals, warmup and test-window coverage. Preserve late/revised event versions and distinguish historical event time from retrieval/knowledge time. Missing publication evidence prevents claims of point-in-time knowledge, even when economic event replay is otherwise possible.
+6. Add deterministic split/reverse-split, volume, stop-basis, partial-fill, multiple-dividend, ex/pay-date, symbol-change, delisting, survivor-bias, missing-session, late-revision and double-counting fixtures. Only then connect the reviewed event/membership importer to a versioned stock evaluation protocol. Preserve old results and rerun new trials explicitly; never relabel existing trials as newly verified.
+
+This staged approach fixes misleading readiness and wasted evaluation first. Corporate-action ingestion and historical membership reconstruction remain unfinished, and no stock strategy becomes qualified through this release alone.

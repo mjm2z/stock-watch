@@ -31,6 +31,8 @@ test('partial coverage and benchmark absence stay explicit, not qualified', () =
   raw()
   const report = stockPrerequisites(db, start, end)
   expect(report.canPrepare).toBe(true)
+  expect(report.quality.assessmentReady).toBe(false)
+  expect(report.quality.assessmentBlockers).toHaveLength(2)
   expect([report.instruments, report.usableInstruments, report.missingSectors]).toEqual([2, 1, 1])
   expect(report.benchmarkBars).toBe(0)
   expect(report.coveredEnd).toBe('2026-01-02T21:00:00Z')

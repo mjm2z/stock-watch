@@ -1,0 +1,19 @@
+{
+  "scope": "Captured stock dataset exporter",
+  "assessmentReady": false,
+  "assessmentBlockers": [
+    "Splits, dividends and other corporate actions have not been verified for the replay interval",
+    "Historical universe and sector membership, including removed securities, have not been verified"
+  ],
+  "capabilities": [
+    {"id":"actions","label":"Splits and dividends","state":"unavailable","detail":"The exporter has no verified event ledger. Raw prices alone cannot distinguish a split from a market loss."},
+    {"id":"membership","label":"Historical membership and delisted securities","state":"unavailable","detail":"Uses the latest captured universe; historical additions, removals and delisted securities are not reconstructed."},
+    {"id":"sectors","label":"Historical sector membership","state":"approximate","detail":"Current sector labels are reused across historical dates."},
+    {"id":"identity","label":"Symbol changes and spin-offs","state":"unavailable","detail":"Historical security identity and spin-off accounting are not verified."},
+    {"id":"volume","label":"Split-consistent indicator volume","state":"unavailable","detail":"Raw volume is preserved, but split-consistent indicator history is not certified."},
+    {"id":"execution","label":"Execution prices","state":"approximate","detail":"Daily opens and closes are synthetic fill proxies; spread, liquidity and intraday timing are not reproduced."},
+    {"id":"benchmark","label":"Benchmark returns","state":"approximate","detail":"SPY is a raw price-return benchmark, not a verified total-return series."},
+    {"id":"coverage","label":"Per-security session coverage","state":"unavailable","detail":"Aggregate input counts do not certify every security's expected sessions or indicator warmup."},
+    {"id":"revisions","label":"Historical availability and revisions","state":"unavailable","detail":"Retained provider responses document retrieval, not what was available at every historical decision time."}
+  ]
+}
