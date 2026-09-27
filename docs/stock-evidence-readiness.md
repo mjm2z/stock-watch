@@ -24,3 +24,9 @@ Alpaca's current [corporate-actions endpoint](https://docs.alpaca.markets/us/ref
 6. Add deterministic split/reverse-split, volume, stop-basis, partial-fill, multiple-dividend, ex/pay-date, symbol-change, delisting, survivor-bias, missing-session, late-revision and double-counting fixtures. Only then connect the reviewed event/membership importer to a versioned stock evaluation protocol. Preserve old results and rerun new trials explicitly; never relabel existing trials as newly verified.
 
 This staged approach fixes misleading readiness and wasted evaluation first. Corporate-action ingestion and historical membership reconstruction remain unfinished, and no stock strategy becomes qualified through this release alone.
+
+## Release verification
+
+Implementation revision: `51b45a63caba90ff42ed173b6c3b25de4de27078`. Local and isolated Linux suites passed: 369 worker tests, 87 web tests, and 32 deployment tests (one intentional host-guard skip on Linux). Typecheck, local/Linux production builds, and lint passed with the three existing lint warnings. Browser smoke checks at 390px and 1440px verified expanded quality details, blocked-input behavior, no horizontal overflow or JavaScript exceptions, and no stock gate in Crypto. The API/UI fixture deliberately lacks raw inputs; the unit tests separately verify that usable inputs still enable exploration while assessment stays blocked.
+
+Reviewed Linux staging: `/home/mjm2z/stock-watch-releases/51b45a6`. No migration or initialization changes relative to c428dfa; expected installer mode is code-only. Production installation requires the operator's interactive sudo. No production history, results, trading authorizations, timers or policies were mutated during implementation or staging.
