@@ -13,7 +13,8 @@ import subprocess
 import urllib.request
 from zoneinfo import ZoneInfo
 
-NAMES = ('logs', 'stockwatch', 'jobwatch', 'radar')
+# HomeOps DNS/proxy is owned by home-ops/deploy/activate-ops-domain-root.py.
+NAMES = ('stockwatch', 'jobwatch', 'radar')
 
 
 def patch(text):

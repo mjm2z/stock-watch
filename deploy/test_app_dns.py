@@ -11,9 +11,10 @@ class DNSPatchTests(unittest.TestCase):
     def test_only_app_records_change_and_patch_is_idempotent(self):
         original = ('[Service]\nExecStart=/usr/sbin/dnsmasq --no-daemon '
                     '--address=/sandbox.home.arpa/192.168.4.36 --server=1.1.1.1 '
-                    '--address=/logs.home.arpa/192.168.4.36\nRestart=on-failure\n')
+                    '--address=/ops.home.arpa/192.168.4.36 --address=/logs.home.arpa/\nRestart=on-failure\n')
         updated = dns.patch(original)
         self.assertIn('--address=/sandbox.home.arpa/192.168.4.36 --server=1.1.1.1', updated)
+        self.assertIn('--address=/ops.home.arpa/192.168.4.36 --address=/logs.home.arpa/', updated)
         self.assertTrue(updated.endswith('\nRestart=on-failure\n'))
         for name in dns.NAMES:
             self.assertEqual(updated.count(f'--address=/{name}.home.arpa/192.168.4.35'), 1)
