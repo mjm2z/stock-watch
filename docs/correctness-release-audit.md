@@ -116,3 +116,17 @@ Added a shared SQL prerequisite query packaged into the Python wheel and read by
 Validation: 366 Python, 32 deployment, 86 web tests passed; type-check, lint and production build passed. The intermediate TypeScript return-shape inference failure was corrected with explicit SQL result types before the passing build. Isolated browser smoke on `/backtesting?asset=stocks` at 390px/1440px passed: blockers shown, submit disabled, no overflow or browser exceptions; Crypto has no stock prerequisite panel. Screenshot inspected locally. Sandbox initially blocked loopback/Chrome; the same checks passed with approved local execution. Fixture results are not production data.
 
 Deployment boundary: no new migration and no initialization-file changes, so the current 020 host should use reviewed code-only installation. No production raw collection has been performed. Raw IEX collection, requested calendar coverage, and a fresh scheduled stock broker reconciliation remain operational follow-ups. Collecting raw bars does not resolve the independent corporate-action qualification blocker. The Linux artifact build/verification and exact staged revision are supplied at handoff; the previous installed app remains `62bcffd` until the operator installs the reviewed package.
+
+### Reviewed Linux package
+
+Staged application revision `c428dfa25f5b29dac41e674beb8dc1f943824d90` is committed/pushed and prepared at `/home/mjm2z/stock-watch-releases/c428dfa`. Source checksums match the committed archive. Every worker Python module, migration, shared preflight SQL and packaged JSON matches the wheel; 32,227 staged files are checksummed. The installer `--check` passed without touching services or data. Migration SQL and both initialization files are identical to installed 62bcffd, supporting the expected code-only classification (the privileged installer independently checks the actual ledger).
+
+Linux verification: production build passed; 366 Python tests passed using isolated RAM-backed fixtures except the five disk-capacity backup tests on real disk; 86 web tests passed; 32 deployment tests ran successfully with one deliberate off-target-host guard skipped on a1347-m. The existing isolated build environment needed pip's normal build isolation to provide setuptools; neither system Python nor the running app was modified. A separate local synthetic 503,000-row preflight probe completed in 0.95 seconds in memory; that is not a production latency guarantee. No redundant live research was launched.
+
+Operator installation (supervised and safe to disconnect; logs under this unit):
+
+```sh
+ssh -t a1347-m 'sudo systemd-run --unit=stock-watch-release-c428dfa --collect --no-block /usr/bin/python3.12 /home/mjm2z/stock-watch-releases/c428dfa/deploy/install-reviewed-release.py /home/mjm2z/stock-watch-releases/c428dfa'
+```
+
+After completion, verify installed revision, existing timer/ownership states, `/api/health`, `/api/systems/health` and `/api/systems/preflight?asset=stocks&start=2022-09-26&end=2026-09-26`. An HTTP 200 preflight with `canPrepare=false` is expected until raw collection; no qualification gate should be relaxed. Use its actual `universeId` to prepare the separately supervised raw IEX collection command. Do not infer installation from the unit-start message.
