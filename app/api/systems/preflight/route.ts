@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { researchDatabase } from '@/lib/research-store'
-import { stockPrerequisites } from '@/lib/stock-prerequisites'
+import { stockPreflight } from '@/lib/stock-preflight-cache'
 export const dynamic = 'force-dynamic'
 
 export function GET(request: NextRequest) {
@@ -20,11 +19,10 @@ export function GET(request: NextRequest) {
       { status: 400 }
     )
   try {
-    return NextResponse.json(
-      researchDatabase(false, (db) =>
-        stockPrerequisites(db, new Date(start).toISOString(), new Date(end).toISOString())
-      )
-    )
+    const report = stockPreflight(new Date(start).toISOString(), new Date(end).toISOString())
+    return NextResponse.json(report, {
+      status: report.state === 'unavailable' ? 503 : report.state === 'ready' ? 200 : 202,
+    })
   } catch {
     return NextResponse.json(
       { error: 'Stock data prerequisites are unavailable. Check database readiness.' },

@@ -49,7 +49,7 @@ class DatabaseMigrationTests(unittest.TestCase):
                 "012_shared_research",
                 "013_assessment_controls",
                 "014_news_revisions",
-                "015_exit_timing", "016_systems", "017_bitcoin_automation", "018_workspace", "019_research_control", "020_correctness",
+                "015_exit_timing", "016_systems", "017_bitcoin_automation", "018_workspace", "019_research_control", "020_correctness", "021_operator_controls",
             ],
         )
 
@@ -205,8 +205,10 @@ class DatabaseMigrationTests(unittest.TestCase):
             INSERT INTO paper_authorizations VALUES ('automatic-v1','trial',1,'2026-01-01','100','separate-paper','active');
         """)
         before = release.authority(self.connection)
-        self.assertEqual(apply_migrations(self.connection, MIGRATIONS_DIR), ['020_correctness'])
-        self.assertEqual(before, release.authority(self.connection, before))
+        self.assertEqual(apply_migrations(self.connection, MIGRATIONS_DIR), ['020_correctness', '021_operator_controls'])
+        after=release.authority(self.connection, before)
+        self.assertEqual(before, {key:after[key] for key in before})
+        self.assertEqual(after['system_entry_controls']['rows'], [])
         self.assertEqual(apply_migrations(self.connection, MIGRATIONS_DIR), [])
         self.assertEqual(self.connection.execute('PRAGMA foreign_key_check').fetchall(), [])
         self.assertEqual(self.connection.execute('SELECT COUNT(*) FROM paper_authorizations').fetchone()[0], 1)

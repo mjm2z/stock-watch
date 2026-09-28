@@ -35,11 +35,22 @@ const request = (query: string) =>
   ({
     nextUrl: new URL('http://localhost/api/systems/preflight?' + query),
   }) as unknown as NextRequest
-test('GET distinguishes blocked prerequisites, invalid interval and unavailable database', () => {
+test('GET distinguishes checking, blocked prerequisites, invalid interval and unavailable database', async () => {
   expect(GET(request('asset=stocks&start=2026-01-01&end=2026-01-06'))).toMatchObject({
-    status: 200,
-    body: { canPrepare: false },
+    status: 202,
+    body: { canPrepare: false, state: 'checking' },
   })
+  let response: any
+  for (let attempt = 0; attempt < 100; attempt++) {
+    await new Promise((resolve) => setTimeout(resolve, 10))
+    response = GET(request('asset=stocks&start=2026-01-01&end=2026-01-06'))
+    if (response.status !== 202) break
+  }
+  expect(response).toMatchObject({ status: 200, body: { state: 'ready', canPrepare: false } })
+  const cachedStart = performance.now()
+  for (let i = 0; i < 10; i++)
+    expect((GET(request('asset=stocks&start=2026-01-01&end=2026-01-06')) as any).status).toBe(200)
+  expect(performance.now() - cachedStart).toBeLessThan(500)
   expect(GET(request('asset=bitcoin&start=2026-01-01&end=2026-01-06'))).toMatchObject({
     status: 400,
   })
@@ -51,7 +62,7 @@ test('GET distinguishes blocked prerequisites, invalid interval and unavailable 
     status: 503,
   })
 })
-test('new stock backtest is rejected before any queue write; prior request retry stays idempotent', () => {
+test('new stock backtest is rejected before any queue write; prior request retry stays idempotent', async () => {
   const body = {
     action: 'backtest',
     asset: 'stocks',
@@ -59,6 +70,11 @@ test('new stock backtest is rejected before any queue write; prior request retry
     version: 'stock-v1',
     start: '2026-01-01',
     end: '2026-01-06',
+  }
+  expect(() => workspaceCommand(body)).toThrow('Checking captured data')
+  for (let attempt = 0; attempt < 100; attempt++) {
+    await new Promise((resolve) => setTimeout(resolve, 10))
+    if ((GET(request('asset=stocks&start=2026-01-01&end=2026-01-06')) as any).status !== 202) break
   }
   expect(() => workspaceCommand(body)).toThrow('Raw daily bars are missing')
   const db = new DatabaseSync(process.env.STOCK_WATCH_DATABASE_PATH!)

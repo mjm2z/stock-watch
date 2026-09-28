@@ -33,7 +33,8 @@ export function StockDataPreflight({
     const controller = new AbortController()
     onReady(false)
     setState({})
-    const timer = setTimeout(() => {
+    let timer: ReturnType<typeof setTimeout>
+    const inspect = () => {
       void fetch('/api/systems/preflight?' + new URLSearchParams({ asset: 'stocks', start, end }), {
         cache: 'no-store',
         signal: controller.signal,
@@ -41,6 +42,17 @@ export function StockDataPreflight({
         .then(async (response) => {
           const report = await response.json()
           if (!response.ok) throw Error(report.error || 'Data prerequisite check failed')
+          if (controller.signal.aborted) return
+          if (report.state === 'checking' || report.state === 'stale') {
+            setState({
+              error:
+                report.state === 'stale'
+                  ? 'Previous inspection is stale; checking updated inputs…'
+                  : 'Checking captured data for this interval…',
+            })
+            timer = setTimeout(inspect, 1000)
+            return
+          }
           if (!controller.signal.aborted) {
             setState({ report })
             onReady(report.canPrepare)
@@ -50,7 +62,8 @@ export function StockDataPreflight({
           if (!controller.signal.aborted)
             setState({ error: error instanceof Error ? error.message : 'Data check unavailable' })
         })
-    }, 250)
+    }
+    timer = setTimeout(inspect, 250)
     return () => {
       clearTimeout(timer)
       controller.abort()

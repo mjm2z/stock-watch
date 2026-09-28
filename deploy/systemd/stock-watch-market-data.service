@@ -1,0 +1,23 @@
+[Unit]
+Description=StockWatch Coinbase public market observations
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=stock-watch
+Group=stock-watch
+WorkingDirectory=/opt/stock-watch
+ExecStart=/usr/local/bin/node services/market-feed.mjs
+Restart=always
+RestartSec=5
+MemoryMax=256M
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=strict
+ReadWritePaths=/var/lib/stock-watch
+
+[Install]
+WantedBy=multi-user.target

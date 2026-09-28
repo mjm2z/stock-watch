@@ -60,7 +60,7 @@ PRESERVED_TABLES = (
     'paper_exit_timing_policies', 'btc_accounts', 'btc_allocations',
     'btc_enrollments', 'btc_orders', 'btc_fills', 'btc_fees',
     'btc_fee_allocations', 'btc_qualifications', 'btc_evaluations',
-    'paper_authorizations', 'research_policies', 'paper_cashflows',
+    'paper_authorizations', 'research_policies', 'paper_cashflows', 'system_entry_controls',
 )
 
 
@@ -125,6 +125,9 @@ def recovery_inputs(database):
     databases = [database]
     history = database.with_name(database.name + '.bitcoin-history.db')
     if history.exists(): databases.append(history)
+    for name in ('manual-paper.db','market-data.db'):
+        auxiliary=database.with_name(name)
+        if auxiliary.exists(): databases.append(auxiliary)
     return databases, [p for p in database.parent.iterdir() if p.is_dir()]
 
 
@@ -214,7 +217,7 @@ def main():
     if socket.gethostname().split('.')[0] != 'a1347-m' or (os.geteuid() != 0 and not args.check):
         raise SystemExit('Run on a1347-m; installation requires root')
     now = datetime.now(ZoneInfo('America/New_York'))
-    if now.weekday() < 5 and 570 <= now.hour * 60 + now.minute < 960:
+    if not args.check and now.weekday() < 5 and 570 <= now.hour * 60 + now.minute < 960:
         raise SystemExit('Run outside US market hours')
     source = args.source.resolve()
     if source.parent != Path('/home/mjm2z/stock-watch-releases'):
@@ -251,9 +254,15 @@ def main():
     timers = [line.split()[0] for line in units if line.split()[0].endswith('.timer')]
     enabled = {unit: output('systemctl', 'is-enabled', unit) for unit in timers
                if subprocess.run(['systemctl', 'is-enabled', '--quiet', unit]).returncode == 0}
+    coordinator_enabled = 'stock-watch-bitcoin-automation.timer' in enabled or subprocess.run(['systemctl','is-enabled','--quiet','stock-watch-execution.service']).returncode == 0
+    if coordinator_enabled and 'stock-watch-bitcoin-trading.timer' in enabled:
+        raise RuntimeError('Competing legacy Bitcoin timer enabled; reconcile ownership before cutover')
+    (recovery / 'execution-cutover.json').write_text(json.dumps({'replace_coordinator':coordinator_enabled}))
     (recovery / 'enabled-timers.json').write_text(json.dumps(enabled, indent=2))
     if timers:
         run('systemctl', 'stop', *timers)
+    persistent = [line.split()[0] for line in units if line.split()[0] in ('stock-watch-market-data.service','stock-watch-manual-paper.service','stock-watch-execution.service')]
+    if persistent: run('systemctl','stop',*persistent)
     services = drain_services(units)
     deadline = time.monotonic() + 600
     while any(output('systemctl', 'show', '-p', 'ActiveState', '--value', s)
@@ -297,11 +306,21 @@ def main():
         if any(authority_after.get(key)!=value for key,value in authority_before.items()):
             raise RuntimeError('Existing trading authority changed during migration; services remain stopped')
     run('bash', str(runtime / 'deploy/install-systems-root.sh'), '--skip-init')
+    for name in ('market-data','manual-paper','execution'):
+        run('install','-o','root','-g','root','-m','0644',str(runtime / ('deploy/systemd/stock-watch-'+name+'.service')),'/etc/systemd/system/')
+    run('systemctl','daemon-reload')
+    if coordinator_enabled:
+        run('systemctl','disable','--now','stock-watch-bitcoin-automation.timer')
+        enabled.pop('stock-watch-bitcoin-automation.timer',None)
+        run('systemctl','enable','--now','stock-watch-execution.service')
+    run('systemctl','enable','--now','stock-watch-market-data.service','stock-watch-manual-paper.service')
+    run('systemctl','is-active','--quiet','stock-watch-market-data.service','stock-watch-manual-paper.service')
+    if coordinator_enabled: run('systemctl','is-active','--quiet','stock-watch-execution.service')
     for mode in ('enabled', 'enabled-runtime'):
         selected = [unit for unit, state in enabled.items() if state == mode]
         if selected:
             run('systemctl', 'enable', *(['--runtime'] if mode == 'enabled-runtime' else []), '--now', *selected)
-    for route in ('/api/health', '/api/systems?asset=stocks', '/api/systems?asset=bitcoin', '/api/bitcoin', '/api/systems/workspace?asset=stocks', '/api/systems/workspace?asset=bitcoin', '/api/systems/control?asset=bitcoin', '/api/systems/activity?asset=bitcoin', '/crypto', '/favicon.ico'):
+    for route in ('/api/health', '/api/systems?asset=stocks', '/api/systems?asset=bitcoin', '/api/bitcoin', '/api/systems/workspace?asset=stocks', '/api/systems/workspace?asset=bitcoin', '/api/systems/control?asset=bitcoin', '/api/systems/activity?asset=bitcoin', '/crypto', '/manual-paper', '/api/health/market-feed', '/favicon.ico'):
         for attempt in range(30):
             try:
                 with urllib.request.urlopen('http://127.0.0.1:3001' + route, timeout=10) as response:
@@ -314,6 +333,8 @@ def main():
             raise RuntimeError('Release readiness failed: ' + route)
     receipt = {'revision': manifest['revision'], 'recovery': str(recovery),
                'deployment_plan': plan, 'database_backup_created': plan['mode'] == 'database',
+               'bitcoin_execution_owner': 'stock-watch-execution.service' if coordinator_enabled else 'unchanged-disabled',
+               'manual_account_configuration': 'requires separately confirmed setup; never inferred from service activation',
                'previous_runtime': str(previous), 'legacy_counts': before,
                'installed_at': datetime.now(ZoneInfo('UTC')).isoformat()}
     (runtime / 'installed-release.json').write_text(json.dumps(receipt, indent=2))

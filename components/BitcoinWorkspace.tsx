@@ -1,5 +1,6 @@
 'use client'
 import Link from 'next/link'
+import { BitcoinLivePrice } from './BitcoinLivePrice'
 import { PaperTradingGuide } from './PaperTradingGuide'
 import { PageHeader } from './PageHeader'
 import { CryptoMarketChart } from './MarketChart'
@@ -95,8 +96,20 @@ export function BitcoinWorkspace({ view }: { view: string }) {
         }
         description="Bitcoin · BTC/USD · Continuous market · Paper trading only"
       />
-      {view === 'paper' && <PaperTradingGuide asset="bitcoin" />}
-      {view === 'overview' && <CryptoMarketChart />}
+      {view === 'paper' && (
+        <>
+          <PaperTradingGuide asset="bitcoin" />
+          <Link className="underline" href="/manual-paper">
+            Manual paper accounts
+          </Link>
+        </>
+      )}
+      {view === 'overview' && (
+        <>
+          <BitcoinLivePrice />
+          <CryptoMarketChart />
+        </>
+      )}
       {(view === 'overview' || view === 'paper') && <AccountPerformanceClient />}
       {view === 'overview' && <BitcoinSystemResearch compact />}
       {error && (

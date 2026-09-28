@@ -306,3 +306,61 @@ class StockRetryTests(unittest.TestCase):
             reconcile(db,deployment,Broker(),now=datetime(2024,1,2,14,45,tzinfo=timezone.utc))
             self.assertEqual(db.execute('SELECT status FROM system_orders').fetchone()[0],'canceled')
             db.close()
+
+class CorporateActionRegressions(unittest.TestCase):
+    def replay_actions(self,actions,prices=None):
+        data=dataset(prices or [100]*6+[110]*6,'stocks',['ABC'])
+        data['corporate_actions']=actions(data)
+        return replay(SystemConfig('stocks','breakout',entry=6,exit=5),data)
+    def test_same_timestamp_dividend_entitlement_precedes_payment(self):
+        def actions(data):
+            at=data['bars'][8]['at']
+            return [{'id':'div-1','type':'cash_dividend','symbol':'ABC','at':at,'available_at':at,'amount':1,'pay_at':at}]
+        result=self.replay_actions(actions)
+        baseline=self.replay_actions(lambda data:[])
+        self.assertAlmostEqual(result['ending_equity']-baseline['ending_equity'],baseline['fills'][0]['qty'])
+    def test_duplicate_dividends_do_not_double_count_and_distinct_ids_do(self):
+        def actions(data):
+            at=data['bars'][8]['at']
+            one={'id':'d1','type':'cash_dividend','symbol':'ABC','at':at,'available_at':at,'amount':1,'pay_at':data['bars'][9]['at']}
+            return [one,dict(one)]
+        single=self.replay_actions(lambda d:actions(d)[:1]); duplicate=self.replay_actions(actions)
+        self.assertEqual(single['ending_equity'],duplicate['ending_equity'])
+        distinct=self.replay_actions(lambda d:[actions(d)[0],{**actions(d)[0],'id':'d2'}])
+        self.assertAlmostEqual(distinct['ending_equity']-single['ending_equity'],single['fills'][0]['qty'])
+    def test_conflicting_dividend_identity_is_rejected(self):
+        def actions(data):
+            at=data['bars'][8]['at']; one={'id':'same','type':'cash_dividend','symbol':'ABC','at':at,'available_at':at,'amount':1,'pay_at':at}
+            return [one,{**one,'amount':2}]
+        with self.assertRaisesRegex(ValueError,'Conflicting'): self.replay_actions(actions)
+    def test_reverse_split_preserves_value_and_result_version(self):
+        def actions(data):
+            at=data['bars'][8]['at']; return [{'type':'split','symbol':'ABC','at':at,'available_at':at,'ratio':.5}]
+        result=self.replay_actions(actions,[100]*6+[110,110,220,220,220,220])
+        self.assertEqual(len(result['fills']),1)
+        self.assertAlmostEqual(result['open_positions']['ABC']['qty'],result['fills'][0]['qty']/2)
+        self.assertEqual(result['engine'],'stock-actions-v2')
+        self.assertEqual(replay(SystemConfig('bitcoin'),dataset([100]*10))['engine'],'cash-replay-v1')
+
+class SplitBasisRegressions(unittest.TestCase):
+    def test_split_scales_volume_pending_quantity_and_stop_basis(self):
+        from stock_watch_worker.systems.rules import RuleConfig
+        from test_workspace import group
+        cfg=RuleConfig('stocks',group(),group('lt'),stop_loss=.03,holding_count=12,holding_unit='months')
+        data=dataset([101,101,50.5,50.5],'stocks',['ABC'])
+        for bar in data['bars']:
+            bar['volume']=10
+            bar['quote']['ask_size']=.03
+        at=data['bars'][2]['at']
+        data['corporate_actions']=[{'type':'split','symbol':'ABC','at':at,'available_at':at,'ratio':2}]
+        histories=[]
+        def decide(config,bars,held):
+            histories.append([dict(b) for b in bars])
+            return ('hold','held') if held else ('buy','test')
+        with patch('stock_watch_worker.systems.engine.decision',side_effect=decide): result=replay(cfg,data)
+        self.assertTrue(all(fill['side']=='buy' for fill in result['fills']))
+        self.assertAlmostEqual(result['open_positions']['ABC']['entry_price'],50.5*1.0005)
+        final=histories[-1]
+        self.assertEqual(final[0]['volume'],20)
+        self.assertEqual(final[0]['close'],50.5)
+        self.assertGreaterEqual(result['ending_equity'],299)

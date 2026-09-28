@@ -1,5 +1,22 @@
 # StockWatch
 
+## Coinbase Live Price and Telegram manual paper trading
+
+The new implementation adds Coinbase ticker/heartbeat streaming above the Bitcoin
+chart, separate manual paper accounts and a shared Telegram/browser workspace,
+confirmation-bound order intents, conditional/stop-limit instructions, protective
+exit plans, supported-template system controls, a notification outbox, and worker
+preflight/accounting corrections. See the full [live pricing and paper operations
+guide](docs/live-paper-operations.md) for commands, architecture, setup, recovery,
+retention, source/quote distinctions, accounting limits, deployment, and rollback.
+The companion integration is in [Autobot](https://github.com/mjm2z/autobot).
+
+Installation and credentials are separate from source availability. Manual trading
+is unconfigured until two distinct paper accounts and each account's $1,000/$100
+setup preview are confirmed. No account resets, strategy activation, or paper test
+trades occur just by installing. The release report records actual deployment state.
+
+
 StockWatch is a self-hosted market research and **paper-trading** application. It combines a stock scanner, timestamped research inputs, historical experiments, configurable rule systems, Bitcoin charts, forward observation, and separately attributed paper execution.
 
 The application is designed to keep the reasoning behind a decision inspectable. A score is not a probability of profit; a successful job is not necessarily a winning backtest; a simulated trade is not a broker fill. These distinctions apply throughout this document and the UI.
@@ -831,7 +848,7 @@ Both modes retain a 20 GiB free-space reserve; the database path additionally re
 
 Code-only releases avoid the lengthy backup phase, but worker drain, file installation, and readiness checks can still take time. Installation runs under a supervised systemd unit so SSH can disconnect safely. Watch its journal with `journalctl -fu stock-watch-release-<revision>.service`; Ctrl+C stops log watching only. Do not terminate a healthy migration backup merely because its integrity-check phase is quiet.
 
-The updated unit installer enables chart/discovery/research/watch-only timers. It **does not automatically enable a previously disabled Bitcoin execution timer**. After separate-account setup and policy/account review, the intended coordinator is `stock-watch-bitcoin-automation.timer`; do not also start a competing legacy Bitcoin owner.
+The updated unit installer enables chart/discovery/research/watch-only timers. It **does not automatically enable a previously disabled Bitcoin execution timer**. After separate-account setup and policy/account review, the reviewed live-price release replaces an enabled `stock-watch-bitcoin-automation.timer` with `stock-watch-execution.service`. Never run the timer and daemon together; a previously disabled coordinator remains disabled.
 
 Installation needs root on the Linux host. A prepared GitHub commit or a successful local build is not a production deployment.
 

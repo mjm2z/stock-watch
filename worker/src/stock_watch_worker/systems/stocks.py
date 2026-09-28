@@ -124,6 +124,8 @@ def stock_tick(db, broker, now=None):
     deployment = db.execute('SELECT d.*,v.config_json,v.config_sha256 FROM system_stock_control c JOIN system_deployments d ON d.id=c.deployment_id JOIN system_versions v ON v.id=d.version_id WHERE c.id=1').fetchone()
     if not deployment: return
     identifier = deployment['id']
+    from .operator_controls import read, complete_exit
+    control=read(db,deployment['version_id'])
     try:
         account = broker.account()
         if account['id'] != deployment['account_id'] or account.get('trading_blocked') or account.get('account_blocked'):
@@ -132,8 +134,8 @@ def stock_tick(db, broker, now=None):
         session = db.execute('SELECT * FROM market_sessions WHERE opens_at<=? AND closes_at>? ORDER BY opens_at DESC LIMIT 1',(at,at)).fetchone()
         if not session: return
         entry_window=instant(session['opens_at'])+timedelta(minutes=15)<=now<instant(session['opens_at'])+timedelta(minutes=30)
-        reconcile(db,identifier,broker,allow_entries=deployment['mode']=='paper' and entry_window,now=now)
-        if deployment['mode']=='paused':
+        reconcile(db,identifier,broker,allow_entries=deployment['mode']=='paper' and entry_window and not control.get('paused') and not control.get('exit_requested'),now=now)
+        if deployment['mode']=='paused' or control.get('paused') or control.get('exit_requested'):
             for order in db.execute("SELECT * FROM system_orders WHERE deployment_id=? AND side='buy'",(identifier,)):
                 if order['status'] not in TERMINAL and order['broker_id']: broker.cancel(order['broker_id'])
         if broker.open_orders(): return
@@ -142,6 +144,7 @@ def stock_tick(db, broker, now=None):
         if any(abs(actual.get(s,0)-expected.get(s,0))>1e-6 for s in set(actual)|set(expected)):
             raise ValueError('Stock position mismatch; systems entries blocked')
         own = system_positions(db)
+        if control.get('exit_requested') and not any(own.values()): complete_exit(db,deployment['version_id'])
         previous = db.execute('SELECT * FROM market_sessions WHERE trading_date<? ORDER BY trading_date DESC LIMIT 1',(session['trading_date'],)).fetchone()
         if not previous: raise ValueError('Previous stock session unavailable')
         config = load_config(json.loads(deployment['config_json']))
@@ -165,11 +168,13 @@ def stock_tick(db, broker, now=None):
                 if entry:
                     forced=position_exit(config,history[-1]['close'],entry['filled_price'],entry['created_at'],at)
                     if forced:action,reason='sell',forced
+            if control.get('exit_requested'): action='sell' if instrument['symbol'] in own else 'hold'
+            if action=='buy' and (control.get('paused') or control.get('exit_requested') or (control.get('decision_floor') and history[-1]['at']<=control['decision_floor'])): action='hold'
             if deployment['mode']=='paused': action = 'sell' if instrument['symbol'] in own else 'hold'
             momentum = history[-1]['close']/history[-21]['close']-1 if len(history)>=21 else 0
             candidates.append((action,-momentum,instrument['symbol'],instrument,reason))
         for action,_,symbol,instrument,reason in sorted(candidates,key=lambda x:(x[0]!='sell',x[1],x[2])):
-            if action=='hold' or (action=='buy' and (not buy_window or deployment['mode']!='paper')) or (action=='sell' and not sell_window and deployment['mode']!='paused'): continue
+            if action=='hold' or (action=='buy' and (not buy_window or deployment['mode']!='paper')) or (action=='sell' and not sell_window and deployment['mode']!='paused' and not control.get('exit_requested')): continue
             client_id = 'sys-'+uuid.uuid5(uuid.NAMESPACE_URL,f'{identifier}:{session["trading_date"]}:{symbol}:{action}').hex
             if db.execute('SELECT 1 FROM system_orders WHERE id=?',(client_id,)).fetchone(): continue
             context = broker.quote(symbol)

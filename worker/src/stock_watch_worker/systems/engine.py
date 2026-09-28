@@ -13,6 +13,7 @@ import math
 from statistics import mean
 
 ENGINE_VERSION = 'cash-replay-v1'
+STOCK_ACCOUNTING_VERSION = 'stock-actions-v2'
 
 
 def canonical(value):
@@ -176,7 +177,18 @@ def replay(config, data, *, cost_multiplier=1, start=None, end=None, canceled=la
             events.append((row['quote']['at'], 0, index, row))
         if row.get('exit_quote'):
             events.append((row['exit_quote']['at'], -1, index, row))
+    action_identities = {}
+    actions = []
     for action in data.get('corporate_actions',[]):
+        economic = {key:value for key,value in action.items() if key not in ('id','available_at')}
+        identity = str(action.get('id') or digest(economic))
+        if identity in action_identities:
+            if action_identities[identity] != economic:
+                raise ValueError('Conflicting corporate action identity')
+            continue
+        action_identities[identity] = economic
+        action = {**action, '_identity': identity}
+        actions.append(action)
         effective=instant(action['at'])
         if instant(action['available_at'])>effective:
             raise ValueError('Corporate action was not available at its effective timestamp')
@@ -193,9 +205,19 @@ def replay(config, data, *, cost_multiplier=1, start=None, end=None, canceled=la
     momentum, past = {}, {}
     for index,row in enumerate(rows):
         series = past.setdefault(row['symbol'],[])
+        if config.asset == 'stocks':
+            prior_at = past.get(('at',row['symbol']))
+            for split in actions:
+                if split['type']=='split' and split['symbol']==row['symbol'] and prior_at and instant(prior_at)<instant(split['at'])<=instant(row['at']):
+                    series[:] = [price/float(split['ratio']) for price in series]
+            past[('at',row['symbol'])] = row['at']
         series.append(row['close'])
         momentum[index] = series[-1]/series[-21]-1 if len(series)>=21 else 0
-    events.sort(key=lambda event: (instant(event[0]), event[1], -momentum.get(event[2],0), event[3]['symbol']))
+    def event_priority(event):
+        if event[1] == -2: return -4 if event[3]['type']=='split' else -3
+        if event[1] == -3: return -2
+        return event[1]
+    events.sort(key=lambda event: (instant(event[0]), event_priority(event), -momentum.get(event[2],0), event[3]['symbol']))
     paused, fees, turnover, closed, wins = False, 0., 0., 0, 0
     risk_requested = None
     def equity():
@@ -208,17 +230,21 @@ def replay(config, data, *, cost_multiplier=1, start=None, end=None, canceled=la
         symbol = row['symbol']
         trading = not start or instant(at) >= instant(start)
         if kind == -3:
-            cash += receivables.pop((symbol,row['at']),0)
+            cash += receivables.pop(row['_identity'],0)
             continue
         if kind == -2:
             if row['type']=='split':
                 ratio=float(row['ratio'])
-                if symbol in holdings: holdings[symbol]['qty']*=ratio
-                if symbol in planned: planned[symbol]['remaining']*=ratio
+                if symbol in holdings:
+                    holdings[symbol]['qty']*=ratio
+                    if 'entry_price' in holdings[symbol]: holdings[symbol]['entry_price']/=ratio
+                if symbol in planned:
+                    planned[symbol]['remaining']*=ratio
+                    planned[symbol]['price']/=ratio
                 if symbol in marks: marks[symbol]/=ratio
-                history[symbol]=[{**bar,**{key:bar[key]/ratio for key in ('open','high','low','close')}} for bar in history.get(symbol,[])]
+                history[symbol]=[{**bar,**{key:bar[key]/ratio for key in ('open','high','low','close')}, **({'volume':bar['volume']*ratio} if 'volume' in bar else {})} for bar in history.get(symbol,[])]
             elif trading and symbol in holdings:
-                receivables[(symbol,row['at'])] = holdings[symbol]['qty']*float(row['amount'])
+                receivables[row['_identity']] = holdings[symbol]['qty']*float(row['amount'])
             continue
         if kind == 2:
             quote = row['quote']
@@ -369,7 +395,7 @@ def replay(config, data, *, cost_multiplier=1, start=None, end=None, canceled=la
         center=(proportion+z*z/(2*closed))/(1+z*z/closed)
         half=z*math.sqrt(proportion*(1-proportion)/closed+z*z/(4*closed*closed))/(1+z*z/closed)
         interval={'lower':center-half,'upper':center+half,'method':'Wilson 95%; does not adjust for correlated trades'}
-    return {'execution_parameters':{'version':'cash-cost-overrides-v1','fee_rate':fee_rate,'slippage_rate':slip},'win_rate_interval':interval,'engine': ENGINE_VERSION, 'capital_model': 'closed_cash_pool', 'starting_cash': starting_cash,
+    return {'execution_parameters':{'version':'cash-cost-overrides-v1','fee_rate':fee_rate,'slippage_rate':slip},'win_rate_interval':interval,'engine': STOCK_ACCOUNTING_VERSION if config.asset=='stocks' else ENGINE_VERSION, 'capital_model': 'closed_cash_pool', 'starting_cash': starting_cash,
             'ending_equity': final, 'net_return': net, 'maximum_drawdown': drawdown,
             'fees': fees, 'turnover': turnover/starting_cash, 'average_exposure':exposure,
             'cost_drag_from_fees':fees/starting_cash, 'net_return_above_cash':net, 'closed_trades': closed,

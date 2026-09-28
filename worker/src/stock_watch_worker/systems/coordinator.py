@@ -26,6 +26,9 @@ def active_orders(db,version=None):
 
 
 def eligible(db,version,now):
+    from .operator_controls import read
+    control=read(db,version)
+    if control.get('paused') or control.get('exit_requested'): return None
     from .automatic_paper import available,eligible as automatic_eligible
     if available(db) and db.execute('SELECT 1 FROM paper_authorizations WHERE version_id=?',(version,)).fetchone():
         return automatic_eligible(db,version,now)
@@ -218,9 +221,9 @@ def commands(db,broker,now):
             with db: db.execute("UPDATE btc_control_commands SET status='failed',error=? WHERE id=?",(str(error)[:500],row['id']))
 
 
-def tick(db,history,broker,now):
+def tick(db,history,broker,now,*,exits_only=False,observation=None):
     from .automatic_paper import prepare
-    prepare(db,broker,now)
+    if not exits_only: prepare(db,broker,now)
     local=db.execute('SELECT * FROM btc_accounts').fetchone()
     if not local:
         commands(db,broker,now)
@@ -261,6 +264,10 @@ def tick(db,history,broker,now):
     metadata=None
     for row in rows:
         version=row['version_id']; qty=D(row['quantity']); sleeve_risk=bool(row['risk_paused'])
+        from .operator_controls import read, complete_exit
+        control=read(db,version)
+        if control.get('exit_requested') and qty<=0 and not active_orders(db,version):
+            complete_exit(db,version)
         if quote:
             equity=D(row['cash'])+qty*D(str(quote['bp']))*(1-FEE)
             high=max(D(row['high_water']),equity); sleeve_risk |= equity<=high*D('.9')
@@ -278,20 +285,22 @@ def tick(db,history,broker,now):
             from .rules import risk_exit
             system_risk=risk_exit(config,quote['bp'],row['entry_price'])
         if tradable and system_risk:action,reason='sell',system_risk
+        if tradable and control.get('exit_requested'): action,reason='sell','Operator exit'
         if tradable and (risk or sleeve_risk or due): action='sell'; reason='Risk limit' if risk or sleeve_risk else 'Holding deadline'
         bars=None
         if quote:
             try: bars=latest_bars(history,config,now)
             except ValueError: pass
-        if bars and action=='hold' and row['last_decision_at']!=bars[-1]['at']:
+        if not exits_only and bars and action=='hold' and row['last_decision_at']!=bars[-1]['at']:
             action,reason=decision(config,bars,tradable)
         pending=active_orders(db,version)
         if pending:
-            if action=='sell' or risk or sleeve_risk:
+            if action=='sell' or risk or sleeve_risk or control.get('paused') or control.get('exit_requested'):
                 for order in pending:
                     if order['side']=='buy' and order['broker_id']: broker.cancel(order['broker_id'])
             continue
         evaluation=eligible(db,version,now)
+        if action=='buy' and control.get('decision_floor') and bars and instant(bars[-1]['at'])<=instant(control['decision_floor']): action='hold'
         if action=='buy' and (not matching or not evaluation or risk or sleeve_risk or not quote): action='hold'
         if action!='hold':
             try:
@@ -304,11 +313,13 @@ def tick(db,history,broker,now):
                         amount=min(amount,D(policy(db)['entry_cap'])/D('1.01')/D(str(quote['ap'])))
                 amount=rounded_quantity(amount,metadata['min_trade_increment'])
                 if D(amount)>=D(metadata['min_order_size']):
-                    reserve(db,version,action,amount,quote['ap'] if quote else 1,now,evaluation,reason)
+                    intent = reserve(db,version,action,amount,quote['ap'] if quote else 1,now,evaluation,reason)
+                    if observation:
+                        with db: audit(db,'execution_observation',intent,{'observation':observation,'alpaca_quote':quote,'dispatch_at':now.isoformat()})
                     sync_orders(db,broker,now,matching and not risk)
                 elif action=='sell': health(db,'dust:'+version,now,'Owned residual is below broker minimum; manual review required')
             except Exception as error: health(db,'execution:'+version,now,str(error)[:500])
-        if bars and row['last_decision_at']!=bars[-1]['at']:
+        if bars and (not exits_only or action=='sell') and row['last_decision_at']!=bars[-1]['at']:
             with db: db.execute('UPDATE btc_allocations SET last_decision_at=?,state_json=? WHERE version_id=?',(bars[-1]['at'],canonical({'last_action':action,'last_reason':reason,'equity':str(equity)}),version))
     sync_orders(db,broker,now,matching and not risk)
     commands(db,broker,now)

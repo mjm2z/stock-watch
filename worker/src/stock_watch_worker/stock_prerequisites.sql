@@ -1,18 +1,18 @@
 -- Shared read-only diagnostic for Python workers and the Next.js request gate.
 -- Session close is the decision timestamp; start inclusive, end exclusive.
 -- Preserve provider ambiguity rather than silently choosing a different series.
-WITH members AS (
+WITH members AS MATERIALIZED (
     SELECT i.id, i.symbol, c.sector
     FROM universe_memberships u JOIN instruments i ON i.id=u.instrument_id
     LEFT JOIN instrument_context c ON c.instrument_id=i.id
     WHERE u.snapshot_id=(SELECT MAX(id) FROM universe_snapshots) AND i.symbol!='SPY'
-), raw AS (
+), raw AS MATERIALIZED (
     SELECT b.instrument_id, b.timestamp, b.provider, m.sector,
            s.closes_at, substr(b.timestamp,1,10) AS day
     FROM members m JOIN market_bars b ON b.instrument_id=m.id
     LEFT JOIN market_sessions s ON s.trading_date=substr(b.timestamp,1,10)
     WHERE b.timeframe='1Day' AND b.adjustment='raw'
-), usable AS (
+), usable AS MATERIALIZED (
     SELECT * FROM raw WHERE sector IS NOT NULL AND trim(sector)!=''
     AND julianday(closes_at)>=julianday(:start) AND julianday(closes_at)<julianday(:end)
 )

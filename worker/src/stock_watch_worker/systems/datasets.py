@@ -84,7 +84,7 @@ def stock_dataset(db, start='1900-01-01T00:00:00Z', end='9999-01-01T00:00:00Z'):
             rows.append(row)
     rows.sort(key=lambda r:(instant(r['at']),r['symbol']))
     if not rows: raise ValueError('Captured daily bars, sectors, and market calendar are required')
-    return {'schema_version':1,'asset':'stocks','slippage_bps':5,'bars':rows,'benchmarks':{'SPY (price return)':benchmark},
+    return {'accounting_version':'stock-actions-v2','schema_version':1,'asset':'stocks','slippage_bps':5,'bars':rows,'benchmarks':{'SPY (price return)':benchmark},
             'manifest':{'provider':'captured daily stock bars','venue':'Alpaca stock data','fidelity':'daily_bar_approximation',
                         'point_in_time_membership':False,'universe_snapshot':universe,'actual_start':rows[0]['at'],'actual_end':rows[-1]['at'],
                         'limitations':['Current universe and sectors; survivorship bias',

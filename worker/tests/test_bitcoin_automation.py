@@ -320,3 +320,28 @@ class AutomationTests(unittest.TestCase):
 
 
 def instant_for_test(value): return datetime.fromisoformat(value)
+
+class OperatorControlTests(unittest.TestCase):
+    setUp=AutomationTests.setUp
+    tearDown=AutomationTests.tearDown
+    broker=AutomationTests.broker
+    def test_pause_entries_does_not_liquidate_but_explicit_exit_does(self):
+        from stock_watch_worker.systems.operator_controls import request,read
+        broker=self.broker(); fund(self.db,broker,[self.version],NOW)
+        with self.db:self.db.execute("UPDATE btc_allocations SET quantity='1',cash='200'")
+        broker.lookup.return_value=None
+        request(self.db,self.version,'pause',{'user':'test'})
+        tick(self.db,self.history,broker,NOW,exits_only=True)
+        broker.submit.assert_not_called()
+        request(self.db,self.version,'exit',{'user':'test'})
+        broker.submit.return_value={'id':'exit','status':'filled','filled_qty':'1','filled_avg_price':'100'}
+        tick(self.db,self.history,broker,NOW,exits_only=True)
+        broker.submit.assert_called_once()
+        self.assertEqual(broker.submit.call_args.args[1],'sell')
+        self.assertTrue(read(self.db,self.version)['paused'])
+        self.assertTrue(read(self.db,self.version)['decision_floor'])
+    def test_exit_only_does_not_pause_future_entries(self):
+        from stock_watch_worker.systems.operator_controls import request,read
+        fund(self.db,self.broker(),[self.version],NOW)
+        request(self.db,self.version,'exit',{'user':'test'})
+        self.assertFalse(read(self.db,self.version)['paused'])

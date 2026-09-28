@@ -18,7 +18,7 @@ type InputCounts = {
   benchmarkBars: number
 }
 
-const sql = readFileSync(
+export const prerequisiteSQL = readFileSync(
   join(process.cwd(), 'worker/src/stock_watch_worker/stock_prerequisites.sql'),
   'utf8'
 )
@@ -27,7 +27,12 @@ const quality = JSON.parse(
 )
 
 export function stockPrerequisites(db: DatabaseSync, start: string, end: string) {
-  const row = db.prepare(sql).get({ start, end }) as unknown as InputCounts
+  return stockPrerequisiteReport(
+    db.prepare(prerequisiteSQL).get({ start, end }) as unknown as InputCounts
+  )
+}
+
+export function stockPrerequisiteReport(row: InputCounts) {
   const blockers: string[] = []
   if (!row.instruments) blockers.push('No captured stock universe members')
   if (!row.rawBars)
