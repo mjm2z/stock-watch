@@ -2,6 +2,8 @@
 """Install a prebuilt release on the authoritative host with retained recovery data."""
 from datetime import datetime
 from contextlib import closing
+from concurrent.futures import ThreadPoolExecutor
+from itertools import islice
 import argparse
 import hashlib
 import json
@@ -77,13 +79,22 @@ def authority(db, baseline=None):
 
 
 def verify_files(source, manifest):
-    for name, expected in manifest['files'].items():
+    def verify(item):
+        name, expected = item
         path = source / name
         if not path.resolve().is_relative_to(source):
             raise RuntimeError('Unsafe release manifest path')
         with path.open('rb') as stream:
             if hashlib.file_digest(stream, 'sha256').hexdigest() != expected:
                 raise RuntimeError('Staged release changed: ' + name)
+    entries = iter(manifest['files'].items())
+    verified = 0
+    with ThreadPoolExecutor(max_workers=8) as pool:
+        while batch := list(islice(entries, 128)):
+            list(pool.map(verify, batch))
+            verified += len(batch)
+            if verified % 4096 == 0:
+                print('Verified files:', verified, flush=True)
 
 
 def verify_environment_files(source, manifest):

@@ -7,9 +7,28 @@ import unittest
 spec = importlib.util.spec_from_file_location('release', Path(__file__).with_name('install-reviewed-release.py'))
 release = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(release)
+manifest_spec = importlib.util.spec_from_file_location('manifest', Path(__file__).with_name('build-reviewed-manifest.py'))
+manifest_builder = importlib.util.module_from_spec(manifest_spec)
+manifest_spec.loader.exec_module(manifest_builder)
 
 
 class ReleaseGuards(unittest.TestCase):
+    def test_manifest_traversal_preserves_payload_and_excludes_caches_and_links(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory).resolve()
+            (root / 'payload').write_bytes(b'reviewed')
+            (root / '.env.example').write_bytes(b'KEY=')
+            (root / 'cache').mkdir()
+            (root / 'cache' / 'ignored').write_bytes(b'cache')
+            (root / 'linked').symlink_to(root / 'payload')
+            files = dict(map(manifest_builder.file_hash, manifest_builder.release_files(root)))
+            self.assertEqual(set(files), {'payload', '.env.example'})
+            self.assertEqual(files['payload'], hashlib.sha256(b'reviewed').hexdigest())
+            release.verify_files(root, {'files': files})
+            (root / '.env.local').write_bytes(b'private')
+            with self.assertRaisesRegex(SystemExit, 'Unapproved environment'):
+                list(manifest_builder.release_files(root))
+
     def test_only_verified_environment_example_is_allowed(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory).resolve()
