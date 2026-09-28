@@ -90,18 +90,21 @@ class BackupTests(unittest.TestCase):
                 destination,
                 now=datetime(2026, 8, 18, tzinfo=timezone.utc),
                 keep=2,
+                reserve_bytes=0,
             )
             create_sqlite_backup(
                 database,
                 destination,
                 now=datetime(2026, 8, 19, tzinfo=timezone.utc),
                 keep=2,
+                reserve_bytes=0,
             )
             latest = create_sqlite_backup(
                 database,
                 destination,
                 now=datetime(2026, 8, 20, tzinfo=timezone.utc),
                 keep=2,
+                reserve_bytes=0,
             )
 
             self.assertFalse(first.path.exists())

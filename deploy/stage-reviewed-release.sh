@@ -8,18 +8,33 @@ if [[ -n "$(git status --porcelain)" ]]; then
 fi
 revision=$(git rev-parse HEAD)
 [[ "$revision" =~ ^[0-9a-f]{40}$ ]]
+reuse=${1:-}
+if [[ -n "$reuse" && ! "$reuse" =~ ^/home/mjm2z/stock-watch-releases/[0-9a-f]{12}$ ]]; then
+  echo 'Optional dependency source must be an incomplete release staging directory.' >&2
+  exit 1
+fi
 staging="/home/mjm2z/stock-watch-releases/${revision:0:12}"
 archive=$(mktemp /tmp/stock-watch-release.XXXXXX)
 trap 'rm -f "$archive"' EXIT
 git archive --format=tar "$revision" > "$archive"
 ssh -o BatchMode=yes a1347-m "mkdir '$staging'"
 scp "$archive" "a1347-m:$staging/source.tar"
-ssh -o BatchMode=yes a1347-m "bash -s -- '$staging' '$revision'" <<'REMOTE'
+ssh -o BatchMode=yes a1347-m "bash -s -- '$staging' '$revision' '$reuse'" <<'REMOTE'
 set -euo pipefail
 cd "$1"
 tar -xf source.tar
 printf '%s\n' "$2" > source-revision.txt
-npm ci --no-audit --no-fund
+if [[ -n "$3" ]]; then
+  test ! -e "$3/reviewed-release.json"
+  cmp package-lock.json "$3/package-lock.json"
+  mv "$3/node_modules" node_modules
+else
+  npm ci --no-audit --no-fund
+fi
+# SQLite test fixtures do many fsyncs; isolate them from the production disk.
+test_tmp=$(mktemp -d /dev/shm/stock-watch-tests.XXXXXX)
+trap 'rm -rf "$test_tmp"' EXIT
+export TMPDIR="$test_tmp"
 npm run type-check
 npm run lint
 npm test -- --runInBand
