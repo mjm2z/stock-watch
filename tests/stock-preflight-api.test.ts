@@ -35,17 +35,25 @@ const request = (query: string) =>
   ({
     nextUrl: new URL('http://localhost/api/systems/preflight?' + query),
   }) as unknown as NextRequest
+// Worker startup can be disk-bound on shared Linux hosts. This is separate from
+// the cached response latency contract asserted below.
+async function completedPreflight() {
+  const deadline = performance.now() + 30_000
+  let response: any
+  do {
+    await new Promise((resolve) => setTimeout(resolve, 50))
+    response = GET(request('asset=stocks&start=2026-01-01&end=2026-01-06'))
+    if (response.status !== 202) return response
+  } while (performance.now() < deadline)
+  throw new Error('Preflight worker did not complete within 30 seconds')
+}
+jest.setTimeout(35_000)
 test('GET distinguishes checking, blocked prerequisites, invalid interval and unavailable database', async () => {
   expect(GET(request('asset=stocks&start=2026-01-01&end=2026-01-06'))).toMatchObject({
     status: 202,
     body: { canPrepare: false, state: 'checking' },
   })
-  let response: any
-  for (let attempt = 0; attempt < 100; attempt++) {
-    await new Promise((resolve) => setTimeout(resolve, 10))
-    response = GET(request('asset=stocks&start=2026-01-01&end=2026-01-06'))
-    if (response.status !== 202) break
-  }
+  const response = await completedPreflight()
   expect(response).toMatchObject({ status: 200, body: { state: 'ready', canPrepare: false } })
   const cachedStart = performance.now()
   for (let i = 0; i < 10; i++)
@@ -72,10 +80,7 @@ test('new stock backtest is rejected before any queue write; prior request retry
     end: '2026-01-06',
   }
   expect(() => workspaceCommand(body)).toThrow('Checking captured data')
-  for (let attempt = 0; attempt < 100; attempt++) {
-    await new Promise((resolve) => setTimeout(resolve, 10))
-    if ((GET(request('asset=stocks&start=2026-01-01&end=2026-01-06')) as any).status !== 202) break
-  }
+  await completedPreflight()
   expect(() => workspaceCommand(body)).toThrow('Raw daily bars are missing')
   const db = new DatabaseSync(process.env.STOCK_WATCH_DATABASE_PATH!)
   expect(db.prepare('SELECT COUNT(*) AS n FROM workspace_jobs').get()!.n).toBe(0)

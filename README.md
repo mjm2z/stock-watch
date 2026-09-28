@@ -14,7 +14,8 @@ The companion integration is in [Autobot](https://github.com/mjm2z/autobot).
 Installation and credentials are separate from source availability. Manual trading
 is unconfigured until two distinct paper accounts and each account's $1,000/$100
 setup preview are confirmed. No account resets, strategy activation, or paper test
-trades occur just by installing. The release report records actual deployment state.
+trades occur just by installing. The [September 28 release report](docs/live-paper-release-2026-09-28.md)
+records actual deployment state and remaining work.
 
 
 StockWatch is a self-hosted market research and **paper-trading** application. It combines a stock scanner, timestamped research inputs, historical experiments, configurable rule systems, Bitcoin charts, forward observation, and separately attributed paper execution.

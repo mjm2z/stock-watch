@@ -2,7 +2,8 @@
 
 This document describes the September 2026 implementation. Installation, credential
 provisioning, and confirmed paper trades are separate milestones. Consult the release
-report for what actually ran. Missing configuration never selects an automated account.
+report for what actually ran: [September 28 release state](live-paper-release-2026-09-28.md).
+Missing configuration never selects an automated account.
 
 ## Architecture and boundaries
 
