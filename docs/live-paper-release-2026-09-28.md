@@ -28,7 +28,9 @@ protective instructions, durable notifications, stock-data corrections, and
 rollback. StockWatch now uses **one** new Alpaca paper account for manual stocks
 and Bitcoin, with separate durable $1,000 allocations and a $100 entry cap. Its
 setup requires $1,000,000 actual simulated cash and an empty account. The user
-confirmed the Alpaca new-account form offers that starting balance.
+confirmed the Alpaca new-account form offers that starting balance and subsequently
+confirmed creating the account. StockWatch has not yet verified its balance,
+positions, orders, or distinct identity through the broker API.
 
 Local checks for the combined-account revision passed: 394 worker tests and
 TypeScript type checking. Autobot passed all 188 tests and Ruff. Linux checks
@@ -79,9 +81,10 @@ receipt, LAN Live Price/SSE, collector restart,
 exactly one Bitcoin execution owner, and existing automation. Register the three
 new HomeOps health checks and verify the a1347-j watchdog independently.
 
-Create one fresh paper account under the existing Alpaca login with $1,000,000
-simulated cash, no positions, and no open orders. It must have an actual account
-ID different from both automated accounts. Generate a new paper key/secret for
+The operator has created the new paper account under the existing Alpaca login
+with the requested $1,000,000 simulated cash. Keep it empty while setup is pending.
+StockWatch must verify its actual account ID differs from both automated accounts,
+its balance matches, and it has no positions or open orders. Generate a new paper key/secret for
 that account; keep them in protected StockWatch configuration, never in Autobot
 or chat. Set a separate scoped Autobot token and both allowed Telegram user and
 chat IDs. Preview `/stockwatch setup combined`; confirm only after it shows the

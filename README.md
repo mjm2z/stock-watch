@@ -17,6 +17,66 @@ and Bitcoin budgets and $100 entry cap setup preview are confirmed. No account r
 trades occur just by installing. The [September 28 release report](docs/live-paper-release-2026-09-28.md)
 records actual deployment state and remaining work.
 
+### Rollout status — September 28, 2026
+
+**StockWatch's new release is verified in staging, not installed in production.**
+Autobot's integration is deployed, but Telegram paper execution and the new
+production Live Price remain unavailable until StockWatch installation and setup.
+The last verified deployment state is:
+
+| Component | Revision | State |
+| --- | --- | --- |
+| StockWatch production, a1347-m | `51b45a6` | Existing web service and Bitcoin automation timer active |
+| StockWatch reviewed stage | `6e7120fe1e9d` | Linux build, tests, manifest and read-only installer check passed; not installed |
+| Autobot, a1347-m | `a1c6ec9` | Deployed through its Git deployment script; bot service restarted and active |
+| Independent watchdog, a1347-j | Existing deployment | New feed, execution and notification monitors still need registration and verification |
+
+The verified artifact is
+`/home/mjm2z/stock-watch-releases/6e7120fe1e9d` on a1347-m. The older
+`279284f03b4c` and `d41769dd6ed2` stages are superseded and must not be installed.
+Later documentation commits do not change the verified runtime artifact.
+
+The operator confirmed creation of **one new Alpaca paper account with $1,000,000
+simulated cash** under the existing login. StockWatch has not yet verified its
+balance, empty positions/orders, or identity against the two automated accounts.
+Paper credentials have not been provisioned or setup-confirmed. The intended
+allocations are **$1,000 for manual stocks and $1,000 for manual Bitcoin**, each
+with a **$100 entry cap including the fee reservation allowance**. These limits
+are enforced by StockWatch; direct Alpaca orders can use the larger broker balance.
+No paper test trade, account reset, or strategy activation has occurred.
+
+Remaining steps, in order:
+
+1. Install the reviewed artifact with root access on a1347-m outside weekday
+   09:30–16:00 America/New_York. The installer rejects that window before changes;
+   the current SSH session lacks passwordless sudo. Use the exact command in the
+   [release report](docs/live-paper-release-2026-09-28.md#installation-and-account-setup).
+   The installer backs up before additive migrations and drains the previous
+   Bitcoin execution owner before enabling its replacement.
+2. Provision the new paper key/secret in protected StockWatch configuration,
+   distinct browser and Autobot service tokens, and the allowed Telegram user
+   and chat IDs. Autobot receives only its scoped token; its token and allowed
+   user setting were absent at the last check. See the
+   [account setup instructions](docs/live-paper-operations.md#manual-account-setup).
+3. Preview `/stockwatch setup combined` or use `/manual-paper`. Verify the actual
+   account ID, $1,000,000 broker cash, two $1,000 allocations, and $100 entry cap
+   before confirming. Any paper test order requires its own confirmed draft.
+4. Verify the installed receipt, LAN Live Price/SSE, service restart behavior,
+   exactly one Bitcoin execution owner, and existing automation. Register the
+   three HomeOps component checks and verify independent reporting from a1347-j.
+
+Verification for the staged revision passed **394 worker tests, 88 web tests in
+23 suites, six feed tests, type checking, Linux lint, production build, worker
+wheel construction, and all 32,263 manifest files**. Lint retains three existing
+warnings. Autobot passed **188 tests and Ruff**. Production cutover and end-to-end
+paper execution remain unverified.
+
+Remaining implementation limits include consolidation of the existing stock
+execution timers, complete tax-lot realized P&L, and verified corporate-action
+and historical-membership evidence. Stock qualification stays blocked until the
+required evidence is available. The [release report](docs/live-paper-release-2026-09-28.md)
+and [operations guide](docs/live-paper-operations.md) describe these boundaries.
+
 
 StockWatch is a self-hosted market research and **paper-trading** application. It combines a stock scanner, timestamped research inputs, historical experiments, configurable rule systems, Bitcoin charts, forward observation, and separately attributed paper execution.
 
