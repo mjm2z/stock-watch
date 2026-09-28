@@ -54,10 +54,18 @@ class StockBroker:
         if response.status != 204: require_success('alpaca-paper',response)
 
 
+def require_qualification_evidence():
+    from pathlib import Path
+    quality=json.loads((Path(__file__).resolve().parents[1]/'stock_capabilities.json').read_text())
+    if not quality.get('assessmentReady'):
+        raise ValueError('Stock qualification blocked: '+ '; '.join(quality['assessmentBlockers']))
+
+
 def activate_stock(db, identifier, broker, confirmation, now=None):
     from ..broker_reconciliation import _expected_positions
     now = now or datetime.now(timezone.utc)
     if confirmation != identifier: raise ValueError('Deployment confirmation mismatch')
+    require_qualification_evidence()
     deployment = db.execute("SELECT d.*,v.asset FROM system_deployments d JOIN system_versions v ON v.id=d.version_id WHERE d.id=?",(identifier,)).fetchone()
     if not deployment or deployment['asset'] != 'stocks' or deployment['mode'] != 'shadow':
         raise ValueError('Requires a stock shadow deployment')

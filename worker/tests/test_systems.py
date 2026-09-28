@@ -287,7 +287,10 @@ class StockCutoverTests(unittest.TestCase):
                 def positions(self):return []
                 def open_orders(self):return []
             before=db.execute('SELECT COUNT(*) FROM paper_trade_lots').fetchone()[0]
-            activate_stock(db,deployment,Broker(),deployment,datetime(2024,1,21,tzinfo=timezone.utc))
+            with self.assertRaisesRegex(ValueError,'Stock qualification blocked'):
+                activate_stock(db,deployment,Broker(),deployment,datetime(2024,1,21,tzinfo=timezone.utc))
+            with patch('stock_watch_worker.systems.stocks.require_qualification_evidence'):
+                activate_stock(db,deployment,Broker(),deployment,datetime(2024,1,21,tzinfo=timezone.utc))
             self.assertTrue(legacy_entries_disabled(db))
             self.assertEqual(db.execute('SELECT mode FROM system_deployments').fetchone()[0],'paper')
             self.assertEqual(db.execute('SELECT COUNT(*) FROM paper_trade_lots').fetchone()[0],before)

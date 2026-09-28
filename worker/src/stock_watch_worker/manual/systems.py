@@ -46,6 +46,10 @@ def validate(body):
         raise ValueError(
             "Choose pause, resume, exit, exit_and_pause, backtest, start_paper, observe or variant"
         )
+    if operation == "start_paper" and body.get("asset") == "stocks":
+        from ..systems.stocks import require_qualification_evidence
+
+        require_qualification_evidence()
     with closing(database()) as db:
         row = db.execute(
             "SELECT * FROM system_versions WHERE id=? AND asset=?",
