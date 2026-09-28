@@ -14,8 +14,9 @@ Missing configuration never selects an automated account.
   credentials, account access, or broker order methods.
 - `stock-watch-execution.service`: supervised Bitcoin coordinator using the existing
   durable `btc_orders`, allocation ownership, qualification gates, and risk thresholds.
-- `stock-watch-manual-paper.service`: loopback API and one serialized executor for both
-  distinct manual accounts. It owns `manual-paper.db`; automated ledgers stay separate.
+- `stock-watch-manual-paper.service`: loopback API and one serialized executor for one
+  dedicated manual account with separate stock and Bitcoin allocations. It owns
+  `manual-paper.db`; automated ledgers stay separate.
 - Existing stock scan/entry/exit services retain their current scheduling. This release
   does **not** consolidate those stock services into a new account-wide daemon.
 - Next.js proxies public Coinbase snapshots/events. Browser mutations require the
@@ -99,34 +100,37 @@ over newly accumulated fills.
 
 ## Manual account setup
 
-Provision two fresh **Alpaca paper** accounts, one for stocks and one for Bitcoin.
+Provision one fresh **Alpaca paper** account for both manual stocks and Bitcoin.
 Alpaca [documents](https://docs.alpaca.markets/us/docs/paper-trading) a $100,000
-default for new paper accounts. If its creation form offers a $1,000 starting
-balance, that is also supported. StockWatch
-confirms a separate **$1,000 virtual allocation per account**, with a **$100 entry cap
-including a 1% reservation allowance**. Broker cash may be higher; it is never
-treated as StockWatch spending authority. The remaining allocation falls as broker
-cash is spent, and external deposits do not increase its $1,000 ceiling. Actual fees
-are broker-dependent; the allowance is not a quoted fee. Setup verifies actual
-account IDs differ from each other and both automated account identities. At least
-$1,000 broker cash and empty positions/orders are required. The setup preview shows
-both broker cash and the $1,000 allocation, and a cash change requires a new preview.
-Each account requires its own preview and confirmation. Nothing resets an account.
+default; the requested setup requires **$1,000,000 simulated broker cash**, with no
+positions or open orders. Select that balance at account creation if Alpaca offers
+it. If it does not, setup remains blocked until the requirement is revisited; do
+not reset an automated account. The shared setup preview shows the broker balance
+and separately confirms **$1,000 virtual stock and Bitcoin allocations**. Each
+entry is capped at $100 including a 1% reservation allowance. Cumulative fills
+reduce only their asset's allocation, with a conservative fee allowance retained;
+broker cash and total pending reservations are checked across both allocations.
+Actual fees are broker-dependent, and the allowance is not a quoted fee.
+
+The allocation is enforced by StockWatch, not by Alpaca: orders placed directly in
+the Alpaca dashboard or with the paper keys can use the broker's much larger
+balance. Broker rules such as pattern day trading also use actual account equity.
+Use the dedicated account only through StockWatch after setup, and treat external
+activity as a reconciliation incident.
+
 Use the account selector at the upper left of the Alpaca dashboard and choose
-**Open New Paper Account**. Name the two accounts clearly and generate separate API
-keys while each is selected. Record the account IDs and verify that all four IDs
-including the existing automated accounts differ. If Alpaca's account limit prevents
-two more under one login, use a separate Alpaca paper login for the additional
-account; do not reuse or delete either automated account. Alpaca staff has
-[described a three-paper-account limit per login](https://forum.alpaca.markets/t/feature-request-more-paper-trading-accounts/18125).
+**Open New Paper Account**. Name it clearly, generate a new paper API key/secret,
+and verify its ID differs from both existing automated account IDs. The existing
+two accounts share a login; Alpaca staff has [described a three-paper-account limit
+per login](https://forum.alpaca.markets/t/feature-request-more-paper-trading-accounts/18125),
+so the new account can use the remaining slot. No existing account is deleted or
+reset.
 
 In root-owned mode-0600 `/etc/stock-watch/systems.env`, configure:
 
 ```dotenv
-MANUAL_STOCKS_ALPACA_API_KEY_ID=...
-MANUAL_STOCKS_ALPACA_API_SECRET_KEY=...
-MANUAL_BITCOIN_ALPACA_API_KEY_ID=...
-MANUAL_BITCOIN_ALPACA_API_SECRET_KEY=...
+MANUAL_ALPACA_API_KEY_ID=...
+MANUAL_ALPACA_API_SECRET_KEY=...
 STOCK_WATCH_AUTOBOT_TOKEN=<random-at-least-32-characters>
 STOCK_WATCH_BROWSER_SERVICE_TOKEN=<different-random-at-least-32-characters>
 STOCK_WATCH_TELEGRAM_USER_ID=<allowed-human-user-id>
@@ -157,8 +161,7 @@ user **and** chat must match before any StockWatch operation is requested.
 /stockwatch orders
 /stockwatch activity
 /stockwatch pnl
-/stockwatch setup stocks
-/stockwatch setup bitcoin
+/stockwatch setup combined
 /stockwatch buy stocks XYZ 1 25.00
 /stockwatch sell stocks XYZ 1 26.00
 /stockwatch buy bitcoin BTC/USD 0.0005 80000.00

@@ -176,10 +176,15 @@ def reconcile(manual, assets=("stocks", "bitcoin")):
             known = {r["broker_id"] for r in reservations if r["broker_id"]}
             if any(order["id"] not in known for order in broker.open_orders()):
                 raise ValueError("External order requires reconciliation")
-            if row["side"] == "buy" and sum(
-                (D(r["reserved_cash"]) for r in reservations), D(0)
-            ) > manual.spendable_cash(row["asset"], account):
-                raise ValueError("Reserved cash exceeds available cash")
+            if row["side"] == "buy":
+                sleeve_reservations = sum(
+                    (D(r["reserved_cash"]) for r in reservations if r["asset"] == row["asset"]), D(0)
+                )
+                total_reservations = sum((D(r["reserved_cash"]) for r in reservations), D(0))
+                if sleeve_reservations > manual.spendable_cash(row["asset"], account):
+                    raise ValueError("Reserved cash exceeds allocated cash")
+                if total_reservations > D(account["cash"]):
+                    raise ValueError("Reserved cash exceeds broker cash")
             if row["side"] == "sell":
                 owned = sum(
                     (

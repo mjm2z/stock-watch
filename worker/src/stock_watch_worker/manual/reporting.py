@@ -11,17 +11,21 @@ def refresh(manual):
     collect_system_events(manual)
     db = manual.db
     now = manual.now()
+    reported = set()
     for row in db.execute("SELECT * FROM accounts").fetchall():
+        if row["account_id"] in reported:
+            continue
+        reported.add(row["account_id"])
         try:
             account = manual.account(row["asset"])
             positions = manual.brokers[row["asset"]].positions()
             payload = {
-                "asset": row["asset"],
+                "asset": "combined",
                 "account_id": account["id"],
                 "at": now,
                 "cash": account["cash"],
-                "allocated_cash": str(manual.spendable_cash(row["asset"], account)),
-                "allocated_budget": row["budget"],
+                "allocated_stocks": str(manual.spendable_cash("stocks", account)),
+                "allocated_bitcoin": str(manual.spendable_cash("bitcoin", account)),
                 "equity": account.get("equity"),
                 "positions": positions,
                 "unrealized_pl": str(
@@ -43,8 +47,9 @@ def refresh(manual):
             with db:
                 db.execute(
                     "INSERT OR REPLACE INTO snapshots VALUES (?,?,?)",
-                    (row["asset"], now, canonical(payload)),
+                    ("combined", now, canonical(payload)),
                 )
+                db.execute("DELETE FROM snapshots WHERE asset IN ('stocks','bitcoin')")
                 db.execute(
                     "INSERT OR REPLACE INTO health VALUES (?,?,NULL)",
                     ("account:" + row["asset"], now),

@@ -42,7 +42,7 @@ export function ManualPaperWorkspace() {
     <main className="container mx-auto space-y-5 p-6">
       <h1 className="text-3xl font-semibold">Manual paper trading</h1>
       <p>
-        Separate stocks and Bitcoin paper accounts · $1,000 setup budget each · $100 entry cap
+        One dedicated paper account · separate $1,000 stock and Bitcoin budgets · $100 entry cap
         including fee reserve.
       </p>
       <p>Account status: {data.manual || 'Checking'}. System allocations remain separate.</p>
@@ -148,11 +148,11 @@ export function ManualPaperWorkspace() {
             request_id: Array.from(crypto.getRandomValues(new Uint8Array(16)), (value) =>
               value.toString(16).padStart(2, '0')
             ).join(''),
-            command: { action: 'setup', asset },
+            command: { action: 'setup', asset: 'combined' },
           })
         }
       >
-        Preview {asset} account setup
+        Preview combined account setup
       </button>
       {draft && (
         <section className="rounded border p-4">
@@ -165,7 +165,8 @@ export function ManualPaperWorkspace() {
               Side: draft.preview.side,
               Quantity: draft.preview.qty,
               'Limit price': draft.preview.limit,
-              Budget: draft.preview.budget,
+              'Stocks budget': draft.preview.budgets?.stocks,
+              'Bitcoin budget': draft.preview.budgets?.bitcoin,
               'Alpaca paper cash': draft.preview.broker_cash,
               'Entry cap': draft.preview.entry_cap,
               'Fee reserve': draft.preview.fee_allowance,
@@ -207,7 +208,7 @@ export function ManualPaperWorkspace() {
       <Records
         title="Accounts"
         rows={data.balances || data.accounts || []}
-        columns={{ asset: 'Account', account_id: 'Alpaca account', allocated_cash: 'StockWatch cash', allocated_budget: 'Budget', cash: 'Alpaca cash', equity: 'Alpaca equity' }}
+        columns={{ asset: 'Account', account_id: 'Alpaca account', allocated_stocks: 'Stocks available', allocated_bitcoin: 'Bitcoin available', cash: 'Alpaca cash', equity: 'Alpaca equity' }}
       />
       <Records
         title="Drafts"

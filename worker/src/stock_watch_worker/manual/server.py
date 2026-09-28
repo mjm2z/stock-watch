@@ -149,6 +149,7 @@ def handler(path):
                 return {
                     "manual": "configured"
                     if len(list(db.execute("SELECT * FROM accounts"))) == 2
+                    and db.execute("SELECT COUNT(DISTINCT account_id) FROM accounts").fetchone()[0] == 1
                     else "unconfigured",
                     "accounts": [dict(r) for r in db.execute("SELECT * FROM accounts")],
                     "balances": [

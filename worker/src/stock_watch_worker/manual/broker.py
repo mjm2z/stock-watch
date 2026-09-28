@@ -10,14 +10,13 @@ from .store import money
 
 class ManualBroker(CryptoBroker):
     def __init__(self, asset):
-        prefix = "MANUAL_" + asset.upper() + "_ALPACA_"
-        if not os.environ.get(prefix + "API_KEY_ID") or not os.environ.get(
-            prefix + "API_SECRET_KEY"
-        ):
-            raise ValueError("Separate manual paper credentials are not configured")
+        key = os.environ.get("MANUAL_ALPACA_API_KEY_ID")
+        secret = os.environ.get("MANUAL_ALPACA_API_SECRET_KEY")
+        if not key or not secret:
+            raise ValueError("Manual paper credentials are not configured")
         super().__init__(
-            key=os.environ.get(prefix + "API_KEY_ID"),
-            secret=os.environ.get(prefix + "API_SECRET_KEY"),
+            key=key,
+            secret=secret,
         )
         self.asset = asset
         self.quotes_cache = {}

@@ -5,6 +5,7 @@ from pathlib import Path
 from stock_watch_worker.manual.store import Manual, connect
 from stock_watch_worker.manual.execution import reconcile
 from stock_watch_worker.manual.accounting import performance
+from stock_watch_worker.manual.reporting import refresh
 
 
 class Broker:
@@ -12,6 +13,7 @@ class Broker:
         self.identity = identity
         self.cash = "1000"
         self.orders = {}
+        self.position_state = []
         self.posts = 0
         self.uncertain = False
 
@@ -22,7 +24,7 @@ class Broker:
         return []
 
     def positions(self):
-        return []
+        return self.position_state
 
     def open_orders(self):
         return list(self.orders.values())
@@ -58,10 +60,9 @@ class ManualTests(unittest.TestCase):
         self.temp = tempfile.TemporaryDirectory()
         self.db = connect(Path(self.temp.name) / "manual.db")
         self.now = 1000
-        self.brokers = {
-            "stocks": Broker("manual-stock"),
-            "bitcoin": Broker("manual-btc"),
-        }
+        broker = Broker("manual-paper")
+        broker.cash = "1000000"
+        self.brokers = {"stocks": broker, "bitcoin": broker}
         self.manual = Manual(
             self.db,
             self.brokers,
@@ -89,7 +90,7 @@ class ManualTests(unittest.TestCase):
         return self.manual.confirm(**{**args, **changes})
 
     def setup_account(self):
-        self.confirm(self.preview({"action": "setup", "asset": "stocks"}))
+        self.confirm(self.preview({"action": "setup", "asset": "combined"}))
 
     def order(self, **extra):
         return self.preview(
@@ -108,39 +109,75 @@ class ManualTests(unittest.TestCase):
         self.brokers["bitcoin"].identity = "auto-stock"
         with self.assertRaisesRegex(ValueError, "distinct"):
             self.setup_account()
-        self.brokers["bitcoin"].identity = "manual-btc"
+        self.brokers["bitcoin"].identity = "manual-paper"
         self.setup_account()
+        rows = self.db.execute("SELECT asset,account_id,budget FROM accounts ORDER BY asset").fetchall()
+        self.assertEqual([(r["asset"], r["account_id"], r["budget"]) for r in rows], [
+            ("bitcoin", "manual-paper", "1000"), ("stocks", "manual-paper", "1000")
+        ])
         with self.assertRaisesRegex(ValueError, "never reset"):
             self.setup_account()
 
-    def test_fresh_default_balance_uses_durable_virtual_budget(self):
+    def test_requested_broker_balance_uses_separate_durable_virtual_budgets(self):
         broker = self.brokers["stocks"]
-        broker.cash = "100000"
-        first = self.preview({"action": "setup", "asset": "stocks"})
-        self.assertEqual(first["preview"]["broker_cash"], "100000")
-        self.assertEqual(first["preview"]["budget"], "1000")
-        broker.cash = "99999"
+        first = self.preview({"action": "setup", "asset": "combined"})
+        self.assertEqual(first["preview"]["broker_cash"], "1000000")
+        self.assertEqual(first["preview"]["budgets"], {"stocks": "1000", "bitcoin": "1000"})
+        broker.cash = "1000000.01"
         with self.assertRaisesRegex(ValueError, "cash changed"):
             self.confirm(first)
-        broker.cash = "100000"
-        self.confirm(self.preview({"action": "setup", "asset": "stocks"}))
+        broker.cash = "1000000"
+        self.confirm(self.preview({"action": "setup", "asset": "combined"}))
         self.assertEqual(self.manual.spendable_cash("stocks", broker.account()), 1000)
         row = self.db.execute("SELECT * FROM accounts").fetchone()
-        self.assertEqual(row["initial_cash"], "100000")
+        self.assertEqual(row["initial_cash"], "1000000")
         self.assertEqual(performance(self.manual, row, broker.account(), [])["total_pnl"], "0")
-        broker.cash = "99050"
-        self.assertEqual(self.manual.spendable_cash("stocks", broker.account()), 50)
+        for _ in range(10):
+            self.confirm(self.order(qty="9"))
+        self.db.execute("UPDATE instructions SET status='filled',filled_qty='9',filled_notional='90',reserved_cash='0'")
+        self.db.commit()
+        broker.cash = "999100"
+        self.assertEqual(self.manual.spendable_cash("stocks", broker.account()), 91)
+        self.assertEqual(self.manual.spendable_cash("bitcoin", broker.account()), 1000)
+        self.confirm(self.order(qty="9"))
         with self.assertRaisesRegex(ValueError, "Insufficient unreserved cash"):
-            self.order(qty="6")
-        broker.cash = "99000"
-        self.assertEqual(self.manual.spendable_cash("stocks", broker.account()), 0)
-        with self.assertRaisesRegex(ValueError, "Insufficient unreserved cash"):
-            self.order(qty="5")
+            self.order(qty="9")
 
-    def test_setup_rejects_underfunded_account(self):
-        self.brokers["stocks"].cash = "999"
-        with self.assertRaisesRegex(ValueError, "at least"):
-            self.preview({"action": "setup", "asset": "stocks"})
+    def test_setup_rejects_wrong_broker_balance(self):
+        self.brokers["stocks"].cash = "100000"
+        with self.assertRaisesRegex(ValueError, "1,000,000"):
+            self.preview({"action": "setup", "asset": "combined"})
+
+    def test_both_asset_orders_share_one_broker_without_crossing_budgets(self):
+        self.setup_account()
+        stock = self.confirm(self.order())
+        bitcoin = self.confirm(self.preview({
+            "action": "order", "asset": "bitcoin", "symbol": "BTC/USD",
+            "side": "buy", "qty": "0.5", "limit": "10",
+        }))
+        self.assertEqual(stock["status"], "intent")
+        self.assertEqual(bitcoin["status"], "intent")
+        reconcile(self.manual)
+        self.assertEqual(self.brokers["stocks"].posts, 2)
+        self.assertEqual(self.db.execute("SELECT COUNT(DISTINCT account_id) FROM instructions").fetchone()[0], 1)
+        for action in ("cancel", "protect"):
+            with self.assertRaisesRegex(ValueError, "owned"):
+                self.preview({
+                    "action": action, "asset": "stocks", "instruction": bitcoin["instruction"],
+                    **({"stop_loss": "8"} if action == "protect" else {}),
+                })
+        refresh(self.manual)
+        snapshots = self.db.execute("SELECT * FROM snapshots").fetchall()
+        self.assertEqual(len(snapshots), 1)
+        self.assertEqual(snapshots[0]["asset"], "combined")
+
+    def test_external_position_cannot_be_sold_or_exit_through_manual_sleeve(self):
+        self.setup_account()
+        self.brokers["stocks"].position_state = [{"symbol": "ABC", "qty": "5"}]
+        with self.assertRaisesRegex(ValueError, "StockWatch-owned"):
+            self.preview({"action": "order", "asset": "stocks", "symbol": "ABC", "side": "sell", "qty": "5", "limit": "10"})
+        with self.assertRaisesRegex(ValueError, "StockWatch-owned"):
+            self.preview({"action": "exit", "asset": "stocks", "symbol": "ABC", "limit": "10"})
 
     def test_existing_manual_account_baseline_migrates_additively(self):
         old_path = Path(self.temp.name) / "older-manual.db"
@@ -150,6 +187,8 @@ class ManualTests(unittest.TestCase):
         upgraded = connect(old_path)
         try:
             self.assertEqual(upgraded.execute("SELECT initial_cash FROM accounts").fetchone()[0], "1000")
+            upgraded.execute("INSERT INTO accounts VALUES ('bitcoin','old-manual','1000','100',1000,'1000')")
+            self.assertEqual(upgraded.execute("SELECT COUNT(*) FROM accounts").fetchone()[0], 2)
         finally:
             upgraded.close()
 

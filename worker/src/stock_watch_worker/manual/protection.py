@@ -9,8 +9,8 @@ from .store import canonical, money, transaction, TERMINAL, notify
 def validate(manual, body, account):
     db = manual.db
     parent = db.execute(
-        "SELECT * FROM instructions WHERE id=? AND account_id=? AND side='buy'",
-        (body.get("instruction"), account["id"]),
+        "SELECT * FROM instructions WHERE id=? AND account_id=? AND asset=? AND side='buy'",
+        (body.get("instruction"), account["id"], body["asset"]),
     ).fetchone()
     if not parent:
         raise ValueError("Choose a buy instruction owned by this manual account")

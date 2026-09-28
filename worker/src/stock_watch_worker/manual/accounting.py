@@ -48,11 +48,11 @@ def performance(manual, account_row, account, positions):
     )
     return {
         "account_id": account["id"],
-        "asset": account_row["asset"],
+        "asset": "combined",
         "cash_reconciled": reconciled,
         "broker_equity": account.get("equity"),
         "starting_cash": account_row["initial_cash"],
-        "allocated_budget": account_row["budget"],
+        "allocated_budgets": {"stocks": "1000", "bitcoin": "1000"},
         "total_pnl": str(D(account["equity"]) - D(account_row["initial_cash"]))
         if reconciled and account.get("equity") is not None
         else None,

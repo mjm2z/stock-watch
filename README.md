@@ -3,7 +3,7 @@
 ## Coinbase Live Price and Telegram manual paper trading
 
 The new implementation adds Coinbase ticker/heartbeat streaming above the Bitcoin
-chart, separate manual paper accounts and a shared Telegram/browser workspace,
+chart, one manual paper account with separate stock and Bitcoin budgets, and a shared Telegram/browser workspace,
 confirmation-bound order intents, conditional/stop-limit instructions, protective
 exit plans, supported-template system controls, a notification outbox, and worker
 preflight/accounting corrections. See the full [live pricing and paper operations
@@ -12,8 +12,8 @@ retention, source/quote distinctions, accounting limits, deployment, and rollbac
 The companion integration is in [Autobot](https://github.com/mjm2z/autobot).
 
 Installation and credentials are separate from source availability. Manual trading
-is unconfigured until two distinct paper accounts and each account's $1,000 virtual
-budget and $100 entry cap setup preview are confirmed. No account resets, strategy activation, or paper test
+is unconfigured until one dedicated paper account and its separate $1,000 stock
+and Bitcoin budgets and $100 entry cap setup preview are confirmed. No account resets, strategy activation, or paper test
 trades occur just by installing. The [September 28 release report](docs/live-paper-release-2026-09-28.md)
 records actual deployment state and remaining work.
 

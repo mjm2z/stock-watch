@@ -34,7 +34,7 @@ def connect(path):
     db.execute("PRAGMA synchronous=FULL")
     db.execute("PRAGMA foreign_keys=ON")
     db.executescript("""
-      CREATE TABLE IF NOT EXISTS accounts(asset TEXT PRIMARY KEY, account_id TEXT UNIQUE NOT NULL,
+      CREATE TABLE IF NOT EXISTS accounts(asset TEXT PRIMARY KEY, account_id TEXT NOT NULL,
         budget TEXT NOT NULL, entry_cap TEXT NOT NULL, confirmed_at REAL NOT NULL,
         initial_cash TEXT NOT NULL DEFAULT '1000');
       CREATE TABLE IF NOT EXISTS drafts(id TEXT PRIMARY KEY, request_id TEXT UNIQUE NOT NULL,
@@ -64,6 +64,25 @@ def connect(path):
     }:
         db.execute("ALTER TABLE accounts ADD COLUMN initial_cash TEXT NOT NULL DEFAULT '1000'")
         db.commit()
+    # Earlier staging used one broker identity per asset. Preserve its rows while
+    # removing the account-id uniqueness constraint for the shared manual account.
+    for index in db.execute("PRAGMA index_list(accounts)").fetchall():
+        if index[2] and [r[2] for r in db.execute(f'PRAGMA index_info("{index[1]}")')] == ["account_id"]:
+            try:
+                db.executescript("""
+                  BEGIN IMMEDIATE;
+                  CREATE TABLE accounts_shared(asset TEXT PRIMARY KEY,account_id TEXT NOT NULL,
+                    budget TEXT NOT NULL,entry_cap TEXT NOT NULL,confirmed_at REAL NOT NULL,
+                    initial_cash TEXT NOT NULL);
+                  INSERT INTO accounts_shared SELECT asset,account_id,budget,entry_cap,confirmed_at,initial_cash FROM accounts;
+                  DROP TABLE accounts;
+                  ALTER TABLE accounts_shared RENAME TO accounts;
+                  COMMIT;
+                """)
+            except Exception:
+                db.rollback()
+                raise
+            break
     return db
 
 
@@ -95,13 +114,13 @@ class Manual:
     def account(self, asset, setup=False):
         if set(self.brokers) != {"stocks", "bitcoin"}:
             raise ValueError(
-                "Manual trading unconfigured: provision two separate paper accounts"
+                "Manual trading unconfigured: provision one dedicated paper account"
             )
         accounts = {name: broker.account() for name, broker in self.brokers.items()}
         identifiers = {a["id"] for a in accounts.values()}
         automated = set(self.automated_ids())
-        if len(automated) != 2 or len(identifiers) != 2 or identifiers & automated:
-            raise ValueError("Verify four distinct actual paper-account identities")
+        if len(automated) != 2 or len(identifiers) != 1 or identifiers & automated:
+            raise ValueError("Verify one manual paper account distinct from both automated accounts")
         account = accounts[asset]
         row = self.db.execute(
             "SELECT * FROM accounts WHERE asset=?", (asset,)
@@ -113,16 +132,39 @@ class Manual:
         return account
 
     def spendable_cash(self, asset, account):
-        """Bound new orders to the confirmed virtual allocation, not broker buying power."""
+        """Each asset has a durable virtual allocation within one broker account."""
         row = self.db.execute("SELECT * FROM accounts WHERE asset=?", (asset,)).fetchone()
         if not row or row["account_id"] != account["id"]:
             raise ValueError("Manual account setup is required")
         budget = D(row["budget"])
         broker_cash = D(str(account["cash"]))
-        initial_cash = D(row["initial_cash"])
-        if not all(value.is_finite() for value in (budget, broker_cash, initial_cash)):
+        if not all(value.is_finite() for value in (budget, broker_cash)):
             raise ValueError("Invalid broker cash or manual allocation")
-        return max(D(0), min(budget, budget + broker_cash - initial_cash))
+        orders = self.db.execute(
+            "SELECT side,filled_notional FROM instructions WHERE account_id=? AND asset=?",
+            (account["id"], asset),
+        )
+        spent = sum(
+            (D(order["filled_notional"]) * (D("1.01") if order["side"] == "buy" else -D("0.99"))
+             for order in orders), D(0)
+        )
+        # The 1% allowance remains against cumulative fills until actual fees are
+        # reconciled; activity in the other sleeve never replenishes this sleeve.
+        return max(D(0), min(budget, budget - spent, broker_cash))
+
+    def attributed_qty(self, asset, symbol):
+        """Quantity acquired through this manual sleeve, excluding external holdings."""
+        row = self.db.execute("SELECT account_id FROM accounts WHERE asset=?", (asset,)).fetchone()
+        if not row:
+            raise ValueError("Manual account setup is required")
+        orders = self.db.execute(
+            "SELECT side,filled_qty FROM instructions WHERE asset=? AND account_id=? AND REPLACE(symbol,'/','')=?",
+            (asset, row["account_id"], symbol.replace("/", "")),
+        )
+        return max(D(0), sum(
+            (D(order["filled_qty"]) * (1 if order["side"] == "buy" else -1)
+             for order in orders), D(0)
+        ))
 
     def validate(self, body):
         if not isinstance(body, dict):
@@ -148,6 +190,9 @@ class Manual:
                 ),
                 D(0),
             )
+            owned = min(owned, self.attributed_qty(asset, symbol))
+            if owned <= 0:
+                raise ValueError("No StockWatch-owned sleeve quantity to exit")
             result = self.validate(
                 {
                     "action": "order",
@@ -181,9 +226,12 @@ class Manual:
                 "Unsupported fields: " + ", ".join(sorted(set(body) - allowed))
             )
         asset = body.get("asset")
-        if asset not in ("stocks", "bitcoin"):
-            raise ValueError("Choose stocks or bitcoin")
         action = body.get("action")
+        if action == "setup":
+            if asset != "combined":
+                raise ValueError("Set up the shared stocks and Bitcoin account together")
+        elif asset not in ("stocks", "bitcoin"):
+            raise ValueError("Choose stocks or bitcoin")
         if action not in ("setup", "order", "cancel", "protect", "cancel_plan"):
             raise ValueError("Supported actions: setup, order, cancel")
         fields = {
@@ -207,35 +255,36 @@ class Manual:
         }
         if set(body) - fields[action]:
             raise ValueError("Fields are unsupported for this action")
-        account = self.account(asset, setup=action == "setup")
-        broker = self.brokers[asset]
+        lookup_asset = "stocks" if action == "setup" else asset
+        account = self.account(lookup_asset, setup=action == "setup")
+        broker = self.brokers[lookup_asset]
         if action in ("protect", "cancel_plan"):
             from .protection import validate
 
             return validate(self, body, account)
         if action == "setup":
             if self.db.execute(
-                "SELECT 1 FROM accounts WHERE asset=?", (asset,)
+                "SELECT 1 FROM accounts",
             ).fetchone():
                 raise ValueError(
                     "Account setup already confirmed; accounts are never reset"
                 )
             broker_cash = money(account["cash"])
-            if broker_cash < 1000 or broker.positions() or broker.open_orders():
+            if abs(broker_cash - D("1000000")) > D(".01") or broker.positions() or broker.open_orders():
                 raise ValueError(
-                    "Setup requires a fresh empty paper account with at least $1,000 cash; no reset is performed"
+                    "Setup requires one fresh empty paper account with $1,000,000 simulated cash; no reset is performed"
                 )
             return {
                 **body,
                 "account_id": account["id"],
-                "budget": "1000",
+                "budgets": {"stocks": "1000", "bitcoin": "1000"},
                 "entry_cap": "100",
                 "broker_cash": str(broker_cash),
             }
         if action == "cancel":
             row = self.db.execute(
-                "SELECT * FROM instructions WHERE id=? AND account_id=?",
-                (body.get("instruction"), account["id"]),
+                "SELECT * FROM instructions WHERE id=? AND account_id=? AND asset=?",
+                (body.get("instruction"), account["id"], asset),
             ).fetchone()
             if not row or row["status"] in TERMINAL:
                 raise ValueError(
@@ -333,8 +382,12 @@ class Manual:
             if reserve_cash > 100:
                 raise ValueError("$100 entry cap includes fee allowance")
             reserved = sum((D(r["reserved_cash"]) for r in reservations), D(0))
-            if reserve_cash > self.spendable_cash(asset, account) - reserved:
+            if reserve_cash > self.spendable_cash(asset, account) - sum(
+                (D(r["reserved_cash"]) for r in reservations if r["asset"] == asset), D(0)
+            ):
                 raise ValueError("Insufficient unreserved cash")
+            if reserve_cash > D(account["cash"]) - reserved:
+                raise ValueError("Insufficient broker cash for shared reservations")
         else:
             owned = sum(
                 (
@@ -348,9 +401,9 @@ class Manual:
                 (D(r["reserved_qty"]) for r in reservations if r["symbol"] == symbol),
                 D(0),
             )
-            if qty > owned - reserved:
+            if qty > min(owned, self.attributed_qty(asset, symbol)) - reserved:
                 raise ValueError(
-                    "Cannot sell more than this manual account owns and has unreserved"
+                    "Cannot sell more than this StockWatch-owned sleeve quantity owns and has unreserved"
                 )
         return {
             **body,
@@ -473,10 +526,11 @@ class Manual:
                 )
                 result = {"system_job": job, "state": "queued"}
             elif action == "setup":
-                self.db.execute(
-                    "INSERT INTO accounts(asset,account_id,budget,entry_cap,confirmed_at,initial_cash) VALUES (?,?,?,?,?,?)",
-                    (body["asset"], current["account_id"], "1000", "100", now, current["broker_cash"]),
-                )
+                for sleeve in ("stocks", "bitcoin"):
+                    self.db.execute(
+                        "INSERT INTO accounts(asset,account_id,budget,entry_cap,confirmed_at,initial_cash) VALUES (?,?,?,?,?,?)",
+                        (sleeve, current["account_id"], "1000", "100", now, current["broker_cash"]),
+                    )
                 result = {
                     "configured": body["asset"],
                     "account_id": current["account_id"],
