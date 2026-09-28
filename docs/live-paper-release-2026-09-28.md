@@ -2,131 +2,88 @@
 
 ## Release state
 
-This is a partial rollout, not an operational trading launch. Both repositories'
-implementation commits are pushed. No test trade, account reset, or new strategy
-activation was performed.
+This remains a partial rollout. StockWatch source is committed and pushed but is
+**not installed** on a1347-m. The old staged release is superseded and must not
+be installed. Autobot is deployed, but manual trading has no dedicated credentials
+or confirmed setup. No test order, account reset, or strategy activation occurred.
 
-At closeout both repositories were clean and synced. Autobot's branch had also
-advanced to `cb35d96` through a separate HomeOps change during verification; that
-unrelated commit was not deployed by this release workflow. The table records the
-installed revision actually checked, rather than assuming branch HEAD is deployed.
-
-| Component | Revision | Verified state |
+| Component | Revision | State |
 | --- | --- | --- |
 | StockWatch production on a1347-m | `51b45a63caba90ff42ed173b6c3b25de4de27078` | Existing installed receipt; web and Bitcoin automation timer active |
-| StockWatch new release | `279284f03b4c4383ae17285dbdd1a640a7a78b9d` | Linux build, tests and reviewed-installer check passed; staged, not installed |
-| Autobot on a1347-m | `488d55fc989fbd28960f4b63e1f0d13c9a0de4e3` | Deployed with required Git script; installed HEAD verified; user `note-bot.service` restarted and active |
-| Independent watchdog on a1347-j | Existing deployment | `home-ops-watchdog-migration.service` active; new component monitors not registered |
+| StockWatch combined-account stage | `6e7120fe1e9d26271032ffc55902722dcb345cdf` | Pushed; Linux tests, build, wheel, 32,263-file manifest and read-only installer check passed; not installed |
+| Autobot on a1347-m | `a1c6ec9d0b4ff05e45021c09fc34b1eab5eb0957` | Git-script deployed; `note-bot.service` restarted and active |
+| Independent watchdog on a1347-j | Existing deployment | Active; new component monitors not registered |
 
-Autobot's StockWatch service token and allowed Telegram user configuration are
-absent. New manual accounts have not been provisioned or setup-confirmed. Neither
-Telegram paper execution nor new live-price production delivery is operational.
+The previously reported StockWatch `279284f03b4c` stage was built for two manual
+paper accounts and has been superseded. The incomplete `d41769dd6ed2` stage is
+only a source for lockfile-matched dependencies; it is not installable. Neither
+stage should be passed to the installer.
 
-## Implemented source
+## Implementation and verification
 
-See [the operations guide](live-paper-operations.md) for full behavior, constraints,
-configuration, command examples, and recovery. Source includes the Coinbase
-ticker/heartbeat collector and immediate SSE card; a single Bitcoin execution
-owner; separate durable manual-paper accounts, drafts, confirmations, reservations,
-conditional instructions, protective plans, broker reconciliation and notifications;
-the browser manual workspace and scoped Autobot API; structured Telegram commands;
-asynchronous cached preflight; and versioned stock corporate-action corrections.
+The [operations guide](live-paper-operations.md) describes the Coinbase ticker
+collector, immediate Bitcoin Live Price, separate observed and executable prices,
+execution owner, manual previews and confirmations, virtual budgets, trigger and
+protective instructions, durable notifications, stock-data corrections, and
+rollback. StockWatch now uses **one** new Alpaca paper account for manual stocks
+and Bitcoin, with separate durable $1,000 allocations and a $100 entry cap. Its
+setup requires $1,000,000 actual simulated cash and an empty account. The user
+confirmed the Alpaca new-account form offers that starting balance.
 
-Stock activation now checks required evidence at the broker activation boundary as
-well as the UI/Telegram preview. Current corporate-action and historical-membership
-evidence does not qualify stocks for activation. An unauthenticated source probe
-returned HTTP 401; it does not establish authenticated coverage or entitlement.
+Local checks for the combined-account revision passed: 394 worker tests and
+TypeScript type checking. Autobot passed all 188 tests and Ruff. Linux checks
+passed 23 Jest suites/88 tests, six feed tests, the production build, 394 worker
+tests, and wheel construction. Linux lint passed with three pre-existing warnings.
+The 32,263-file manifest and `install-reviewed-release.py --check` passed on
+a1347-m. The preflight explicitly reported that no files or services changed.
 
-## Verification evidence
+The prior release verification also covered desktop and mobile Live Price layout,
+reduced motion, historical chart controls, Coinbase read-only feed samples,
+backup behavior, execution locking, and activation gating. Those observations
+were for the previous two-account stage, so they do not establish that this new
+revision is installed or operational.
 
-- Local StockWatch: 389 worker tests, 88 Jest tests across 23 suites, six feed tests,
-  type-check, production build, and lint passed. Lint retains three existing warnings.
-  All 33 deployment-tool tests and five backup tests also passed.
-- Linux StockWatch: 88 web tests, six feed tests, 389 worker tests, type-check,
-  lint, production build and worker wheel passed. Deployment checks: 32 passed,
-  one correctly skipped off-host guard. The application build was produced at
-  `ba143162d5a46b43d9f621ae7cc462c5aee64649`; the final release changes only three
-  deployment-verification files, confirmed by Git diff before build reuse.
-  The manifest contains 32,263 files; the reviewed installer verified every hash
-  and passed `--check` without changing production files or services.
-- Local Autobot: 186 tests and full Ruff check passed. After deployment, 59 targeted
-  tests passed on Linux. The bot restart and deployed revision were checked.
-- Desktop 1280px and mobile 390px Chromium checks covered card placement, stable
-  height, no horizontal overflow, reduced motion, and no JavaScript exceptions.
-  The unconfigured manual workspace was visible. Historical controls remained;
-  local historical data was unavailable because the production DB was not copied.
-- Read-only Coinbase checks: 27 fresh events in 12 seconds locally, 37 in 12 seconds
-  on Linux, one connection generation in each sample. First/last sampled source ages
-  were 90/3 ms locally and 46/10 ms on Linux. These are observations, not fill or
-  latency guarantees.
-- Existing production LAN health returned HTTP 200 (about 1.08 seconds under host
-  load; 34 ms at the final service recheck). Web, existing Bitcoin timer, Autobot,
-  and the independent watchdog remained active. Sub-500-ms cached preflight was
-  verified against a local fixture, not the production database.
-- Regression coverage includes stale/gap/reconnect behavior, bounded clients,
-  uncertain submission cancellation, account isolation, confirmation binding,
-  partial-fill protection, execution locking, stock actions and activation gating.
-  End-to-end broker paper trades and production cutover/restart verification remain
-  outstanding.
+## Known limits
 
-The first Linux staging run was stopped during disk-bound Jest fixture writes.
-The next run passed 87 tests and exposed a one-second worker-startup assumption in
-the remaining asynchronous preflight test. That test now waits up to 30 seconds for
-completion, retaining the separate 500 ms cached-response assertion. The final run
-uses a private `/dev/shm` fixture directory and identical lockfile-matched
-dependencies from the incomplete stage. Production backup free-space requirements
-are unchanged; only tiny test backups waive the production reserve. Serial manifest
-verification was also stopped under heavy disk contention and replaced by eight
-bounded hashing workers (128 queued paths at a time), retaining every file checksum
-and path validation. A regression verifies cache/link exclusions and payload hashes.
+- Existing stock scan, entry, and exit timers are not yet consolidated into one
+  account-wide execution daemon. Stock qualification remains blocked pending
+  corporate-action and historical-membership evidence.
+- The Bitcoin owner switch requires the reviewed installer to drain the previous
+  coordinator and reconcile orders. A staged build alone does not do this.
+- Manual P&L is withheld when broker cash, positions, fills, or fees do not
+  reconcile. There is no complete tax-lot realized-P&L workflow.
+- HomeOps registration and a1347-j independent checks for the three new health
+  components remain unverified.
+- App-managed triggers and protective instructions require StockWatch online;
+  paper fills and latency are not guaranteed.
 
-## Remaining implementation and operational limits
+## Installation and account setup
 
-- Existing stock scan/entry/exit timers have not been consolidated into a single
-  account-wide execution daemon. That portion of the requested plan remains work.
-- The new Bitcoin owner replaces an enabled shared coordinator timer. Legacy
-  Bitcoin trading authority must be migrated through the existing account/ledger
-  procedure; the installer refuses competing enabled owners.
-- P&L uses broker unrealized values and reconciled equity against the confirmed
-  baseline. Unknown cash flows/actions or unreconciled fills withhold total P&L;
-  there is no complete tax-lot realized-P&L or external-cash-flow workflow.
-- Corporate-action source coverage and historical membership still need evidence;
-  stock qualification stays blocked. No paid data was purchased.
-- New health routes exist in source. HomeOps registration and independent reporting
-  of all three components are not yet verified.
+The reviewed installer rejects weekday 09:30–16:00 America/New_York invocation
+before modifying production. It also requires root on a1347-m; the available SSH
+session cannot use passwordless sudo. Neither guard was bypassed. The source is
+ready for review, but no StockWatch migration or service cutover has occurred.
 
-## Operator installation and setup
-
-Installation requires root on a1347-m. `sudo -n true` returned "a password is required".
-The reviewed installer also prohibits installation during regular weekday US market
-hours. Neither restriction was bypassed, and no production migration was started.
-
-Staging is verified at `/home/mjm2z/stock-watch-releases/279284f03b4c`.
-The subsequent report-only commit does not change this runtime artifact.
-Run outside regular market hours on a1347-m:
+The verified stage is `/home/mjm2z/stock-watch-releases/6e7120fe1e9d`. An
+operator with sudo access can install it **after 16:00 ET** using:
 
 ```sh
-sudo systemd-run --unit=stock-watch-release-279284f03b4c --collect \
-  /usr/bin/python3 /home/mjm2z/stock-watch-releases/279284f03b4c/deploy/install-reviewed-release.py \
-  /home/mjm2z/stock-watch-releases/279284f03b4c
-journalctl -fu stock-watch-release-279284f03b4c.service
+sudo systemd-run --unit=stock-watch-release-6e7120fe1e9d --collect \
+  /usr/bin/python3 /home/mjm2z/stock-watch-releases/6e7120fe1e9d/deploy/install-reviewed-release.py \
+  /home/mjm2z/stock-watch-releases/6e7120fe1e9d
+journalctl -fu stock-watch-release-6e7120fe1e9d.service
 ```
 
-The installer verifies its manifest, drains owners, backs up before additive
-migration, preserves existing authority, and records the installed receipt. Inspect
-the receipt and service status after completion; a staged manifest is not an install
-receipt. Verify LAN Live Price/SSE, collector restart, exactly one Bitcoin execution
-owner, and existing automation before calling the rollout successful.
+The installer performs a backup before additive migrations. Verify the installed
+receipt, LAN Live Price/SSE, collector restart,
+exactly one Bitcoin execution owner, and existing automation. Register the three
+new HomeOps health checks and verify the a1347-j watchdog independently.
 
-Provision the four new manual-account credential values and distinct browser/Autobot
-tokens in protected configuration as described in the operations guide. Configure
-both allowed Telegram identifiers. Verify all four Alpaca account identities differ,
-then preview and individually confirm the proposed $1,000/$100 manual setup. Never
-reset or substitute existing accounts. Any paper test order needs its own explicit
-confirmed draft.
-
-After all health endpoints are healthy, run `deploy/register-live-monitoring.py` as
-the HomeOps user on a1347-m, restart HomeOps through its established workflow, and
-verify a1347-j reports feed, execution, and notification health independently.
-Protective instructions require StockWatch online; broker-held orders can remain
-active during outages. Follow the operations guide for reconciliation and rollback.
+Create one fresh paper account under the existing Alpaca login with $1,000,000
+simulated cash, no positions, and no open orders. It must have an actual account
+ID different from both automated accounts. Generate a new paper key/secret for
+that account; keep them in protected StockWatch configuration, never in Autobot
+or chat. Set a separate scoped Autobot token and both allowed Telegram user and
+chat IDs. Preview `/stockwatch setup combined`; confirm only after it shows the
+expected broker balance, two $1,000 allocations, and $100 entry cap. Setup never
+resets an account. Paper test orders require their own explicit confirmed drafts.
