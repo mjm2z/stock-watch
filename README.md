@@ -12,8 +12,8 @@ retention, source/quote distinctions, accounting limits, deployment, and rollbac
 The companion integration is in [Autobot](https://github.com/mjm2z/autobot).
 
 Installation and credentials are separate from source availability. Manual trading
-is unconfigured until two distinct paper accounts and each account's $1,000/$100
-setup preview are confirmed. No account resets, strategy activation, or paper test
+is unconfigured until two distinct paper accounts and each account's $1,000 virtual
+budget and $100 entry cap setup preview are confirmed. No account resets, strategy activation, or paper test
 trades occur just by installing. The [September 28 release report](docs/live-paper-release-2026-09-28.md)
 records actual deployment state and remaining work.
 

@@ -99,12 +99,26 @@ over newly accumulated fills.
 
 ## Manual account setup
 
-Provision two empty **Alpaca paper** accounts, one for stocks and one for Bitcoin.
-The proposed baseline is **$1,000 cash each**, with a **$100 entry cap including a
-1% reservation allowance**. Actual fees are broker-dependent; the allowance is not
-a quoted fee. Setup verifies actual account IDs differ from each other and both
-automated account identities. Empty positions/orders and $1,000 cash are required.
+Provision two fresh **Alpaca paper** accounts, one for stocks and one for Bitcoin.
+Alpaca [documents](https://docs.alpaca.markets/us/docs/paper-trading) a $100,000
+default for new paper accounts. If its creation form offers a $1,000 starting
+balance, that is also supported. StockWatch
+confirms a separate **$1,000 virtual allocation per account**, with a **$100 entry cap
+including a 1% reservation allowance**. Broker cash may be higher; it is never
+treated as StockWatch spending authority. The remaining allocation falls as broker
+cash is spent, and external deposits do not increase its $1,000 ceiling. Actual fees
+are broker-dependent; the allowance is not a quoted fee. Setup verifies actual
+account IDs differ from each other and both automated account identities. At least
+$1,000 broker cash and empty positions/orders are required. The setup preview shows
+both broker cash and the $1,000 allocation, and a cash change requires a new preview.
 Each account requires its own preview and confirmation. Nothing resets an account.
+Use the account selector at the upper left of the Alpaca dashboard and choose
+**Open New Paper Account**. Name the two accounts clearly and generate separate API
+keys while each is selected. Record the account IDs and verify that all four IDs
+including the existing automated accounts differ. If Alpaca's account limit prevents
+two more under one login, use a separate Alpaca paper login for the additional
+account; do not reuse or delete either automated account. Alpaca staff has
+[described a three-paper-account limit per login](https://forum.alpaca.markets/t/feature-request-more-paper-trading-accounts/18125).
 
 In root-owned mode-0600 `/etc/stock-watch/systems.env`, configure:
 

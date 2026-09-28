@@ -35,7 +35,8 @@ def connect(path):
     db.execute("PRAGMA foreign_keys=ON")
     db.executescript("""
       CREATE TABLE IF NOT EXISTS accounts(asset TEXT PRIMARY KEY, account_id TEXT UNIQUE NOT NULL,
-        budget TEXT NOT NULL, entry_cap TEXT NOT NULL, confirmed_at REAL NOT NULL);
+        budget TEXT NOT NULL, entry_cap TEXT NOT NULL, confirmed_at REAL NOT NULL,
+        initial_cash TEXT NOT NULL DEFAULT '1000');
       CREATE TABLE IF NOT EXISTS drafts(id TEXT PRIMARY KEY, request_id TEXT UNIQUE NOT NULL,
         user_id TEXT NOT NULL, chat_id TEXT NOT NULL, revision TEXT NOT NULL, body TEXT NOT NULL,
         token_hash TEXT NOT NULL, expires REAL NOT NULL, state TEXT NOT NULL DEFAULT 'preview', result TEXT);
@@ -58,6 +59,11 @@ def connect(path):
       CREATE TABLE IF NOT EXISTS system_jobs(id TEXT PRIMARY KEY,body TEXT NOT NULL,attribution TEXT NOT NULL,created REAL NOT NULL,state TEXT NOT NULL DEFAULT 'queued',result TEXT);
       CREATE TABLE IF NOT EXISTS health(component TEXT PRIMARY KEY, at REAL NOT NULL, error TEXT);
     """)
+    if "initial_cash" not in {
+        row[1] for row in db.execute("PRAGMA table_info(accounts)")
+    }:
+        db.execute("ALTER TABLE accounts ADD COLUMN initial_cash TEXT NOT NULL DEFAULT '1000'")
+        db.commit()
     return db
 
 
@@ -105,6 +111,18 @@ class Manual:
                 "Account setup confirmation is required or account identity changed"
             )
         return account
+
+    def spendable_cash(self, asset, account):
+        """Bound new orders to the confirmed virtual allocation, not broker buying power."""
+        row = self.db.execute("SELECT * FROM accounts WHERE asset=?", (asset,)).fetchone()
+        if not row or row["account_id"] != account["id"]:
+            raise ValueError("Manual account setup is required")
+        budget = D(row["budget"])
+        broker_cash = D(str(account["cash"]))
+        initial_cash = D(row["initial_cash"])
+        if not all(value.is_finite() for value in (budget, broker_cash, initial_cash)):
+            raise ValueError("Invalid broker cash or manual allocation")
+        return max(D(0), min(budget, budget + broker_cash - initial_cash))
 
     def validate(self, body):
         if not isinstance(body, dict):
@@ -202,19 +220,17 @@ class Manual:
                 raise ValueError(
                     "Account setup already confirmed; accounts are never reset"
                 )
-            if (
-                abs(D(account["cash"]) - 1000) > D(".01")
-                or broker.positions()
-                or broker.open_orders()
-            ):
+            broker_cash = money(account["cash"])
+            if broker_cash < 1000 or broker.positions() or broker.open_orders():
                 raise ValueError(
-                    "Setup requires an empty $1,000 paper account; no reset is performed"
+                    "Setup requires a fresh empty paper account with at least $1,000 cash; no reset is performed"
                 )
             return {
                 **body,
                 "account_id": account["id"],
                 "budget": "1000",
                 "entry_cap": "100",
+                "broker_cash": str(broker_cash),
             }
         if action == "cancel":
             row = self.db.execute(
@@ -317,7 +333,7 @@ class Manual:
             if reserve_cash > 100:
                 raise ValueError("$100 entry cap includes fee allowance")
             reserved = sum((D(r["reserved_cash"]) for r in reservations), D(0))
-            if reserve_cash > min(D(account["cash"]), D(1000)) - reserved:
+            if reserve_cash > self.spendable_cash(asset, account) - reserved:
                 raise ValueError("Insufficient unreserved cash")
         else:
             owned = sum(
@@ -435,6 +451,8 @@ class Manual:
                 raise ValueError("Position changed; preview the exit again")
             if current["account_id"] != document["preview"]["account_id"]:
                 raise ValueError("Account identity changed")
+            if body["action"] == "setup" and current["broker_cash"] != document["preview"]["broker_cash"]:
+                raise ValueError("Broker cash changed; preview account setup again")
             if (
                 body["action"] == "system"
                 and current["version_hash"] != document["preview"]["version_hash"]
@@ -456,8 +474,8 @@ class Manual:
                 result = {"system_job": job, "state": "queued"}
             elif action == "setup":
                 self.db.execute(
-                    "INSERT INTO accounts VALUES (?,?,?,?,?)",
-                    (body["asset"], current["account_id"], "1000", "100", now),
+                    "INSERT INTO accounts(asset,account_id,budget,entry_cap,confirmed_at,initial_cash) VALUES (?,?,?,?,?,?)",
+                    (body["asset"], current["account_id"], "1000", "100", now, current["broker_cash"]),
                 )
                 result = {
                     "configured": body["asset"],

@@ -1,19 +1,25 @@
 import tempfile
 import unittest
+import sqlite3
 from pathlib import Path
 from stock_watch_worker.manual.store import Manual, connect
 from stock_watch_worker.manual.execution import reconcile
+from stock_watch_worker.manual.accounting import performance
 
 
 class Broker:
     def __init__(self, identity):
         self.identity = identity
+        self.cash = "1000"
         self.orders = {}
         self.posts = 0
         self.uncertain = False
 
     def account(self):
-        return {"id": self.identity, "cash": "1000"}
+        return {"id": self.identity, "cash": self.cash, "equity": self.cash}
+
+    def fees(self, after):
+        return []
 
     def positions(self):
         return []
@@ -106,6 +112,46 @@ class ManualTests(unittest.TestCase):
         self.setup_account()
         with self.assertRaisesRegex(ValueError, "never reset"):
             self.setup_account()
+
+    def test_fresh_default_balance_uses_durable_virtual_budget(self):
+        broker = self.brokers["stocks"]
+        broker.cash = "100000"
+        first = self.preview({"action": "setup", "asset": "stocks"})
+        self.assertEqual(first["preview"]["broker_cash"], "100000")
+        self.assertEqual(first["preview"]["budget"], "1000")
+        broker.cash = "99999"
+        with self.assertRaisesRegex(ValueError, "cash changed"):
+            self.confirm(first)
+        broker.cash = "100000"
+        self.confirm(self.preview({"action": "setup", "asset": "stocks"}))
+        self.assertEqual(self.manual.spendable_cash("stocks", broker.account()), 1000)
+        row = self.db.execute("SELECT * FROM accounts").fetchone()
+        self.assertEqual(row["initial_cash"], "100000")
+        self.assertEqual(performance(self.manual, row, broker.account(), [])["total_pnl"], "0")
+        broker.cash = "99050"
+        self.assertEqual(self.manual.spendable_cash("stocks", broker.account()), 50)
+        with self.assertRaisesRegex(ValueError, "Insufficient unreserved cash"):
+            self.order(qty="6")
+        broker.cash = "99000"
+        self.assertEqual(self.manual.spendable_cash("stocks", broker.account()), 0)
+        with self.assertRaisesRegex(ValueError, "Insufficient unreserved cash"):
+            self.order(qty="5")
+
+    def test_setup_rejects_underfunded_account(self):
+        self.brokers["stocks"].cash = "999"
+        with self.assertRaisesRegex(ValueError, "at least"):
+            self.preview({"action": "setup", "asset": "stocks"})
+
+    def test_existing_manual_account_baseline_migrates_additively(self):
+        old_path = Path(self.temp.name) / "older-manual.db"
+        with sqlite3.connect(old_path) as old:
+            old.execute("CREATE TABLE accounts(asset TEXT PRIMARY KEY, account_id TEXT UNIQUE NOT NULL, budget TEXT NOT NULL, entry_cap TEXT NOT NULL, confirmed_at REAL NOT NULL)")
+            old.execute("INSERT INTO accounts VALUES ('stocks','old-manual','1000','100',1000)")
+        upgraded = connect(old_path)
+        try:
+            self.assertEqual(upgraded.execute("SELECT initial_cash FROM accounts").fetchone()[0], "1000")
+        finally:
+            upgraded.close()
 
     def test_confirmation_exact_identity_expiry_single_use(self):
         self.setup_account()

@@ -23,7 +23,7 @@ def performance(manual, account_row, account, positions):
     orders = db.execute(
         "SELECT * FROM instructions WHERE account_id=?", (account["id"],)
     ).fetchall()
-    expected_cash = D(account_row["budget"])
+    expected_cash = D(account_row["initial_cash"])
     expected = {}
     for order in orders:
         sign = 1 if order["side"] == "buy" else -1
@@ -51,8 +51,9 @@ def performance(manual, account_row, account, positions):
         "asset": account_row["asset"],
         "cash_reconciled": reconciled,
         "broker_equity": account.get("equity"),
-        "starting_cash": account_row["budget"],
-        "total_pnl": str(D(account["equity"]) - D(account_row["budget"]))
+        "starting_cash": account_row["initial_cash"],
+        "allocated_budget": account_row["budget"],
+        "total_pnl": str(D(account["equity"]) - D(account_row["initial_cash"]))
         if reconciled and account.get("equity") is not None
         else None,
         "cash_fee_activities": str(fee_cash),

@@ -178,7 +178,7 @@ def reconcile(manual, assets=("stocks", "bitcoin")):
                 raise ValueError("External order requires reconciliation")
             if row["side"] == "buy" and sum(
                 (D(r["reserved_cash"]) for r in reservations), D(0)
-            ) > min(D(account["cash"]), D(1000)):
+            ) > manual.spendable_cash(row["asset"], account):
                 raise ValueError("Reserved cash exceeds available cash")
             if row["side"] == "sell":
                 owned = sum(

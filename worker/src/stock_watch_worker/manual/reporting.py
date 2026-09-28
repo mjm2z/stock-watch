@@ -20,6 +20,8 @@ def refresh(manual):
                 "account_id": account["id"],
                 "at": now,
                 "cash": account["cash"],
+                "allocated_cash": str(manual.spendable_cash(row["asset"], account)),
+                "allocated_budget": row["budget"],
                 "equity": account.get("equity"),
                 "positions": positions,
                 "unrealized_pl": str(
