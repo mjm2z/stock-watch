@@ -9,7 +9,7 @@ activation was performed.
 | Component | Revision | Verified state |
 | --- | --- | --- |
 | StockWatch production on a1347-m | `51b45a63caba90ff42ed173b6c3b25de4de27078` | Existing installed receipt; web and Bitcoin automation timer active |
-| StockWatch new release | `a8a53189f0c136c484a9e1615bb7644ae700df43` | Linux staging verification in progress; not installed |
+| StockWatch new release | `279284f03b4c4383ae17285dbdd1a640a7a78b9d` | Linux build, tests and reviewed-installer check passed; staged, not installed |
 | Autobot on a1347-m | `488d55fc989fbd28960f4b63e1f0d13c9a0de4e3` | Deployed with required Git script; installed HEAD verified; user `note-bot.service` restarted and active |
 | Independent watchdog on a1347-j | Existing deployment | `home-ops-watchdog-migration.service` active; new component monitors not registered |
 
@@ -36,7 +36,14 @@ returned HTTP 401; it does not establish authenticated coverage or entitlement.
 
 - Local StockWatch: 389 worker tests, 88 Jest tests across 23 suites, six feed tests,
   type-check, production build, and lint passed. Lint retains three existing warnings.
-  All 32 deployment-tool tests and five backup tests also passed.
+  All 33 deployment-tool tests and five backup tests also passed.
+- Linux StockWatch: 88 web tests, six feed tests, 389 worker tests, type-check,
+  lint, production build and worker wheel passed. Deployment checks: 32 passed,
+  one correctly skipped off-host guard. The application build was produced at
+  `ba143162d5a46b43d9f621ae7cc462c5aee64649`; the final release changes only three
+  deployment-verification files, confirmed by Git diff before build reuse.
+  The manifest contains 32,263 files; the reviewed installer verified every hash
+  and passed `--check` without changing production files or services.
 - Local Autobot: 186 tests and full Ruff check passed. After deployment, 59 targeted
   tests passed on Linux. The bot restart and deployed revision were checked.
 - Desktop 1280px and mobile 390px Chromium checks covered card placement, stable
@@ -48,8 +55,9 @@ returned HTTP 401; it does not establish authenticated coverage or entitlement.
   were 90/3 ms locally and 46/10 ms on Linux. These are observations, not fill or
   latency guarantees.
 - Existing production LAN health returned HTTP 200 (about 1.08 seconds under host
-  load). Sub-500-ms cached preflight was verified against a local fixture, not the
-  production database.
+  load; 34 ms at the final service recheck). Web, existing Bitcoin timer, Autobot,
+  and the independent watchdog remained active. Sub-500-ms cached preflight was
+  verified against a local fixture, not the production database.
 - Regression coverage includes stale/gap/reconnect behavior, bounded clients,
   uncertain submission cancellation, account isolation, confirmation binding,
   partial-fill protection, execution locking, stock actions and activation gating.
@@ -57,9 +65,15 @@ returned HTTP 401; it does not establish authenticated coverage or entitlement.
   outstanding.
 
 The first Linux staging run was stopped during disk-bound Jest fixture writes.
-The rerun uses a private `/dev/shm` fixture directory and identical lockfile-matched
+The next run passed 87 tests and exposed a one-second worker-startup assumption in
+the remaining asynchronous preflight test. That test now waits up to 30 seconds for
+completion, retaining the separate 500 ms cached-response assertion. The final run
+uses a private `/dev/shm` fixture directory and identical lockfile-matched
 dependencies from the incomplete stage. Production backup free-space requirements
-are unchanged; only tiny test backups waive the production reserve.
+are unchanged; only tiny test backups waive the production reserve. Serial manifest
+verification was also stopped under heavy disk contention and replaced by eight
+bounded hashing workers (128 queued paths at a time), retaining every file checksum
+and path validation. A regression verifies cache/link exclusions and payload hashes.
 
 ## Remaining implementation and operational limits
 
@@ -82,13 +96,15 @@ Installation requires root on a1347-m. `sudo -n true` returned "a password is re
 The reviewed installer also prohibits installation during regular weekday US market
 hours. Neither restriction was bypassed, and no production migration was started.
 
-Once Linux staging is verified, run outside regular market hours on a1347-m:
+Staging is verified at `/home/mjm2z/stock-watch-releases/279284f03b4c`.
+The subsequent report-only commit does not change this runtime artifact.
+Run outside regular market hours on a1347-m:
 
 ```sh
-sudo systemd-run --unit=stock-watch-release-a8a53189f0c1 --collect \
-  /usr/bin/python3 /home/mjm2z/stock-watch-releases/a8a53189f0c1/deploy/install-reviewed-release.py \
-  /home/mjm2z/stock-watch-releases/a8a53189f0c1
-journalctl -fu stock-watch-release-a8a53189f0c1.service
+sudo systemd-run --unit=stock-watch-release-279284f03b4c --collect \
+  /usr/bin/python3 /home/mjm2z/stock-watch-releases/279284f03b4c/deploy/install-reviewed-release.py \
+  /home/mjm2z/stock-watch-releases/279284f03b4c
+journalctl -fu stock-watch-release-279284f03b4c.service
 ```
 
 The installer verifies its manifest, drains owners, backs up before additive
