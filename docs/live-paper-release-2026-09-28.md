@@ -6,6 +6,11 @@ This is a partial rollout, not an operational trading launch. Both repositories'
 implementation commits are pushed. No test trade, account reset, or new strategy
 activation was performed.
 
+At closeout both repositories were clean and synced. Autobot's branch had also
+advanced to `cb35d96` through a separate HomeOps change during verification; that
+unrelated commit was not deployed by this release workflow. The table records the
+installed revision actually checked, rather than assuming branch HEAD is deployed.
+
 | Component | Revision | Verified state |
 | --- | --- | --- |
 | StockWatch production on a1347-m | `51b45a63caba90ff42ed173b6c3b25de4de27078` | Existing installed receipt; web and Bitcoin automation timer active |
