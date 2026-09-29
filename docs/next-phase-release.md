@@ -4,13 +4,18 @@ This report separates source work, tests, staging and installed operation.
 
 ## Current checkpoint
 
-Implementation has passed local verification and is ready for committed Linux
-staging. It has not replaced the pending reviewed installation of
-`6e7120fe1e9d`. That earlier installer remains the release
+Implementation is committed and pushed. The exact runtime revision
+`5c374e316dd900a8f62746587982972f27352596` passed Linux staging at
+`/home/mjm2z/stock-watch-releases/5c374e316dd9`, including the reviewed installer's
+read-only preflight and verification of 32,327 artifact files. It has not replaced
+the pending reviewed installation of `6e7120fe1e9d`. That earlier installer remains the release
 owner. At the latest host check on September 29, its journal showed completion
 of the main database copy at 01:07 ET, verification of the recovery database, then
 auxiliary Bitcoin-history backup at 11:00 ET. Web, feed, execution and manual
-services were inactive during that operation. No new deployment was started.
+services were inactive during that operation and at the closeout check. No new
+installation was started. `/opt/stock-watch/installed-release.json` was absent at
+closeout, so this iteration cannot certify an installed revision. The earlier
+`e7346a4fa798` stage is superseded by `5c374e316dd9`; do not install it.
 
 Manual credentials and combined-account setup were still pending at the last
 confirmed setup checkpoint. No account reset, strategy activation or end-to-end
@@ -45,7 +50,35 @@ checks cover Stocks, manual paper, research and Activity, with no JavaScript
 errors or horizontal overflow. Chart toggles perform no mutations. Order testing
 uses mocked previews and never confirms a broker order. Research tests verify
 that the demonstration creates no executable versions, enrollments or orders.
-Linux staging and installed verification are separate remaining checkpoints.
+The final Linux artifact passed the same 404 worker, 96 web and six feed tests,
+type checking, lint and production build. The additional deployment suite ran
+34 tests successfully with one platform-specific skip. Worker wheel packaging,
+manifest hashing and read-only installer preflight passed. Installed verification
+remains blocked by the earlier release owner; staging did not apply migration 022.
+
+## Installation handoff
+
+Follow the existing owner without continuous agent polling:
+
+```bash
+ssh a1347-m 'journalctl -fu stock-watch-release-6e7120fe1e9d'
+```
+
+After it completes, inspect its receipt and service health. Do not start the next
+installation merely because staging passed. Once ownership is released, root
+access and the existing market-window guard permit the reviewed installer:
+
+```bash
+sudo systemd-run --unit=stock-watch-release-5c374e316dd9 --collect \
+  /usr/bin/python3 /home/mjm2z/stock-watch-releases/5c374e316dd9/deploy/install-reviewed-release.py \
+  /home/mjm2z/stock-watch-releases/5c374e316dd9
+```
+
+Run this on a1347-m. It backs up before migrating; do not use code-only mode for
+migration 022. Then verify the new installed receipt, LAN pages, Coinbase SSE,
+independent component health, restart behavior and execution ownership. Manual
+trading remains unconfigured until protected credentials and account setup are
+confirmed. No sudo installation or paper test draft was confirmed in this iteration.
 
 ## Limits and operator prerequisites
 
