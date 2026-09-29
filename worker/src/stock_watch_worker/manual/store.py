@@ -47,6 +47,7 @@ def connect(path):
         reserved_qty TEXT NOT NULL, broker_id TEXT, filled_qty TEXT NOT NULL DEFAULT '0',
         filled_notional TEXT NOT NULL DEFAULT '0', response TEXT, audit TEXT NOT NULL,
         created REAL NOT NULL, updated REAL NOT NULL, cancel_requested INTEGER NOT NULL DEFAULT 0);
+      CREATE INDEX IF NOT EXISTS instructions_scope ON instructions(asset,symbol,created DESC);
       CREATE TABLE IF NOT EXISTS fills(instruction_id TEXT NOT NULL, cumulative_qty TEXT NOT NULL,
         cumulative_notional TEXT NOT NULL, observed REAL NOT NULL, response TEXT NOT NULL,
         PRIMARY KEY(instruction_id,cumulative_qty));
@@ -83,6 +84,35 @@ def connect(path):
                 db.rollback()
                 raise
             break
+    # Prospective transition history: never synthesize earlier order events.
+    db.executescript("""
+      CREATE TABLE IF NOT EXISTS state_revision(id INTEGER PRIMARY KEY CHECK(id=1),revision INTEGER NOT NULL);
+      INSERT OR IGNORE INTO state_revision VALUES(1,0);
+      CREATE TABLE IF NOT EXISTS allocation_valuations(account_id TEXT NOT NULL,asset TEXT NOT NULL,minute INTEGER NOT NULL,at REAL NOT NULL,payload TEXT NOT NULL,PRIMARY KEY(account_id,asset,minute));
+      CREATE INDEX IF NOT EXISTS allocation_valuations_latest ON allocation_valuations(at DESC);
+      CREATE TABLE IF NOT EXISTS activity(id INTEGER PRIMARY KEY AUTOINCREMENT,
+        instruction_id TEXT NOT NULL,asset TEXT NOT NULL,account_id TEXT NOT NULL,
+        symbol TEXT NOT NULL,kind TEXT NOT NULL,status TEXT NOT NULL,at REAL NOT NULL,payload TEXT NOT NULL);
+      CREATE INDEX IF NOT EXISTS activity_scope ON activity(asset,symbol,id DESC);
+      CREATE TRIGGER IF NOT EXISTS instruction_created AFTER INSERT ON instructions BEGIN
+        INSERT INTO activity(instruction_id,asset,account_id,symbol,kind,status,at,payload)
+        VALUES(NEW.id,NEW.asset,NEW.account_id,NEW.symbol,'intent',NEW.status,NEW.created,
+          json_object('request',json(NEW.request),'audit',json(NEW.audit)));
+      END;
+      CREATE TRIGGER IF NOT EXISTS instruction_transition AFTER UPDATE ON instructions
+      WHEN OLD.status != NEW.status OR OLD.filled_qty != NEW.filled_qty OR OLD.cancel_requested != NEW.cancel_requested BEGIN
+        INSERT INTO activity(instruction_id,asset,account_id,symbol,kind,status,at,payload)
+        VALUES(NEW.id,NEW.asset,NEW.account_id,NEW.symbol,
+          CASE WHEN OLD.filled_qty != NEW.filled_qty THEN 'fill'
+               WHEN OLD.cancel_requested != NEW.cancel_requested THEN 'cancel_requested' ELSE 'status' END,
+          NEW.status,NEW.updated,json_object('previous_status',OLD.status,'filled_qty',NEW.filled_qty,
+          'filled_notional',NEW.filled_notional,'broker_id',NEW.broker_id,'audit',json(NEW.audit)));
+      END;
+    """)
+    for table in ('accounts', 'drafts', 'instructions', 'protective_plans', 'fee_activities'):
+        for operation in ('INSERT', 'UPDATE', 'DELETE'):
+            db.execute(f"CREATE TRIGGER IF NOT EXISTS revision_{table}_{operation} AFTER {operation} ON {table} BEGIN UPDATE state_revision SET revision=revision+1 WHERE id=1; END")
+    db.commit()
     return db
 
 
@@ -211,6 +241,8 @@ class Manual:
             "symbol",
             "side",
             "qty",
+            "notional",
+            "time_in_force",
             "limit",
             "condition",
             "threshold",
@@ -245,6 +277,8 @@ class Manual:
                 "symbol",
                 "side",
                 "qty",
+                "notional",
+                "time_in_force",
                 "limit",
                 "condition",
                 "threshold",
@@ -315,26 +349,12 @@ class Manual:
         side = body.get("side")
         if side not in ("buy", "sell"):
             raise ValueError("Choose buy or sell")
-        qty = money(body.get("qty"))
-        price = money(body.get("limit"))
-        if asset == "stocks" and qty != qty.to_integral_value():
-            raise ValueError("Stock limit orders require whole shares")
-        increment = D(metadata.get("min_trade_increment") or "0.000000001")
-        if asset == "bitcoin" and (
-            qty < D(metadata["min_order_size"]) or qty % increment
-        ):
-            raise ValueError("Quantity violates broker minimum/increment")
-        order_type = body.get("order_type", "limit")
-        if order_type not in ("limit", "stop_limit"):
-            raise ValueError("Only limit and stop_limit broker orders are supported")
-        if order_type == "stop_limit":
-            stop = money(body.get("stop_price"))
-            if body.get("condition"):
-                raise ValueError("Cannot combine a broker stop with a local condition")
-            if (side == "buy" and price < stop) or (side == "sell" and price > stop):
-                raise ValueError("Stop-limit price must protect the selected side")
-        elif body.get("stop_price") is not None:
-            raise ValueError("Stop price requires stop_limit order type")
+        from .capabilities import validate_order
+        terms = validate_order(body, metadata, asset, side)
+        qty, price = terms["qty"], terms["price"]
+        order_type, stop = terms["order_type"], terms["stop"]
+        if order_type == "market" and not broker.market_open():
+            raise ValueError("Immediate market orders require an open regular session")
         condition = body.get("condition")
         if condition not in (None, "above", "below"):
             raise ValueError("Choose above or below")
@@ -343,6 +363,8 @@ class Manual:
         threshold = money(body.get("threshold")) if condition else None
         quote = broker.quote(symbol)
         reference = money(quote["ask"] if side == "buy" else quote["bid"])
+        if asset == 'bitcoin' and terms['notional'] and terms['notional'] / reference < D(metadata['min_order_size']):
+            raise ValueError('Notional violates broker minimum order size at the fresh quote')
         # Every custom triggered entry has a fixed, previewed protection price.
         if condition and side == "buy" and price > threshold * D("1.005"):
             raise ValueError(
@@ -366,7 +388,7 @@ class Manual:
                 observed >= threshold if condition == "above" else observed <= threshold
             )
         )
-        if order_type == "stop_limit":
+        if order_type in ("stop", "stop_limit"):
             satisfied = reference >= stop if side == "buy" else reference <= stop
         reservations = self.db.execute(
             "SELECT * FROM instructions WHERE account_id=? AND status NOT IN ('filled','canceled','expired','rejected')",
@@ -377,7 +399,7 @@ class Manual:
         known = {r["broker_id"] for r in reservations if r["broker_id"]}
         if any(o["id"] not in known for o in broker.open_orders()):
             raise ValueError("External pending orders require reconciliation")
-        reserve_cash = qty * price * D("1.01") if side == "buy" else D(0)
+        reserve_cash = (terms["notional"] or qty * price) * D("1.01") if side == "buy" else D(0)
         if side == "buy":
             if reserve_cash > 100:
                 raise ValueError("$100 entry cap includes fee allowance")
@@ -410,6 +432,9 @@ class Manual:
             "symbol": symbol,
             "qty": str(qty),
             "limit": str(price),
+            "notional": str(terms["notional"]) if terms["notional"] else None,
+            "order_type": order_type,
+            "time_in_force": terms["time_in_force"],
             "expires": expiry,
             "account_id": account["id"],
             "reserved_cash": str(reserve_cash),
@@ -422,10 +447,21 @@ class Manual:
             "trigger_allowance": "0.5%",
         }
 
+    def state_revision(self):
+        return self.db.execute("SELECT revision FROM state_revision WHERE id=1").fetchone()[0]
+
+    def unchanged(self, revision):
+        if self.state_revision() != revision:
+            raise ValueError("Account state changed during validation; preview again")
+
     def preview(self, body, user, chat, request):
         if not request or len(request) > 160:
             raise ValueError("A stable request ID is required")
+        state = self.state_revision()
+        existing = self.db.execute("SELECT 1 FROM drafts WHERE request_id=?", (request,)).fetchone()
+        preview = None if existing else self.validate(body)
         with transaction(self.db):
+            self.unchanged(state)
             old = self.db.execute(
                 "SELECT * FROM drafts WHERE request_id=?", (request,)
             ).fetchone()
@@ -442,7 +478,6 @@ class Manual:
                     "preview": json.loads(old["body"])["preview"],
                     "confirmation": "Previously issued; create a new preview if the token was lost",
                 }
-            preview = self.validate(body)
             identity = uuid.uuid4().hex
             token = secrets.token_urlsafe(24)
             document = canonical({"command": body, "preview": preview})
@@ -470,33 +505,37 @@ class Manual:
             }
 
     def confirm(self, identity, revision, token, user, chat):
+        state = self.state_revision()
+        row = self.db.execute(
+            "SELECT * FROM drafts WHERE id=?", (identity,)
+        ).fetchone()
+        if (
+            not row
+            or row["user_id"] != user
+            or row["chat_id"] != chat
+            or row["revision"] != revision
+            or not secrets.compare_digest(
+                row["token_hash"], hashlib.sha256(token.encode()).hexdigest()
+            )
+        ):
+            raise ValueError(
+                "Confirmation does not match this draft revision/user/chat"
+            )
+        if row["state"] != "preview":
+            raise ValueError("Confirmation already used")
+        if row["expires"] <= self.now():
+            raise ValueError("Confirmation expired; preview again")
+        document = json.loads(row["body"])
+        body = document["command"]
+        current = self.validate(
+            {**body, "expires": document["preview"]["expires"]}
+            if body["action"] in ("order", "exit")
+            else body
+        )
         with transaction(self.db):
-            row = self.db.execute(
-                "SELECT * FROM drafts WHERE id=?", (identity,)
-            ).fetchone()
-            if (
-                not row
-                or row["user_id"] != user
-                or row["chat_id"] != chat
-                or row["revision"] != revision
-                or not secrets.compare_digest(
-                    row["token_hash"], hashlib.sha256(token.encode()).hexdigest()
-                )
-            ):
-                raise ValueError(
-                    "Confirmation does not match this draft revision/user/chat"
-                )
-            if row["state"] != "preview":
-                raise ValueError("Confirmation already used")
+            self.unchanged(state)
             if row["expires"] <= self.now():
                 raise ValueError("Confirmation expired; preview again")
-            document = json.loads(row["body"])
-            body = document["command"]
-            current = self.validate(
-                {**body, "expires": document["preview"]["expires"]}
-                if body["action"] in ("order", "exit")
-                else body
-            )
             if (
                 body["action"] == "exit"
                 and current["qty"] != document["preview"]["qty"]
@@ -573,10 +612,15 @@ class Manual:
                     "qty": current["qty"],
                     "type": body.get("order_type", "limit"),
                     "limit_price": current["limit"],
-                    "time_in_force": "gtc" if body["asset"] == "bitcoin" else "day",
+                    "time_in_force": current["time_in_force"],
                     "client_order_id": order,
                 }
-                if body.get("order_type") == "stop_limit":
+                if current.get("notional"):
+                    request.pop("qty")
+                    request["notional"] = current["notional"]
+                if request["type"] in ("market", "stop"):
+                    request.pop("limit_price")
+                if body.get("order_type") in ("stop", "stop_limit"):
                     request["stop_price"] = str(money(body["stop_price"]))
                 self.db.execute(
                     """INSERT INTO instructions(id,account_id,asset,symbol,side,qty,limit_price,condition,threshold,expires,status,request,reserved_cash,reserved_qty,audit,created,updated)

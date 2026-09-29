@@ -1,25 +1,100 @@
 'use client'
-import { useEffect, useState } from 'react'
+import { useRouter } from 'next/navigation'
+import { useEffect, useRef, useState } from 'react'
+import { PaperWorkspaceTabs } from './PaperWorkspaceTabs'
+import { InteractiveChart } from './MarketChart'
 import { OperatorAccess } from './SystemsWorkspace'
-type RecordValue = Record<string, any>
-export function ManualPaperWorkspace() {
-  const [data, setData] = useState<RecordValue>({})
+import capabilities from '@/worker/src/stock_watch_worker/manual/capabilities.json'
+
+type Row = Record<string, any>
+type Asset = 'stocks' | 'bitcoin'
+const input = 'mt-1 block w-full rounded-md border bg-background px-3 py-2'
+const button = 'rounded-md border px-3 py-2 text-sm disabled:opacity-40'
+const terminal = ['filled', 'canceled', 'expired', 'rejected']
+const requestId = () =>
+  Array.from(crypto.getRandomValues(new Uint8Array(16)), (v) =>
+    v.toString(16).padStart(2, '0')
+  ).join('')
+
+export function ManualPaperWorkspace({
+  initialAsset = 'stocks',
+  embedded = false,
+}: {
+  initialAsset?: Asset
+  embedded?: boolean
+}) {
+  const router = useRouter()
+  const [data, setData] = useState<Row>({})
   const [authorized, setAuthorized] = useState(false)
   const [notice, setNotice] = useState('')
-  const [draft, setDraft] = useState<RecordValue | null>(null)
-  const [asset, setAsset] = useState('stocks')
-  const [symbol, setSymbol] = useState('')
-  const [side, setSide] = useState('buy')
-  const [qty, setQty] = useState('')
-  const [limit, setLimit] = useState('')
-  async function refresh() {
-    const response = await fetch('/api/manual-paper')
-    setData(await response.json())
+  const [draft, setDraft] = useState<Row | null>(null)
+  const [asset, setAsset] = useState<Asset>(initialAsset)
+  const [ticket, setTicket] = useState({
+    symbol: 'SPY',
+    side: 'buy',
+    qty: '',
+    notional: '50',
+    limit: '',
+    order_type: 'limit',
+    stop_price: '',
+    condition: '',
+    threshold: '',
+    time_in_force: initialAsset === 'stocks' ? 'day' : 'gtc',
+  })
+  const [busy, setBusy] = useState(false)
+  const [clock, setClock] = useState(Date.now())
+  const [selected, setSelected] = useState<Row | null>(null)
+  const revision = useRef(0)
+  useEffect(() => {
+    setAsset(initialAsset)
+    setDraft(null)
+    setTicket((t) => ({
+      ...t,
+      order_type: 'limit',
+      condition: '',
+      time_in_force: initialAsset === 'stocks' ? 'day' : 'gtc',
+    }))
+    revision.current++
+  }, [initialAsset])
+  async function refresh(signal?: AbortSignal) {
+    const response = await fetch('/api/manual-paper', { signal, cache: 'no-store' })
+    const result = await response.json()
+    if (!response.ok) throw Error(result.error || 'Manual paper service unavailable')
+    setData(result)
   }
   useEffect(() => {
-    void refresh().catch(() => setNotice('Manual paper service unavailable.'))
+    const controller = new AbortController()
+    void refresh(controller.signal).catch((e) => {
+      if (!controller.signal.aborted) setNotice(e.message)
+    })
+    const timer = setInterval(() => {
+      setClock(Date.now())
+      void refresh(controller.signal).catch(() => {})
+    }, 5000)
+    return () => {
+      clearInterval(timer)
+      controller.abort()
+    }
   }, [])
-  async function send(body: RecordValue) {
+  function edit(key: keyof typeof ticket, value: string) {
+    revision.current++
+    setDraft(null)
+    setTicket((old) => ({
+      ...old,
+      [key]: value,
+      ...(key === 'order_type'
+        ? {
+            condition: '',
+            ...(asset === 'bitcoin' && value === 'stop_limit' ? { time_in_force: 'gtc' } : {}),
+          }
+        : {}),
+    }))
+  }
+  async function send(body: Row) {
+    if (busy) return
+    const issuedRevision = revision.current
+    setBusy(true)
+    setNotice('')
     try {
       const response = await fetch('/api/manual-paper', {
         method: 'POST',
@@ -27,161 +102,310 @@ export function ManualPaperWorkspace() {
         body: JSON.stringify(body),
       })
       const result = await response.json()
-      if (!response.ok) throw Error(result.error)
-      if (body.operation === 'preview') setDraft(result)
-      else {
+      if (!response.ok) throw Error(result.error || 'Request failed')
+      if (body.operation === 'preview') {
+        if (issuedRevision === revision.current) setDraft(result)
+      } else {
         setDraft(null)
-        setNotice('Confirmed. Follow order status below; submission does not guarantee a fill.')
+        setNotice('Instruction confirmed. Follow reconciliation below; submission is not a fill.')
         await refresh()
       }
-    } catch (error) {
-      setNotice(error instanceof Error ? error.message : 'Request failed')
+    } catch (e) {
+      setNotice(e instanceof Error ? e.message : 'Request failed')
+    } finally {
+      setBusy(false)
     }
   }
+  function preview(command: Row) {
+    setDraft(null)
+    void send({ operation: 'preview', request_id: requestId(), command })
+  }
+  const instructions: Row[] = (data.instructions || []).filter((r: Row) => r.asset === asset)
+  const plans: Row[] = (data.protective_plans || []).filter((p: Row) =>
+    instructions.some((i) => i.id === p.parent)
+  )
+  const account = (data.accounts || []).find((a: Row) => a.asset === asset)
+  const performance = data.balances?.[0]?.allocations?.find((r: Row) => r.asset === asset)
+  const history = [...(data.allocation_history || [])]
+    .filter((r: Row) => r.asset === asset && r.net_return != null)
+    .reverse()
+  const balance =
+    data.balances?.[0]?.[asset === 'stocks' ? 'allocated_stocks' : 'allocated_bitcoin']
+  const marketBuy = ticket.order_type === 'market' && ticket.side === 'buy'
+  const hasLimit = ['limit', 'stop_limit'].includes(ticket.order_type)
+  const hasStop = ['stop', 'stop_limit'].includes(ticket.order_type)
+  const ready = authorized && data.manual === 'configured' && !busy
+  const Tag = embedded ? 'section' : 'main'
   return (
-    <main className="container mx-auto space-y-5 p-6">
-      <h1 className="text-3xl font-semibold">Manual paper trading</h1>
-      <p>
-        One dedicated paper account · separate $1,000 stock and Bitcoin budgets · $100 entry cap
-        including fee reserve.
-      </p>
-      <p>Account status: {data.manual || 'Checking'}. System allocations remain separate.</p>
-      <OperatorAccess onChange={setAuthorized} />
-      {(data.error || notice) && <p role="status">{notice || data.error}</p>}
-      <form
-        className="flex flex-wrap gap-3"
-        onSubmit={(event) => {
-          event.preventDefault()
-          void send({
-            operation: 'preview',
-            request_id: Array.from(crypto.getRandomValues(new Uint8Array(16)), (value) =>
-              value.toString(16).padStart(2, '0')
-            ).join(''),
-            command: {
-              action: 'order',
-              asset,
-              symbol: asset === 'bitcoin' ? 'BTC/USD' : symbol,
-              side,
-              qty,
-              limit,
-            },
-          })
-        }}
-      >
+    <Tag className={embedded ? 'space-y-5' : 'container mx-auto space-y-5 p-4 sm:p-8'}>
+      <PaperWorkspaceTabs asset={asset} active="manual" />
+      <header>
+        <h1 className="text-2xl font-semibold">Manual paper trading</h1>
+        <p className="mt-2 text-sm text-muted-foreground">
+          Separate $1,000 stock and Bitcoin allocations · $100 entry cap including 1% fee reserve.
+          Simulated broker cash is not your spending limit.
+        </p>
+      </header>
+      <div className="flex flex-wrap items-center gap-3">
         <label>
-          Account{' '}
+          Allocation
           <select
+            className={input}
             value={asset}
             onChange={(e) => {
-              setAsset(e.target.value)
+              const next = e.target.value as Asset
+              revision.current++
+              setAsset(next)
+              if (!embedded)
+                router.replace('/manual-paper' + (next === 'bitcoin' ? '?asset=bitcoin' : ''), {
+                  scroll: false,
+                })
               setDraft(null)
+              setTicket((t) => ({
+                ...t,
+                order_type: 'limit',
+                condition: '',
+                time_in_force: next === 'stocks' ? 'day' : 'gtc',
+              }))
             }}
           >
             <option value="stocks">Manual stocks</option>
             <option value="bitcoin">Manual Bitcoin</option>
           </select>
         </label>
-        <label>
-          Side{' '}
-          <select
-            value={side}
-            onChange={(e) => {
-              setSide(e.target.value)
-              setDraft(null)
-            }}
+        <p className="text-sm">
+          {data.manual || 'Checking service…'} · Budget ${account?.budget || '1,000'} · Unreserved
+          cash {balance == null ? 'unavailable' : '$' + balance} · {capabilities[asset].session}
+        </p>
+        <a
+          href={asset === 'stocks' ? '/portfolio' : '/crypto?view=paper'}
+          className="ml-auto text-sm underline"
+        >
+          Automated portfolios
+        </a>
+      </div>
+      <OperatorAccess onChange={setAuthorized} />
+      {(notice || data.error) && (
+        <p role="status" className="rounded border p-3">
+          {notice || data.error}
+        </p>
+      )}
+      {data.manual !== 'configured' && (
+        <section className="rounded-xl border bg-card p-4">
+          <h2 className="font-semibold">Account setup required</h2>
+          <p className="my-2 text-sm">
+            Save the dedicated account’s paper credentials in protected server configuration. Setup
+            verifies an empty $1,000,000 account distinct from both automated accounts. It never
+            resets an account.
+          </p>
+          <button
+            className={button}
+            disabled={!authorized || busy}
+            onClick={() => preview({ action: 'setup', asset: 'combined' })}
           >
-            <option>buy</option>
-            <option>sell</option>
-          </select>
-        </label>
-        {asset === 'stocks' && (
+            Preview combined account setup
+          </button>
+        </section>
+      )}
+      <form
+        className="rounded-xl border bg-card p-5"
+        onSubmit={(e) => {
+          e.preventDefault()
+          preview({
+            action: 'order',
+            asset,
+            symbol: asset === 'bitcoin' ? 'BTC/USD' : ticket.symbol.trim().toUpperCase(),
+            side: ticket.side,
+            order_type: ticket.order_type,
+            time_in_force: ticket.time_in_force,
+            ...(marketBuy ? { notional: ticket.notional } : { qty: ticket.qty }),
+            ...(hasLimit ? { limit: ticket.limit } : {}),
+            ...(hasStop ? { stop_price: ticket.stop_price } : {}),
+            ...(ticket.condition
+              ? { condition: ticket.condition, threshold: ticket.threshold }
+              : {}),
+          })
+        }}
+      >
+        <h2 className="mb-4 text-lg font-semibold">Place a paper order</h2>
+        <fieldset disabled={busy} className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <label>
-            Symbol{' '}
+            Symbol
             <input
+              className={input}
+              value={asset === 'bitcoin' ? 'BTC/USD' : ticket.symbol}
+              readOnly={asset === 'bitcoin'}
               required
-              className="w-24 border"
-              value={symbol}
-              onChange={(e) => {
-                setSymbol(e.target.value)
-                setDraft(null)
-              }}
+              maxLength={15}
+              onChange={(e) => edit('symbol', e.target.value)}
             />
           </label>
-        )}
-        <label>
-          Quantity{' '}
-          <input
-            required
-            className="w-24 border"
-            value={qty}
-            onChange={(e) => {
-              setQty(e.target.value)
-              setDraft(null)
-            }}
-          />
-        </label>
-        <label>
-          Limit price{' '}
-          <input
-            required
-            className="w-28 border"
-            value={limit}
-            onChange={(e) => {
-              setLimit(e.target.value)
-              setDraft(null)
-            }}
-          />
-        </label>
-        <button
-          className="rounded border px-3 py-2"
-          disabled={!authorized || data.manual !== 'configured'}
-        >
-          Preview order
+          <label>
+            Side
+            <select
+              className={input}
+              value={ticket.side}
+              onChange={(e) => {
+                edit('side', e.target.value)
+                if (ticket.order_type === 'stop' && e.target.value === 'buy')
+                  edit('order_type', 'limit')
+              }}
+            >
+              <option value="buy">Buy</option>
+              <option value="sell">Sell owned quantity</option>
+            </select>
+          </label>
+          <label>
+            Order type
+            <select
+              className={input}
+              value={ticket.order_type}
+              onChange={(e) => edit('order_type', e.target.value)}
+            >
+              {capabilities[asset].order_types
+                .filter((t) => t !== 'stop' || ticket.side === 'sell')
+                .map((t) => (
+                  <option key={t} value={t}>
+                    {
+                      (
+                        {
+                          limit: 'Limit (default)',
+                          market: 'Market',
+                          stop_limit: 'Stop-limit',
+                          stop: 'Stop-market exit',
+                        } as Row
+                      )[t]
+                    }
+                  </option>
+                ))}
+            </select>
+          </label>
+          <label>
+            Time in force
+            <select
+              className={input}
+              value={ticket.time_in_force}
+              onChange={(e) => edit('time_in_force', e.target.value)}
+            >
+              {capabilities[asset].time_in_force
+                .filter((t) => !(asset === 'bitcoin' && hasStop && t !== 'gtc'))
+                .map((t) => (
+                  <option key={t} value={t}>
+                    {t.toUpperCase()}
+                  </option>
+                ))}
+            </select>
+          </label>
+          <label>
+            {marketBuy ? 'Dollar amount (before fee reserve)' : 'Quantity'}
+            <input
+              className={input}
+              inputMode="decimal"
+              required
+              value={marketBuy ? ticket.notional : ticket.qty}
+              onChange={(e) => edit(marketBuy ? 'notional' : 'qty', e.target.value)}
+            />
+          </label>
+          {hasLimit && (
+            <label>
+              Limit price ($)
+              <input
+                className={input}
+                inputMode="decimal"
+                required
+                value={ticket.limit}
+                onChange={(e) => edit('limit', e.target.value)}
+              />
+            </label>
+          )}
+          {hasStop && (
+            <label>
+              Broker stop price ($)
+              <input
+                className={input}
+                inputMode="decimal"
+                required
+                value={ticket.stop_price}
+                onChange={(e) => edit('stop_price', e.target.value)}
+              />
+            </label>
+          )}
+          {ticket.order_type === 'limit' && (
+            <label>
+              Local trigger
+              <select
+                className={input}
+                value={ticket.condition}
+                onChange={(e) => edit('condition', e.target.value)}
+              >
+                <option value="">Submit limit</option>
+                <option value="above">At or above</option>
+                <option value="below">At or below</option>
+              </select>
+            </label>
+          )}
+          {ticket.condition && (
+            <label>
+              Trigger price ($)
+              <input
+                required
+                className={input}
+                inputMode="decimal"
+                value={ticket.threshold}
+                onChange={(e) => edit('threshold', e.target.value)}
+              />
+            </label>
+          )}
+        </fieldset>
+        <p className="my-4 text-sm text-muted-foreground">
+          {ticket.order_type === 'market'
+            ? 'Market orders have no guaranteed price. Buys use a fixed dollar amount; fills determine quantity.'
+            : 'Limits may not fill. Stop-limit activation does not guarantee an exit.'}{' '}
+          {asset === 'stocks' && 'Fractional stocks must be broker-eligible and use DAY.'}{' '}
+          {ticket.condition &&
+            'Local triggers require StockWatch online; buy limits must be within 0.5% above the trigger.'}{' '}
+          Entry instructions expire locally after 24 hours.
+        </p>
+        <button className={button} disabled={!ready}>
+          {busy ? 'Checking…' : 'Preview order'}
         </button>
       </form>
-      <button
-        disabled={!authorized}
-        className="rounded border px-3 py-2"
-        onClick={() =>
-          void send({
-            operation: 'preview',
-            request_id: Array.from(crypto.getRandomValues(new Uint8Array(16)), (value) =>
-              value.toString(16).padStart(2, '0')
-            ).join(''),
-            command: { action: 'setup', asset: 'combined' },
-          })
-        }
-      >
-        Preview combined account setup
-      </button>
       {draft && (
-        <section className="rounded border p-4">
-          <h2>Confirm exact preview · expires in two minutes</h2>
-          <dl className="my-3 grid grid-cols-2 gap-2 text-sm">
-            {Object.entries({
-              Account: draft.preview.asset,
-              Action: draft.preview.action,
-              Symbol: draft.preview.symbol,
-              Side: draft.preview.side,
-              Quantity: draft.preview.qty,
-              'Limit price': draft.preview.limit,
-              'Stocks budget': draft.preview.budgets?.stocks,
-              'Bitcoin budget': draft.preview.budgets?.bitcoin,
-              'Alpaca paper cash': draft.preview.broker_cash,
-              'Entry cap': draft.preview.entry_cap,
-              'Fee reserve': draft.preview.fee_allowance,
-            })
-              .filter(([, v]) => v != null)
+        <section
+          className="rounded-xl border border-primary bg-card p-5"
+          aria-label="Order confirmation"
+        >
+          <h2 className="font-semibold">Review exact instruction · two-minute confirmation</h2>
+          <dl className="my-4 grid gap-3 sm:grid-cols-3">
+            {Object.entries(draft.preview)
+              .filter(
+                ([key, value]) =>
+                  value != null &&
+                  typeof value !== 'object' &&
+                  !['quote', 'observation'].includes(key) &&
+                  !(key === 'qty' && draft.preview.notional) &&
+                  !(
+                    key === 'limit_price' &&
+                    ['market', 'stop'].includes(String(draft.preview.order_type))
+                  )
+              )
               .map(([key, value]) => (
                 <div key={key}>
-                  <dt className="text-muted-foreground">{key}</dt>
-                  <dd>{String(value)}</dd>
+                  <dt className="text-xs capitalize text-muted-foreground">
+                    {key.replaceAll('_', ' ')}
+                  </dt>
+                  <dd className="break-words text-sm tabular-nums">{String(value)}</dd>
                 </div>
               ))}
           </dl>
+          {draft.preview.already_satisfied && (
+            <p className="mb-3 font-semibold">
+              The condition is already satisfied and may execute immediately after confirmation.
+            </p>
+          )}
           <button
-            className="rounded border p-3"
-            disabled={!authorized}
+            className={button}
+            disabled={!authorized || busy || !draft.token || clock >= draft.expires * 1000}
             onClick={() =>
               void send({
                 operation: 'confirm',
@@ -191,117 +415,295 @@ export function ManualPaperWorkspace() {
               })
             }
           >
-            Confirm paper instruction
+            {clock >= draft.expires * 1000
+              ? 'Expired — preview again'
+              : 'Confirm paper instruction'}
+          </button>
+          <button
+            className={`${button} ml-2`}
+            onClick={() => {
+              revision.current++
+              setDraft(null)
+            }}
+          >
+            Dismiss
           </button>
         </section>
       )}
-      <p>
-        Broker-held limits can work while StockWatch is offline. Conditional instructions require
-        StockWatch online. Limits may never fill.
-      </p>
-      <button
-        className="rounded border px-3 py-2"
-        onClick={() => void refresh().catch(() => setNotice('Refresh unavailable'))}
-      >
-        Refresh activity
-      </button>
+      <section className="rounded-xl border p-4">
+        <h2 className="text-lg font-semibold">
+          {asset === 'stocks' ? 'Stocks' : 'Bitcoin'} allocation performance
+        </h2>
+        <p className="text-sm">
+          $1,000 starting budget · USD · broker-paper observations ·{' '}
+          {performance?.status || 'No reconciled valuations yet'}
+        </p>
+        <dl className="my-3 grid grid-cols-3 gap-3 text-sm">
+          <div>
+            <dt>Net P&L</dt>
+            <dd>{performance?.net_pnl != null ? '$' + performance.net_pnl : 'Unavailable'}</dd>
+          </div>
+          <div>
+            <dt>Net return</dt>
+            <dd>
+              {performance?.net_return != null
+                ? (performance.net_return * 100).toFixed(2) + '%'
+                : 'Unavailable'}
+            </dd>
+          </div>
+          <div>
+            <dt>Equity</dt>
+            <dd>{performance?.equity != null ? '$' + performance.equity : 'Unavailable'}</dd>
+          </div>
+          <div>
+            <dt>Maximum observed drawdown</dt>
+            <dd>
+              {performance?.maximum_observed_drawdown != null
+                ? (performance.maximum_observed_drawdown * 100).toFixed(2) + '%'
+                : 'Unavailable'}
+            </dd>
+          </div>
+        </dl>
+        {performance?.unavailable_reason && <p>{performance.unavailable_reason}</p>}
+        {history.length > 1 && (
+          <InteractiveChart
+            bars={history.map((r: Row) => ({
+              at: new Date(r.as_of * 1000).toISOString(),
+              open: r.net_return * 100,
+              high: r.net_return * 100,
+              low: r.net_return * 100,
+              close: r.net_return * 100,
+              volume: 0,
+            }))}
+            percent
+            label="Manual allocation net return"
+          />
+        )}
+        <p className="text-xs text-muted-foreground">
+          Prospective observations only; missing periods are not reconstructed. Posted fees may
+          arrive late. Benchmark unavailable until matching funding, valuations and dividend
+          treatment are established.
+        </p>
+      </section>
       <Records
-        title="Accounts"
-        rows={data.balances || data.accounts || []}
-        columns={{ asset: 'Account', account_id: 'Alpaca account', allocated_stocks: 'Stocks available', allocated_bitcoin: 'Bitcoin available', cash: 'Alpaca cash', equity: 'Alpaca equity' }}
+        title="Attributed manual positions"
+        rows={(data.owned_positions || []).filter((r: Row) => r.asset === asset)}
+        columns={{ symbol: 'Symbol', qty: 'Attributed quantity', account_id: 'Paper account' }}
+        onSelect={(r) => setSelected({ ...r, record_kind: 'position' })}
       />
       <Records
-        title="Drafts"
-        rows={(data.drafts || []).map((row: RecordValue) => ({ ...row, ...row.preview }))}
-        columns={{ asset: 'Account', action: 'Action', symbol: 'Symbol', state: 'Status' }}
-      />
-      <Records
-        title="Instructions and orders"
-        rows={(data.instructions || []).map((row: RecordValue) => {
-          let user = ''
+        title="Instructions and open orders"
+        rows={instructions.map((r) => {
+          let request: Row = {}
           try {
-            user = JSON.parse(row.audit).user || 'Protective plan'
+            request = JSON.parse(r.request)
           } catch {}
-          return { ...row, user }
+          return {
+            ...r,
+            order_type: request.type,
+            sizing: request.notional ? `$${request.notional}` : r.qty,
+            price: request.limit_price || 'No fixed price',
+          }
         })}
         columns={{
-          asset: 'Account',
           symbol: 'Symbol',
           side: 'Side',
-          qty: 'Quantity',
-          limit_price: 'Limit',
+          order_type: 'Type',
+          sizing: 'Size',
+          price: 'Limit',
           status: 'Status',
           filled_qty: 'Filled',
-          user: 'Requested by',
         }}
+        onSelect={setSelected}
       />
+      {selected && (
+        <section className="rounded border p-4">
+          <div className="flex justify-between">
+            <h2 className="font-semibold">Instruction evidence</h2>
+            <button className={button} onClick={() => setSelected(null)}>
+              Close
+            </button>
+          </div>
+          <p className="my-3 break-all text-sm">
+            {selected.id} · {selected.asset} · {selected.account_id}
+          </p>
+          <pre className="max-h-64 overflow-auto text-xs">{JSON.stringify(selected, null, 2)}</pre>
+          {selected.record_kind === 'position' && (
+            <PositionExit
+              key={selected.asset + selected.symbol}
+              disabled={!ready}
+              onPreview={(limit) =>
+                preview({ action: 'exit', asset: selected.asset, symbol: selected.symbol, limit })
+              }
+            />
+          )}
+          {selected.record_kind === 'plan' && (
+            <button
+              className={`${button} mt-3`}
+              disabled={!ready}
+              onClick={() =>
+                preview({
+                  action: 'cancel_plan',
+                  asset: selected.asset,
+                  instruction: selected.parent,
+                })
+              }
+            >
+              Preview cancel protective plan
+            </button>
+          )}
+          {selected.record_kind !== 'plan' &&
+            selected.request &&
+            !terminal.includes(selected.status) && (
+              <button
+                className={`${button} mt-3`}
+                disabled={!ready}
+                onClick={() =>
+                  preview({ action: 'cancel', asset: selected.asset, instruction: selected.id })
+                }
+              >
+                Preview cancellation
+              </button>
+            )}
+          {selected.side === 'buy' &&
+            (Number(selected.filled_qty) > 0 || !terminal.includes(selected.status)) && (
+              <ProtectionForm
+                disabled={!ready}
+                onPreview={(values) =>
+                  preview({
+                    action: 'protect',
+                    asset: selected.asset,
+                    instruction: selected.id,
+                    ...values,
+                  })
+                }
+              />
+            )}
+        </section>
+      )}
       <Records
-        title="Fill observations"
-        rows={data.fills || []}
+        title="Protective exit plans · locally monitored; host required"
+        rows={plans}
         columns={{
-          instruction_id: 'Instruction',
-          cumulative_qty: 'Total filled quantity',
-          cumulative_notional: 'Total filled value',
-        }}
-      />
-      <Records
-        title="Protective plans"
-        rows={data.protective_plans || []}
-        columns={{
-          parent: 'Entry instruction',
+          parent: 'Entry',
           stop_loss: 'Stop loss',
           take_profit: 'Take profit',
           status: 'Status',
         }}
+        onSelect={(p) => setSelected({ ...p, asset, record_kind: 'plan' })}
       />
       <Records
-        title="Account P&L"
-        rows={(data.pnl || []).map((row: RecordValue) => ({ ...row, ...row.performance }))}
-        columns={{
-          asset: 'Account',
-          broker_unrealized_pl: 'Unrealized P&L',
-          total_pnl: 'Reconciled total P&L',
-          status: 'Accounting status',
-        }}
+        title="Recent activity"
+        rows={(data.activity || [])
+          .filter((r: Row) => r.asset === asset)
+          .map((r: Row) => ({ ...r, time: new Date(r.at * 1000).toLocaleString() }))}
+        columns={{ time: 'Observed at', symbol: 'Symbol', kind: 'Event', status: 'Status' }}
+        onSelect={setSelected}
       />
-    </main>
+      <details className="rounded border p-4">
+        <summary>Broker account reconciliation (combined account, not allocation returns)</summary>
+        <Records
+          title="Broker account P&L"
+          rows={(data.pnl || []).map((r: Row) => ({ ...r, ...r.performance }))}
+          columns={{ asset: 'Scope', total_pnl: 'Reconciled P&L', status: 'Accounting status' }}
+        />
+        <p className="text-sm text-muted-foreground">
+          Separate allocation returns require attributable fees and valuations. Unavailable values
+          are not zero. Neither allocation is measured against the $1,000,000 broker balance.
+        </p>
+      </details>
+    </Tag>
   )
 }
-
+function ProtectionForm({
+  disabled,
+  onPreview,
+}: {
+  disabled: boolean
+  onPreview: (values: Row) => void
+}) {
+  const [stop, setStop] = useState('')
+  const [take, setTake] = useState('')
+  return (
+    <form
+      className="mt-4 flex flex-wrap items-end gap-3"
+      onSubmit={(e) => {
+        e.preventDefault()
+        onPreview({ ...(stop ? { stop_loss: stop } : {}), ...(take ? { take_profit: take } : {}) })
+      }}
+    >
+      <label>
+        Stop loss
+        <input
+          className={input}
+          value={stop}
+          onChange={(e) => setStop(e.target.value)}
+          inputMode="decimal"
+        />
+      </label>
+      <label>
+        Take profit
+        <input
+          className={input}
+          value={take}
+          onChange={(e) => setTake(e.target.value)}
+          inputMode="decimal"
+        />
+      </label>
+      <button className={button} disabled={disabled || (!stop && !take)}>
+        Preview exit plan
+      </button>
+      <p className="w-full text-sm text-muted-foreground">
+        Protects actual fills. Local exits are not broker-atomic OCO and remain active until the
+        position closes or you cancel the plan.
+      </p>
+    </form>
+  )
+}
 function Records({
   title,
   rows,
   columns,
+  onSelect,
 }: {
   title: string
-  rows: RecordValue[]
+  rows: Row[]
   columns: Record<string, string>
+  onSelect?: (row: Row) => void
 }) {
   return (
     <section>
-      <h2 className="text-xl font-semibold">{title}</h2>
-      {rows.length === 0 ? (
+      <h2 className="mb-3 text-lg font-semibold">{title}</h2>
+      {!rows.length ? (
         <p className="text-sm text-muted-foreground">No records yet.</p>
       ) : (
-        <div className="overflow-auto">
+        <div className="overflow-auto rounded border">
           <table className="w-full text-left text-sm">
             <thead>
               <tr>
-                {Object.entries(columns).map(([key, label]) => (
-                  <th className="p-2" key={key}>
+                {Object.values(columns).map((label) => (
+                  <th className="p-3" key={label}>
                     {label}
                   </th>
                 ))}
+                {onSelect && <th className="p-3">Details</th>}
               </tr>
             </thead>
             <tbody>
-              {rows.map((row, index) => (
-                <tr className="border-t" key={row.id || index}>
+              {rows.map((row, i) => (
+                <tr className="border-t" key={row.id || i}>
                   {Object.keys(columns).map((key) => (
-                    <td className="max-w-64 break-words p-2 tabular-nums" key={key}>
+                    <td className="max-w-64 break-words p-3 tabular-nums" key={key}>
                       {row[key] == null ? 'Unavailable' : String(row[key])}
                     </td>
                   ))}
+                  {onSelect && (
+                    <td className="p-3">
+                      <button className="underline" onClick={() => onSelect(row)}>
+                        Inspect
+                      </button>
+                    </td>
+                  )}
                 </tr>
               ))}
             </tbody>
@@ -309,5 +711,42 @@ function Records({
         </div>
       )}
     </section>
+  )
+}
+
+function PositionExit({
+  disabled,
+  onPreview,
+}: {
+  disabled: boolean
+  onPreview: (limit: string) => void
+}) {
+  const [limit, setLimit] = useState('')
+  return (
+    <form
+      className="mt-3 flex flex-wrap items-end gap-3"
+      onSubmit={(e) => {
+        e.preventDefault()
+        onPreview(limit)
+      }}
+    >
+      <label>
+        Minimum exit price ($)
+        <input
+          required
+          className={input}
+          inputMode="decimal"
+          value={limit}
+          onChange={(e) => setLimit(e.target.value)}
+        />
+      </label>
+      <button className={button} disabled={disabled}>
+        Preview full position exit
+      </button>
+      <p className="w-full text-xs text-muted-foreground">
+        Broker ownership and pending reservations are rechecked. Reconcile cancellations or
+        conflicting protective plans before replacing exits. Limits may not fill.
+      </p>
+    </form>
   )
 }

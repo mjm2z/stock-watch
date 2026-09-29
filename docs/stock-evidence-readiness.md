@@ -1,5 +1,11 @@
 # Stock evidence readiness
 
+**Current correction:** the split/dividend arithmetic issues listed in the historical
+September 27 acquisition plan below were corrected by the subsequent live-paper
+release. The next phase preserves that engine and tests. Source-access, coverage
+and historical-membership certification remain unverified; arithmetic fixes do
+not open the stock qualification gate. See the [current guide](guide/orders-accounting.md).
+
 ## Verified collection, 2026-09-27
 
 Installed release c428dfa completed the additive IEX raw-bar and exchange-calendar collection using universe snapshot 2. The read-only production preflight for 2022-09-26 through 2026-09-26 reported 503 instruments, 499,463 usable stock bars, 1,004 sessions, 1,004 SPY bars, zero missing sectors, zero unmatched calendar dates and zero ambiguous symbol/session sources. First/last captured closes were 2022-09-26 and 2026-09-25. This proves basic inputs exist, not complete per-security coverage. The universe may contain recently listed securities.

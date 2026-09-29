@@ -146,11 +146,16 @@ def handler(path):
 
                 return {"systems": inspect()}
             if self.path == "/status" and not post:
+                from .capabilities import CAPABILITIES
                 return {
+                    "capabilities": CAPABILITIES,
+                    "allocation_history": [json.loads(r[0]) for r in db.execute("SELECT payload FROM allocation_valuations ORDER BY at DESC LIMIT 600")],
+                    "activity": [dict(r) for r in db.execute("SELECT * FROM activity ORDER BY id DESC LIMIT 100")],
                     "manual": "configured"
                     if len(list(db.execute("SELECT * FROM accounts"))) == 2
                     and db.execute("SELECT COUNT(DISTINCT account_id) FROM accounts").fetchone()[0] == 1
                     else "unconfigured",
+                    "owned_positions": [dict(r) for r in db.execute("SELECT asset,account_id,symbol,SUM(CASE side WHEN 'buy' THEN CAST(filled_qty AS REAL) ELSE -CAST(filled_qty AS REAL) END) qty FROM instructions GROUP BY asset,account_id,symbol HAVING qty>0")],
                     "accounts": [dict(r) for r in db.execute("SELECT * FROM accounts")],
                     "balances": [
                         json.loads(r["payload"])

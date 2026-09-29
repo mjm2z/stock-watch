@@ -1,3 +1,4 @@
+import { PaperWorkspaceTabs } from '@/components/PaperWorkspaceTabs'
 import { PaperTradingGuide } from '@/components/PaperTradingGuide'
 import { PageHeader } from '@/components/PageHeader'
 import { SystemPortfolio } from '@/components/dashboard/SystemPortfolio'
@@ -21,10 +22,14 @@ export default function PortfolioPage() {
       .sort((a, b) => a.targetExitAt!.localeCompare(b.targetExitAt!))[0]?.targetExitAt
     return (
       <main className="container mx-auto space-y-10 p-4 sm:p-8">
+        <PaperWorkspaceTabs asset="stocks" active="automated" />
         <PageHeader
           title="Paper portfolio"
           description="Automatically placed strategy lots and performance against SPY."
         />
+        <a href="/manual-paper" className="sw-button">
+          Manual stock paper trading
+        </a>
         <PaperTradingGuide asset="stocks" />
         <SystemPortfolio />
         <PerformanceSummary />
@@ -46,7 +51,9 @@ export default function PortfolioPage() {
           <EquityCurve history={portfolio.history} />
         </section>
         <section>
-          <h2 className="mb-4 text-xl font-semibold">Automated lots</h2>
+          <h2 id="scanner" className="mb-4 text-xl font-semibold">
+            Legacy scanner lots
+          </h2>
           <p className="mb-4 text-sm text-muted-foreground">
             Scheduled exits target five minutes before the horizon’s market close when the
             near-close policy is active. Actual fills determine paper returns; research outcomes use

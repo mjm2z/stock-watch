@@ -128,13 +128,26 @@ export function workspaceCommand(body: Record<string, unknown>) {
         throw new SystemsInputError('A rule document is required.')
       const doc = JSON.stringify(body.document)
       if (doc.length > 10000) throw new SystemsInputError('System is too large.')
-      const existing = db.prepare('SELECT asset FROM workspace_drafts WHERE id=?').get(id)
+      const existing = db.prepare('SELECT asset,revision FROM workspace_drafts WHERE id=?').get(id)
       if (existing && existing.asset !== asset)
         throw new SystemsInputError('Draft asset cannot change.')
-      db.prepare(
-        'INSERT INTO workspace_drafts(id,name,asset,document_json,updated_at) VALUES (?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET name=excluded.name,document_json=excluded.document_json,updated_at=excluded.updated_at'
-      ).run(id, name, asset, doc, at)
-      return { id, status: 'saved' }
+      if (existing) {
+        if (Number(body.revision) !== Number(existing.revision))
+          throw new SystemsInputError(
+            'Draft changed elsewhere. Reload before saving; your unsaved edits have been kept.'
+          )
+        const changed = db
+          .prepare(
+            'UPDATE workspace_drafts SET name=?,document_json=?,updated_at=?,revision=revision+1 WHERE id=? AND asset=? AND revision=?'
+          )
+          .run(name, doc, at, id, asset, Number(body.revision))
+        if (!changed.changes)
+          throw new SystemsInputError('Draft changed during save; reload first.')
+      } else
+        db.prepare(
+          'INSERT INTO workspace_drafts(id,name,asset,document_json,updated_at) VALUES (?,?,?,?,?)'
+        ).run(id, name, asset, doc, at)
+      return { id, status: 'saved', revision: existing ? Number(existing.revision) + 1 : 1 }
     }
     if (action === 'archive_version') {
       const id = text(body.id, 'System version')
@@ -230,10 +243,12 @@ export function workspaceCommand(body: Record<string, unknown>) {
       action === 'publish'
         ? db
             .prepare(
-              'SELECT name,document_json,published_version FROM workspace_drafts WHERE id=? AND asset=?'
+              'SELECT name,document_json,published_version,revision FROM workspace_drafts WHERE id=? AND asset=?'
             )
             .get(String(body.draft), asset)
         : undefined
+    if (frozen && Number(body.revision) !== Number(frozen.revision))
+      throw new SystemsInputError('Draft changed before publication; save and review again.')
     const payload = JSON.stringify({ ...body, asset, ...(frozen ? { snapshot: frozen } : {}) }),
       existing = db.prepare('SELECT payload_json FROM workspace_jobs WHERE id=?').get(id)
     if (
@@ -325,10 +340,10 @@ export function chartRequest(range: string, startInput?: string | null, endInput
           JOIN workspace_jobs j ON j.id='chart-' || c.key
           WHERE json_extract(j.payload_json,'$.range')=?
           AND json_extract(j.payload_json,'$.frame')=?
-          AND datetime(c.updated_at)>datetime('now','-2 days')
+          AND datetime(c.updated_at)>datetime(?)
           ORDER BY c.updated_at DESC LIMIT 1`
             )
-            .get(range, frame)
+            .get(range, frame, new Date(Date.now() - 2 * 86400000).toISOString())
         : undefined
     const fallback = previous ? parse(previous.payload_json) : null
     return cached

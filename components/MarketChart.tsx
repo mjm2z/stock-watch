@@ -1,6 +1,9 @@
 'use client'
 import { useEffect, useRef, useState } from 'react'
-import type { Time, IChartApi, IRange } from 'lightweight-charts'
+import { groupChartEvents, type ChartEvent } from '@/lib/chart-events'
+import { ChartInspection } from './ChartInspection'
+import type { ChartLevel } from '@/lib/inspection-store'
+import type { Time, IChartApi, IRange, ISeriesApi, IPriceLine } from 'lightweight-charts'
 export type ChartBar = {
   at: string
   open: number
@@ -22,6 +25,9 @@ type HistoryResponse = {
   refreshing?: boolean
   stale?: boolean
 }
+const NO_EVENTS: ChartEvent[] = []
+const NO_LEVELS: ChartLevel[] = []
+const NO_COMPARISONS: { name: string; bars: ChartBar[] }[] = []
 export function InteractiveChart({
   bars,
   candles = false,
@@ -29,6 +35,10 @@ export function InteractiveChart({
   label = 'Price',
   height = 360,
   percent = false,
+  levels = NO_LEVELS,
+  comparisons = NO_COMPARISONS,
+  events = NO_EVENTS,
+  onEvent,
 }: {
   bars: ChartBar[]
   candles?: boolean
@@ -36,8 +46,15 @@ export function InteractiveChart({
   label?: string
   height?: number
   percent?: boolean
+  levels?: ChartLevel[]
+  events?: ChartEvent[]
+  onEvent?: (events: ChartEvent[]) => void
+  comparisons?: { name: string; bars: ChartBar[] }[]
 }) {
   const [tablePage, setTablePage] = useState(0)
+  const primary = useRef<ISeriesApi<'Line' | 'Candlestick'> | null>(null)
+  const priceLines = useRef<IPriceLine[]>([])
+  const [chartGeneration, setChartGeneration] = useState(0)
   const viewport = useRef<IRange<Time> | null>(null)
   const container = useRef<HTMLDivElement>(null),
     chart = useRef<IChartApi>(),
@@ -100,6 +117,8 @@ export function InteractiveChart({
               wickDownColor: '#ee909b',
             })
           : c.addSeries(LineSeries, { color: dark ? '#a8bcff' : '#5068d4', lineWidth: 2 })
+        primary.current = series
+        setChartGeneration((g) => g + 1)
         if (percent)
           series.applyOptions({ priceFormat: { type: 'percent', precision: 2, minMove: 0.01 } })
         if (candles)
@@ -113,6 +132,23 @@ export function InteractiveChart({
             }))
           )
         else series.setData(sorted.map(([time, b]) => ({ time: time as Time, value: b.close })))
+        for (const [i, comparison] of comparisons.entries()) {
+          const points = [
+            ...new Map(
+              comparison.bars
+                .filter((b) => Number.isFinite(b.close))
+                .map((b) => [Math.floor(Date.parse(b.at) / 1000), b.close])
+            ).entries(),
+          ].sort((a, b) => a[0] - b[0])
+          const overlay = c.addSeries(LineSeries, {
+            title: comparison.name,
+            priceScaleId: percent ? 'right' : 'comparison',
+            color: ['#f4c77a', '#ee909b', '#8cd5bc', '#c6a5f4', '#78cddd'][i % 5],
+            lineWidth: 1,
+            priceFormat: { type: 'percent' },
+          })
+          overlay.setData(points.map(([time, value]) => ({ time: time as Time, value })))
+        }
         if (volume) {
           const v = c.addSeries(HistogramSeries, {
             priceFormat: { type: 'volume' },
@@ -140,6 +176,8 @@ export function InteractiveChart({
         dispose = () => {
           viewport.current = c.timeScale().getVisibleRange()
           resize.disconnect()
+          primary.current = null
+          priceLines.current = []
           c.remove()
           chart.current = undefined
         }
@@ -149,7 +187,64 @@ export function InteractiveChart({
       disposed = true
       dispose()
     }
-  }, [bars, candles, volume, theme, height, percent])
+  }, [bars, candles, volume, theme, height, percent, comparisons])
+  useEffect(() => {
+    const series = primary.current
+    if (!series) return
+    for (const line of priceLines.current) series.removePriceLine(line)
+    priceLines.current = levels
+      .filter((l) => l.price && Number.isFinite(l.price))
+      .map((l) =>
+        series.createPriceLine({
+          price: l.price!,
+          title: l.label,
+          color: l.layer === 'protections' ? '#ee909b' : '#8cd5bc',
+          lineWidth: 1,
+          lineStyle: 2,
+          axisLabelVisible: true,
+        })
+      )
+  }, [levels, chartGeneration])
+  useEffect(() => {
+    const series = primary.current,
+      c = chart.current
+    if (!series || !c) return
+    let disposed = false
+    let cleanup = () => {}
+    void import('lightweight-charts').then(({ createSeriesMarkers }) => {
+      if (disposed) return
+      const times = [
+        ...new Set(bars.map((b) => Math.floor(Date.parse(b.at) / 1000)).filter(Number.isFinite)),
+      ].sort((a, b) => a - b)
+      const groups = groupChartEvents(times, events)
+      const markers = createSeriesMarkers(
+        series,
+        [...groups.entries()]
+          .sort((a, b) => a[0] - b[0])
+          .map(([time, list]) => ({
+            time: time as Time,
+            position: 'aboveBar' as const,
+            shape: 'circle' as const,
+            color: '#f4c77a',
+            text: list.length > 1 ? `${list.length} events` : list[0].label,
+          }))
+      )
+      const click = (p: { time?: Time }) => {
+        if (typeof p.time === 'number' && groups.has(p.time)) onEvent?.(groups.get(p.time)!)
+      }
+      c.subscribeClick(click)
+      cleanup = () => {
+        if (chart.current === c) {
+          c.unsubscribeClick(click)
+          markers.detach()
+        }
+      }
+    })
+    return () => {
+      disposed = true
+      cleanup()
+    }
+  }, [events, bars, onEvent, chartGeneration])
   return (
     <div>
       <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
@@ -362,12 +457,19 @@ export function CryptoMarketChart() {
         </p>
       )}
       {data.bars.length ? (
-        <InteractiveChart
-          key={range + custom.start + custom.end}
-          bars={data.bars}
-          candles={candles}
-          volume={volume}
-        />
+        <ChartInspection asset="bitcoin" symbol="BTC/USD">
+          {(levels, events, onEvent) => (
+            <InteractiveChart
+              levels={levels}
+              events={events}
+              onEvent={onEvent}
+              key={range + custom.start + custom.end}
+              bars={data.bars}
+              candles={candles}
+              volume={volume}
+            />
+          )}
+        </ChartInspection>
       ) : (
         <div className="sw-empty" style={{ minHeight: 420 }}>
           {data.status === 'ready'

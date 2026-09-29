@@ -129,7 +129,7 @@ def validate_dataset(data, asset):
 
 
 def replay(config, data, *, cost_multiplier=1, start=None, end=None, canceled=lambda: False,
-           starting_cash=300., fee_multiplier=None, execution_multiplier=None):
+           starting_cash=300., fee_multiplier=None, execution_multiplier=None, inspect_decision=None):
     """Signals create pending intents; only subsequent quote events can fill them.
 
     Missing marks are flagged; they are never filled with a fabricated new price.
@@ -289,6 +289,8 @@ def replay(config, data, *, cost_multiplier=1, start=None, end=None, canceled=la
             if not trading:
                 continue
             action, reason = decision(config, prior, symbol in holdings)
+            if inspect_decision is not None:
+                inspect_decision(symbol, prior, action, reason)
             if symbol in holdings:
                 from .rules import position_exit
                 p=holdings[symbol]

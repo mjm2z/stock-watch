@@ -12,6 +12,7 @@ beforeEach(() => {
   const db = new DatabaseSync(process.env.STOCK_WATCH_DATABASE_PATH)
   for (const m of ['016_systems', '017_bitcoin_automation', '018_workspace'])
     db.exec(readFileSync(`worker/migrations/${m}.sql`, 'utf8'))
+  db.exec('ALTER TABLE workspace_drafts ADD COLUMN revision INTEGER NOT NULL DEFAULT 1')
   db.close()
 })
 afterEach(() => {
@@ -52,7 +53,13 @@ test('drafts remain editable while queued publication is frozen and idempotent',
     name: 'My system',
     document: { entry_rules: {} },
   })
-  const body = { action: 'publish', asset: 'stocks', draft: d.id, requestId: 'publish-1' }
+  const body = {
+    action: 'publish',
+    asset: 'stocks',
+    draft: d.id,
+    revision: d.revision,
+    requestId: 'publish-1',
+  }
   workspaceCommand(body)
   workspaceCommand(body)
   expect(readWorkspace('stocks').jobs).toHaveLength(1)
@@ -60,6 +67,7 @@ test('drafts remain editable while queued publication is frozen and idempotent',
     action: 'save_draft',
     asset: 'stocks',
     id: d.id,
+    revision: d.revision,
     name: 'Revised',
     document: { entry_rules: { changed: true } },
   })

@@ -1,0 +1,16 @@
+{
+  "stocks": {
+    "order_types": ["limit", "market", "stop_limit", "stop"],
+    "time_in_force": ["day", "gtc"],
+    "fractional_time_in_force": ["day"],
+    "session": "Regular session only",
+    "feed": "Alpaca IEX"
+  },
+  "bitcoin": {
+    "order_types": ["limit", "market", "stop_limit"],
+    "time_in_force": ["gtc", "ioc"],
+    "stop_limit_time_in_force": ["gtc"],
+    "session": "24/7",
+    "feed": "Coinbase trigger observations; Alpaca execution quotes"
+  }
+}

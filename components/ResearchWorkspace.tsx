@@ -1,5 +1,6 @@
 'use client'
 import Link from 'next/link'
+import { ResearchLab } from './ResearchLab'
 import { ResearchActivity } from './ResearchActivity'
 import { ResearchControl } from './ResearchControl'
 import { StockDataPreflight } from './StockDataPreflight'
@@ -37,6 +38,7 @@ type Version = {
   created_at: string
 }
 type Draft = {
+  revision: number
   id: string
   name: string
   asset: string
@@ -340,6 +342,7 @@ export function ResearchWorkspace({
   const [editing, setEditing] = useState(params.get('create') === '1' || !!params.get('template')),
     [step, setStep] = useState(0),
     [draftId, setDraftId] = useState(''),
+    [draftRevision, setDraftRevision] = useState<number | undefined>(),
     [name, setName] = useState(''),
     [doc, setDoc] = useState<Document>(defaults(asset)),
     [confirm, setConfirm] = useState(''),
@@ -374,6 +377,7 @@ export function ResearchWorkspace({
         setDoc(d.document)
         setName(d.name)
         setDraftId(d.id || '')
+        setDraftRevision(d.revision)
         if (params.get('create') === '1' || params.get('template')) setEditing(true)
         return
       }
@@ -396,11 +400,14 @@ export function ResearchWorkspace({
   useEffect(() => {
     if (!editing) return
     try {
-      sessionStorage.setItem(storageKey, JSON.stringify({ name, document: doc, id: draftId }))
+      sessionStorage.setItem(
+        storageKey,
+        JSON.stringify({ name, document: doc, id: draftId, revision: draftRevision })
+      )
     } catch {
       /* draft stays in memory */
     }
-  }, [doc, name, draftId, storageKey, editing])
+  }, [doc, name, draftId, draftRevision, storageKey, editing])
   useEffect(() => {
     const parent = params.get('revise')
     if (!parent || editing) return
@@ -438,13 +445,21 @@ export function ResearchWorkspace({
     }
   }
   async function save(publish = false) {
-    const d = await command({ action: 'save_draft', id: draftId || undefined, name, document: doc })
+    const d = await command({
+      action: 'save_draft',
+      id: draftId || undefined,
+      revision: draftRevision,
+      name,
+      document: doc,
+    })
     if (d) {
       setDraftId(d.id)
+      setDraftRevision(d.revision)
       if (publish)
         await command({
           action: 'publish',
           draft: d.id,
+          revision: d.revision,
           parentVersion: params.get('revise') || undefined,
           parentRun: params.get('run') || undefined,
         })
@@ -457,6 +472,7 @@ export function ResearchWorkspace({
       setName(d.name)
       setDoc(d.document)
       setDraftId(d.id)
+      setDraftRevision(d.revision)
     }
   }
   const label = (v: Version) =>
@@ -744,6 +760,7 @@ export function ResearchWorkspace({
                   </p>
                 </div>
               )}
+              <ResearchLab asset={asset} document={doc} name={name} previewOnly />
               <div className="flex gap-3 flex-wrap mt-6">
                 <button
                   className="sw-button"
@@ -913,6 +930,7 @@ export function ResearchWorkspace({
           )}
         </>
       )}
+      {mode === 'backtesting' && <ResearchLab asset={asset} />}
       {mode === 'backtesting' && (
         <section className="sw-panel">
           <div className="sw-panel-heading">

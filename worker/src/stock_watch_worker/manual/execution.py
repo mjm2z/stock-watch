@@ -35,17 +35,24 @@ def reconcile(manual, assets=("stocks", "bitcoin")):
         if row["asset"] not in assets:
             continue
         try:
+            state_revision = manual.state_revision()
             account = manual.account(row["asset"])
             if account["id"] != row["account_id"]:
                 raise ValueError("Account identity changed")
             broker = manual.brokers[row["asset"]]
+            request = json.loads(row["request"])
+            notional = D(request["notional"]) if "notional" in request else None
             now = manual.now()
             found = broker.lookup(row["id"])
             if found:
                 qty = D(found.get("filled_qty") or "0")
                 price = D(found.get("filled_avg_price") or "0")
-                if qty < D(row["filled_qty"]) or qty > D(row["qty"]):
+                if not qty.is_finite() or not price.is_finite() or qty < D(row["filled_qty"]) or (not notional and qty > D(row["qty"])):
                     raise ValueError("Unexpected cumulative fill quantity")
+                if qty and price <= 0:
+                    raise ValueError("Filled quantity requires a positive fill price")
+                if notional and qty * price > notional + D("0.01"):
+                    raise ValueError("Fill exceeded requested notional; reconcile before releasing reserves")
                 status = found["status"]
                 if status not in (
                     *TERMINAL,
@@ -65,6 +72,7 @@ def reconcile(manual, assets=("stocks", "bitcoin")):
                         "Unrecognized broker status; reconciliation required"
                     )
                 remaining = max(D(0), D(row["qty"]) - qty)
+                remaining_cash = max(D(0), notional - qty * price) if notional else remaining * D(row["limit_price"])
                 with transaction(db):
                     db.execute(
                         "INSERT OR IGNORE INTO fills VALUES (?,?,?,?,?)",
@@ -79,7 +87,7 @@ def reconcile(manual, assets=("stocks", "bitcoin")):
                             str(qty * price),
                             canonical(found),
                             str(
-                                remaining * D(row["limit_price"]) * D("1.01")
+                                remaining_cash * D("1.01")
                                 if row["side"] == "buy" and status not in TERMINAL
                                 else 0
                             ),
@@ -145,7 +153,17 @@ def reconcile(manual, assets=("stocks", "bitcoin")):
             if row["status"] not in ("intent", "armed"):
                 continue
             if not broker.market_open():
+                if request["type"] == "market":
+                    with transaction(db):
+                        manual.unchanged(state_revision)
+                        db.execute("UPDATE instructions SET status='rejected',reserved_cash='0',reserved_qty='0',updated=? WHERE id=?", (now, row["id"]))
+                        notify(db, "session-closed:" + row["id"], "Market instruction rejected before dispatch: regular session closed; preview again.", now)
                 continue
+            # Capability/eligibility can change between confirmation and dispatch.
+            if row["asset"] == "stocks":
+                metadata = broker.metadata(row["symbol"])
+                if not metadata.get("tradable") or ((notional or D(row["qty"]) % 1) and not metadata.get("fractionable")):
+                    raise ValueError("Stock eligibility changed; cancel and preview again")
             observation = manual.observation() if row["asset"] == "bitcoin" else None
             quote = broker.quote(row["symbol"])
             if row["condition"]:
@@ -244,6 +262,7 @@ def reconcile(manual, assets=("stocks", "bitcoin")):
                     dispatch_at * 1000 - observation["receivedAt"]
                 )
             with transaction(db):
+                manual.unchanged(state_revision)
                 current = db.execute(
                     "SELECT status,cancel_requested,expires FROM instructions WHERE id=?",
                     (row["id"],),

@@ -5,6 +5,7 @@ from contextlib import closing
 from concurrent.futures import ThreadPoolExecutor
 from itertools import islice
 import argparse
+import fcntl
 import hashlib
 import json
 import os
@@ -40,6 +41,14 @@ def drain_services(unit_lines, current_pid=None):
             continue
         services.append(name)
     return services
+
+
+def other_release_owners(unit_lines, current_pid=None):
+    """Also recognize older installers that predate the process lock."""
+    current_pid = str(os.getpid() if current_pid is None else current_pid)
+    return [line.split()[0] for line in unit_lines if line.strip()
+            and line.split()[0].startswith('stock-watch-release-')
+            and output('systemctl', 'show', '-p', 'MainPID', '--value', line.split()[0]) != current_pid]
 
 
 def counts(db):
@@ -245,6 +254,15 @@ def main():
     if args.check:
         print('Release preflight passed; no files or services changed. Revision:', manifest['revision'])
         return
+    release_lock = open('/run/stock-watch-reviewed-release.lock', 'a')
+    try:
+        fcntl.flock(release_lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except BlockingIOError:
+        raise SystemExit('Another reviewed installer owns the release; no changes made')
+    owners = other_release_owners(output('systemctl', 'list-units', '--type=service',
+        '--state=running,activating', '--no-legend', '--plain', 'stock-watch-release-*').splitlines())
+    if owners:
+        raise SystemExit('Existing release owner must finish first: ' + ', '.join(owners))
     runtime = Path('/opt/stock-watch')
     database = Path('/var/lib/stock-watch/stock-watch.db')
     plan = deployment_plan(source, runtime, database, args.full_backup)

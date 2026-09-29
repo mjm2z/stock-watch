@@ -184,11 +184,13 @@ def manage(manual, assets):
                     )
                 continue
             metadata = broker.metadata(parent["symbol"])
-            increment = D(metadata.get("min_trade_increment") or "1")
+            stock_fractional = parent["asset"] == "stocks" and metadata.get("fractionable")
+            increment = D("0.000000001") if stock_fractional else D(metadata.get("min_trade_increment") or "1")
             qty = (min(owned, entitlement) / increment).to_integral_value(
                 rounding=ROUND_DOWN
             ) * increment
-            if qty < D(metadata.get("min_order_size") or "1"):
+            minimum = increment if stock_fractional else D(metadata.get("min_order_size") or "1")
+            if qty < minimum:
                 with db:
                     notify(
                         db,
@@ -210,7 +212,7 @@ def manage(manual, assets):
                 "qty": str(qty),
                 "type": "limit",
                 "limit_price": str(limit),
-                "time_in_force": "gtc",
+                "time_in_force": "day" if parent["asset"] == "stocks" else "gtc",
             }
             with transaction(db):
                 current = db.execute(

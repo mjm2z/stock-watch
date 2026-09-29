@@ -1,3 +1,4 @@
+import { MechanismInspector } from '@/components/MechanismInspector'
 import { DataCapabilities } from '@/components/dashboard/DataCapabilities'
 import { ScanFunnel } from '@/components/dashboard/ScanFunnel'
 import { PageHeader } from '@/components/PageHeader'
@@ -21,6 +22,7 @@ export default function OperationsPage() {
           title="Operations"
           description="Job attempts, provider ingestion, and actionable failures."
         />
+        <MechanismInspector />
         <ExecutionStatus />
         <ScanFunnel />
         <DataCapabilities />
@@ -187,6 +189,7 @@ export default function OperationsPage() {
     if (error instanceof WorkerDatabaseUnavailable)
       return (
         <main className="container mx-auto p-4 sm:p-8">
+          <MechanismInspector />
           <DatabaseUnavailable reason={error.message} />
         </main>
       )

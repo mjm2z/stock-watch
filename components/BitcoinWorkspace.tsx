@@ -1,5 +1,6 @@
 'use client'
 import Link from 'next/link'
+import { PaperWorkspaceTabs } from './PaperWorkspaceTabs'
 import { BitcoinLivePrice } from './BitcoinLivePrice'
 import { PaperTradingGuide } from './PaperTradingGuide'
 import { PageHeader } from './PageHeader'
@@ -96,10 +97,11 @@ export function BitcoinWorkspace({ view }: { view: string }) {
         }
         description="Bitcoin · BTC/USD · Continuous market · Paper trading only"
       />
+      {view === 'paper' && <PaperWorkspaceTabs asset="bitcoin" active="automated" />}
       {view === 'paper' && (
         <>
           <PaperTradingGuide asset="bitcoin" />
-          <Link className="underline" href="/manual-paper">
+          <Link className="underline" href="/manual-paper?asset=bitcoin">
             Manual paper accounts
           </Link>
         </>

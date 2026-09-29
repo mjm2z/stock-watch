@@ -39,3 +39,39 @@ test('initial snapshot, changed prices, reconnect retaining price and cleanup', 
   view.unmount()
   expect(source.close).toHaveBeenCalled()
 })
+
+test('multiple consumers share one connection and older same-generation observations cannot replace the price', () => {
+  const first = render(<BitcoinLivePrice />)
+  const second = render(<BitcoinLivePrice />)
+  expect(global.EventSource).toHaveBeenCalledTimes(1)
+  const at = new Date().toISOString()
+  act(() =>
+    source.onmessage?.({
+      data: JSON.stringify({
+        price: 100,
+        sourceAt: at,
+        generation: 'one',
+        heartbeatAt: Date.now(),
+        fresh: true,
+        status: 'Live',
+      }),
+    })
+  )
+  act(() =>
+    source.onmessage?.({
+      data: JSON.stringify({
+        price: 99,
+        sourceAt: '2000-01-01T00:00:00Z',
+        generation: 'one',
+        heartbeatAt: Date.now(),
+        fresh: true,
+        status: 'Live',
+      }),
+    })
+  )
+  expect(screen.getAllByText('$100.00')).toHaveLength(2)
+  first.unmount()
+  expect(source.close).not.toHaveBeenCalled()
+  second.unmount()
+  expect(source.close).toHaveBeenCalledTimes(1)
+})

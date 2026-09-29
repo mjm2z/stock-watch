@@ -2,9 +2,9 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getAlpacaHistory, hasAlpacaData } from '@/lib/alpaca-market-data'
 import { getHistoricalPrices as yahooHistory } from '@/lib/yahoo-finance'
 
-type ValidRange = '1D' | '1W' | '1M' | '3M' | '1Y' | '5Y'
+type ValidRange = '1D' | '1W' | '1M' | '3M' | '1Y' | '5Y' | 'CUSTOM'
 
-const VALID_RANGES: ValidRange[] = ['1D', '1W', '1M', '3M', '1Y', '5Y']
+const VALID_RANGES: ValidRange[] = ['1D', '1W', '1M', '3M', '1Y', '5Y', 'CUSTOM']
 
 interface RouteContext {
   params: Promise<{
@@ -27,10 +27,7 @@ export async function GET(request: NextRequest, context: RouteContext) {
     const range = (searchParams.get('range') || '1M').toUpperCase() as ValidRange
 
     if (!ticker) {
-      return NextResponse.json(
-        { error: 'Ticker is required' },
-        { status: 400 }
-      )
+      return NextResponse.json({ error: 'Ticker is required' }, { status: 400 })
     }
 
     if (!VALID_RANGES.includes(range)) {
@@ -40,15 +37,32 @@ export async function GET(request: NextRequest, context: RouteContext) {
       )
     }
 
-    // Use Yahoo Finance for historical data (free, no API key required)
+    const adjustment = searchParams.get('adjustment') === 'raw' ? 'raw' : 'all'
     const useAlpaca = hasAlpacaData()
-    const prices = useAlpaca ? await getAlpacaHistory(ticker, range) : await yahooHistory(ticker.toUpperCase(), range)
+    if (adjustment === 'raw' && !useAlpaca)
+      return NextResponse.json(
+        {
+          error:
+            'Raw Alpaca history is unavailable. Choose analytical mode; broker overlays remain disabled.',
+        },
+        { status: 503 }
+      )
+    const options = {
+      start: searchParams.get('start') || undefined,
+      end: searchParams.get('end') || undefined,
+      timeframe: searchParams.get('timeframe') || undefined,
+    }
+    if (!useAlpaca && (range === 'CUSTOM' || options.timeframe))
+      return NextResponse.json(
+        { error: 'Custom resolution/dates require configured Alpaca data' },
+        { status: 503 }
+      )
+    const prices = useAlpaca
+      ? await getAlpacaHistory(ticker, range, adjustment, options)
+      : await yahooHistory(ticker.toUpperCase(), range as Exclude<ValidRange, 'CUSTOM'>)
 
     if (!prices || prices.length === 0) {
-      return NextResponse.json(
-        { error: `No historical data found for ${ticker}` },
-        { status: 404 }
-      )
+      return NextResponse.json({ error: `No historical data found for ${ticker}` }, { status: 404 })
     }
 
     return NextResponse.json({
@@ -58,6 +72,12 @@ export async function GET(request: NextRequest, context: RouteContext) {
         range,
         count: prices.length,
         provider: useAlpaca ? 'alpaca-iex' : 'yahoo',
+        resolution:
+          options.timeframe ||
+          ({ '1D': '5Min', '1W': '1Hour' } as Record<string, string>)[range] ||
+          '1Day',
+        adjustment: useAlpaca ? adjustment : 'provider-defined',
+        asOf: new Date().toISOString(),
         from: prices[0]?.date,
         to: prices[prices.length - 1]?.date,
       },
@@ -66,10 +86,7 @@ export async function GET(request: NextRequest, context: RouteContext) {
     console.error('Historical data error:', error)
 
     if (error instanceof Error) {
-      return NextResponse.json(
-        { error: error.message, code: 'HISTORY_ERROR' },
-        { status: 500 }
-      )
+      return NextResponse.json({ error: error.message, code: 'HISTORY_ERROR' }, { status: 500 })
     }
 
     return NextResponse.json(

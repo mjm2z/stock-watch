@@ -45,6 +45,9 @@ def stage(db,identifier,message):
 
 def execute(db,job,database):
     body=json.loads(job['payload_json']);kind=job['kind'];asset=body.get('asset')
+    if kind in ('preview','research_demo'):
+        from .inspection import execute_preview,execute_demo
+        return (execute_preview if kind=='preview' else execute_demo)(db,job,database)
     if kind=='chart':
         result=chart(body)
         with db:

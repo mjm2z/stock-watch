@@ -1,3 +1,4 @@
+import { StockMarketChart } from '@/components/StockMarketChart'
 import { PageHeader } from '@/components/PageHeader'
 import { PerformanceSummary } from '@/components/dashboard/PerformanceSummary'
 import { incidentText } from '@/lib/dashboard-presentation'
@@ -25,6 +26,7 @@ export default function Home() {
         action={<StockSearch />}
       />
 
+      <StockMarketChart />
       <ExecutionStatus />
       {!overview.available ? (
         <DatabaseUnavailable reason={overview.unavailableReason} />

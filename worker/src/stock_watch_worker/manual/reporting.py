@@ -19,13 +19,15 @@ def refresh(manual):
         try:
             account = manual.account(row["asset"])
             positions = manual.brokers[row["asset"]].positions()
+            reserves = {asset: sum((Decimal(r[0]) for r in db.execute(
+                "SELECT reserved_cash FROM instructions WHERE account_id=? AND asset=? AND status NOT IN ('filled','canceled','expired','rejected')", (account['id'], asset))), Decimal(0)) for asset in ('stocks','bitcoin')}
             payload = {
                 "asset": "combined",
                 "account_id": account["id"],
                 "at": now,
                 "cash": account["cash"],
-                "allocated_stocks": str(manual.spendable_cash("stocks", account)),
-                "allocated_bitcoin": str(manual.spendable_cash("bitcoin", account)),
+                "allocated_stocks": str(max(Decimal(0), manual.spendable_cash("stocks", account)-reserves["stocks"])),
+                "allocated_bitcoin": str(max(Decimal(0), manual.spendable_cash("bitcoin", account)-reserves["bitcoin"])),
                 "equity": account.get("equity"),
                 "positions": positions,
                 "unrealized_pl": str(
@@ -35,7 +37,7 @@ def refresh(manual):
                     )
                 ),
             }
-            from .accounting import performance
+            from .accounting import performance, allocation_performance
 
             try:
                 payload["performance"] = performance(manual, row, account, positions)
@@ -44,7 +46,19 @@ def refresh(manual):
                     "total_pnl": None,
                     "status": "Fee/cash-flow reconciliation unavailable",
                 }
+            payload['allocations'] = allocation_performance(manual,account,positions,payload['performance'])
             with db:
+                for allocation in payload['allocations']:
+                    if allocation['equity'] is not None:
+                        key = 'allocation-peak-v1:'+allocation['asset']+':'+account['id']
+                        old = db.execute('SELECT value FROM integration_state WHERE key=?',(key,)).fetchone()
+                        previous = __import__('json').loads(old[0]) if old else {'peak':'1000','drawdown':0,'since':now}
+                        peak = max(Decimal(previous['peak']),Decimal(allocation['equity']))
+                        drawdown = min(previous['drawdown'],float(Decimal(allocation['equity'])/peak-1))
+                        state = {'peak':str(peak),'drawdown':drawdown,'since':previous['since']}
+                        db.execute('INSERT OR REPLACE INTO integration_state VALUES (?,?)',(key,canonical(state)))
+                        allocation.update(maximum_observed_drawdown=drawdown,observation_period_start=previous['since'],drawdown_note='Sampled broker valuations; between-observation losses can be larger')
+                    db.execute('INSERT OR REPLACE INTO allocation_valuations VALUES (?,?,?,?,?)',(account['id'],allocation['asset'],int(now//60),now,canonical(allocation)))
                 db.execute(
                     "INSERT OR REPLACE INTO snapshots VALUES (?,?,?)",
                     ("combined", now, canonical(payload)),

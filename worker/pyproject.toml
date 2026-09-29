@@ -21,6 +21,7 @@ where = ["src"]
 
 [tool.setuptools.package-data]
 stock_watch_worker = ["strategy-v0.json", "stock_prerequisites.sql", "stock_capabilities.json"]
+"stock_watch_worker.manual" = ["capabilities.json"]
 
 [tool.setuptools.data-files]
 "share/stock-watch-worker/migrations" = ["migrations/*.sql"]

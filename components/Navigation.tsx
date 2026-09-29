@@ -21,6 +21,7 @@ const sections = [
   ['systems', 'Systems', FlaskConical],
   ['backtesting', 'Backtesting', ChartNoAxesCombined],
   ['paper', 'Paper trading', BriefcaseBusiness],
+  ['activity', 'Activity', Activity],
   ['signals', 'Signals', Activity],
   ['research', 'Research', Search],
   ['operations', 'Operations', ServerCog],
@@ -40,17 +41,19 @@ export function Navigation() {
       ? 'systems'
       : path === '/backtesting' || path === '/backtests'
         ? 'backtesting'
-        : path === '/portfolio'
+        : path === '/portfolio' || path === '/manual-paper'
           ? 'paper'
-          : path === '/signals'
-            ? 'signals'
-            : path === '/operations'
-              ? 'operations'
-              : path === '/research' || path === '/watchlist' || path.startsWith('/stock/')
-                ? 'research'
-                : params.get('view') === 'blockchain'
+          : path === '/activity'
+            ? 'activity'
+            : path === '/signals'
+              ? 'signals'
+              : path === '/operations'
+                ? 'operations'
+                : path === '/research' || path === '/watchlist' || path.startsWith('/stock/')
                   ? 'research'
-                  : params.get('view') || 'overview'
+                  : params.get('view') === 'blockchain'
+                    ? 'research'
+                    : params.get('view') || 'overview'
   const [open, setOpen] = useState(false),
     [theme, setTheme] = useState('dark')
   useEffect(() => {
@@ -91,6 +94,8 @@ export function Navigation() {
   function href(key: string, isCrypto = crypto) {
     if (key === 'systems' || key === 'backtesting')
       return '/' + key + (isCrypto ? '?asset=bitcoin' : '')
+    if (key === 'activity') return '/activity' + (isCrypto ? '?asset=bitcoin' : '')
+    if (key === 'paper') return '/manual-paper' + (isCrypto ? '?asset=bitcoin' : '')
     if (isCrypto)
       return (
         '/crypto' + (key === 'overview' ? '' : '?view=' + (key === 'research' ? 'blockchain' : key))
