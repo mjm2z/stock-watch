@@ -385,7 +385,7 @@ export function ManualPaperWorkspace({
                   !['quote', 'observation'].includes(key) &&
                   !(key === 'qty' && draft.preview.notional) &&
                   !(
-                    key === 'limit_price' &&
+                    ['limit', 'limit_price'].includes(key) &&
                     ['market', 'stop'].includes(String(draft.preview.order_type))
                   )
               )
