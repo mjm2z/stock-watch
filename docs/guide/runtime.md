@@ -45,6 +45,41 @@ visible progress is not a reason to interrupt them. Check resource use and
 journal phase before diagnosing a stall. Do not treat a pre-existing database
 lock as proof that the new release caused a failure.
 
+### Monitoring a quiet installer
+
+From the local repository, run:
+
+```bash
+python3 deploy/monitor-release.py --watch
+```
+
+The default unit is the ongoing `6e7120fe1e9d` installation. For a future release,
+pass `--unit stock-watch-release-5c374e316dd9.service`. This read-only monitor uses
+one SSH connection, samples every 30 seconds, and needs no Codex session. Ctrl-C
+stops only the monitor. Omit `--watch` for one snapshot. It shows unit state, the
+actual installer process tree, host disk rates, I/O pressure and the last log.
+Disk rates appear after the second sample and are explicitly host-wide: they
+cannot establish an installer completion percentage or ETA. A `D` process state
+means a kernel I/O wait, not proof of failure. A stopped unit still requires
+receipt and service verification.
+
+At September 29 12:42 ET, the earlier installer had reached `rsync` into
+`/opt/stock-watch`, despite its last journal line still describing auxiliary
+backup. The host's APPLE HDD HTS541 is rotational storage; short measurements
+showed approximately 90–98% disk utilization and substantial I/O pressure.
+Unprivileged per-installer byte counters were unavailable. Avoid extra builds,
+large directory scans or backup jobs on this disk while installation finishes.
+
+Future optimization work, **not applied to the active installer**: add timed
+phase boundaries, auxiliary-backup callbacks and rsync progress; package a
+minimal runtime instead of copying development dependencies and build caches;
+prepare consistent verified recovery data before the short final writer drain;
+and evaluate moving application data and releases to SSD storage. Preserve
+database consistency, recovery verification and single execution ownership.
+Do not skip a migration backup to obtain a faster deployment. A backup on the
+same physical disk adds read/write contention; moving it requires an explicit
+recovery design rather than changing the destination mid-installation.
+
 Rollback retains databases, research artifacts, reservations and uncertain
 orders. Reconcile before resuming ownership. Do not roll back to a binary that
 cannot understand pending notional instructions, strip new request fields, or

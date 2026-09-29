@@ -64,6 +64,13 @@ Follow the existing owner without continuous agent polling:
 ssh a1347-m 'journalctl -fu stock-watch-release-6e7120fe1e9d'
 ```
 
+For the actual process step and disk activity, use
+`python3 deploy/monitor-release.py --watch` from the local checkout. At the
+September 29 12:42 ET follow-up, the installer had advanced to copying the runtime
+with rsync; the 11:00 backup journal message was stale. The rotational host disk
+was heavily utilized. See the runtime guide for monitoring limits and prospective
+optimizations; the running installer and verified stage were not modified.
+
 After it completes, inspect its receipt and service health. Do not start the next
 installation merely because staging passed. Once ownership is released, root
 access and the existing market-window guard permit the reviewed installer:

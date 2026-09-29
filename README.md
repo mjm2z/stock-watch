@@ -1,5 +1,10 @@
 # StockWatch
 
+To monitor the pending installation without an active Codex session, run
+`python3 deploy/monitor-release.py --watch` from this checkout. It shows the
+installer's current process step and host disk activity; see the
+[runtime guide](docs/guide/runtime.md#monitoring-a-quiet-installer) for details.
+
 StockWatch is a local research and **paper trading** application for US stocks,
 ETFs and BTC/USD. It combines instrument charts, immutable rule-based systems,
 historical research, forward observations, separate manual allocations, and
