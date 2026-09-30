@@ -31,6 +31,21 @@ curves (600 points), fills (200) and trade summaries (200). Downloads verify the
 hash and size before returning evidence. Cached previews retain original creation
 time and artifact identity and record the new inspection separately.
 
+The runtime I/O hotfix changes feed retention only: tick publication remains
+immediate, while diagnostic minute aggregates are combined in memory and flushed
+at most once per second in a separate worker thread. One batch may be in flight;
+the pending map is bounded to 120 minute buckets. OHLC and observation counts are
+preserved across successful batches. The diagnostics keep seven days and minute
+aggregates keep 90 days. This adds no polling or debounce to the live display.
+
+Unflushed diagnostic observations can be lost on process failure. A stalled disk
+can overflow the bounded diagnostic buffer; dropped buckets and persistence errors
+are exposed in the snapshot's `retention` status and make collector health fail.
+An uncertain worker failure is not blindly retried, avoiding double-counted
+observations; restart the collector after addressing the storage problem. Live
+price freshness is still evaluated independently. These diagnostic aggregates
+are not order/audit records, and no broker or trading-ledger durability is relaxed.
+
 | Read API | Bounds and meaning |
 | --- | --- |
 | `/api/inspection?asset=stocks&symbol=SPY&scope=manual` | Current raw-price levels, explicit owner/source/as-of; bounded ledger rows |

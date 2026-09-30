@@ -62,7 +62,8 @@ backup status was atomically recorded as failed/operator-interrupted and
 unverified, preserving its run identity. All three completed backup files and
 the partial copies were retained. HomeOps monitoring/collector and all four
 StockWatch services remained active. The backup timer remains enabled and its
-next scheduled run is September 30 around 08:30 ET; no timeout fix is deployed.
+next scheduled run is September 30 around 08:30 ET. The safeguards described
+below were subsequently installed without starting another full backup.
 
 The backup process's I/O disappeared from the follow-up process sample, but the
 disk remained roughly 95–100% utilized in subsequent five-second samples, with
@@ -74,9 +75,58 @@ and pending writeback still require attribution before another long deployment.
 A StockWatch source fix avoids acquiring a writer for empty workspace queue
 recovery polls. Its regression test holds a competing write lock while both
 empty queue scopes return normally. All 406 worker tests passed. This change
-is not in installed `6e7120f` or staged `5c374e3`. Separately, the feed collector
-still performs synchronous minute-aggregate writes per received ticker; moving
-those writes off the feed path with bounded buffering remains a follow-up.
+is not in installed `6e7120f` or staged `5c374e3`. The feed persistence fix now publishes ticks immediately and moves bounded
+minute-aggregate batches to a separate worker thread. Both fixes are included
+in the verified runtime-only stage described below, but are not installed yet.
+
+
+### Runtime-only remediation, September 29 late evening
+
+HomeOps branch `fix/bounded-self-backup`, revision `740d803`, is pushed. Its
+installed backup module hash is
+`bf4fceda9ed0a724ec941f8ee70f521ad4500a5b084ec9d6d799a241a7376e47`.
+The backup now pins a WAL read snapshot to prevent restarts from concurrent
+collection, releases it before verification, has a 15-minute application deadline,
+and reports progress/failure. Service limits are 20 minutes start and 30 seconds
+stop. The collector, live web service, timer schedule, three completed backups and
+previous partial files were preserved. All 120 local tests and four focused Linux
+tests passed, including concurrent WAL ingestion. A full production backup has
+not yet been run with this fix; fixture success does not establish a new verified
+recovery copy. The bounded read snapshot can delay WAL checkpoint progress until
+copy completion or cancellation.
+
+The operator's 23:24 ET root I/O sample identified PostgreSQL PID 2645108 as the
+largest visible writer (about 3.6 MiB/s average), identified by `ps` as an
+autovacuum worker in the JobWatch database. The application database role could
+not see its table/progress fields. Read-only table statistics showed about
+89 million cumulative `jobs` updates and 5,362 autovacuums, with a live-row
+estimate of approximately 5,200. A later active-query sample directly observed
+JobWatch lifecycle housekeeping waiting on WALWrite. Its old SQL rewrites all
+job active/freshness states each housekeeping pass, even unchanged rows.
+JobWatch branch `fix/lifecycle-write-churn`, commit `80ed001`, changes only those
+writes and already expired source updates to skip unchanged rows. All 81 tests,
+including isolated PostgreSQL regressions, and type checking passed. The user approved installation; the checksum-guarded worker-only hotfix was
+installed at 23:34 ET and the worker restarted gracefully as PID 2662890. The
+installed source hash is
+`4ad20067fe0bf2c221bc4341333b81729c6023cd30054e5292d82c088c4770e4`; the prior
+source remains in `src/ingestion.ts.before-893a3a24e563`, and the host has
+`lifecycle-hotfix-installed.json`. The web app and database remained online.
+Autovacuum has not been disabled or cancelled. Post-restart load measurements
+remain in progress.
+
+StockWatch branch `fix/runtime-io` revision
+`80747508849cacd175a11a8326370656a79337e7` is pushed and verified at
+`/home/mjm2z/stock-watch-releases/80747508849c`. It is based on installed `6e7120f`
+and includes feed persistence isolation, idle-queue writer avoidance, extended
+SQLite error codes, installer concurrency protection and the chart-cache clock
+correction. It excludes migration 022 and new initialization changes. The
+installer determines the deployment mode from the actual installed migration
+history; with the verified baseline it can install code-only without another
+large database backup. Linux validation passed 88 web tests, eight feed tests,
+396 worker tests, type checking, lint, production build, wheel packaging and
+manifest/preflight verification (32,264 files). The 34 deployment tests passed
+locally. This is staged, not installed; it is separate from the next-phase UI
+artifact `5c374e3`.
 
 
 Manual credentials and combined-account setup were still pending at the last
@@ -134,21 +184,33 @@ with rsync; the 11:00 backup journal message was stale. The rotational host disk
 was heavily utilized. See the runtime guide for monitoring limits and prospective
 optimizations; the running installer and verified stage were not modified.
 
-The previous installer has completed. Resolve the runtime contention above before
-starting the next installation. Once service health is reviewed, root access and
-the existing market-window guard permit the reviewed installer:
+The previous installer has completed. The runtime-only remediation is now the
+next reviewed artifact. After reviewing post-fix host health, the operator can
+start it on a1347-m (root is required):
 
 ```bash
-sudo systemd-run --unit=stock-watch-release-5c374e316dd9 --collect \
-  /usr/bin/python3 /home/mjm2z/stock-watch-releases/5c374e316dd9/deploy/install-reviewed-release.py \
-  /home/mjm2z/stock-watch-releases/5c374e316dd9
+sudo systemd-run --unit=stock-watch-release-80747508849c --collect \
+  /usr/bin/python3 /home/mjm2z/stock-watch-releases/80747508849c/deploy/install-reviewed-release.py \
+  /home/mjm2z/stock-watch-releases/80747508849c
 ```
 
-Run this on a1347-m. It backs up before migrating; do not use code-only mode for
-migration 022. Then verify the new installed receipt, LAN pages, Coinbase SSE,
-independent component health, restart behavior and execution ownership. Manual
-trading remains unconfigured until protected credentials and account setup are
-confirmed. No sudo installation or paper test draft was confirmed in this iteration.
+Monitor from the local checkout without an active agent:
+
+```bash
+python3 deploy/monitor-release.py --unit stock-watch-release-80747508849c.service --watch
+```
+
+The installer prints the deployment plan before stopping services. With unchanged
+installed migration history it selects code-only, preserving configuration and
+the previous runtime while leaving databases in place. Verify the installed
+receipt, LAN access, feed retention/freshness, execution ownership and service
+health afterward. Root installation is still pending.
+
+Do not subsequently install the old UI stage `5c374e3`: it predates these runtime
+fixes. Re-stage the current main branch for the full UI release after contention
+is resolved; its migration 022 still requires the normal verified recovery
+backup. Manual trading remains unconfigured until protected credentials and
+account setup are confirmed. No paper test draft was confirmed in this iteration.
 
 ## Limits and operator prerequisites
 

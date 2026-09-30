@@ -5,6 +5,12 @@ To monitor the pending installation without an active Codex session, run
 installer's current process step and host disk activity; see the
 [runtime guide](docs/guide/runtime.md#monitoring-a-quiet-installer) for details.
 
+Runtime contention follow-up: a separate `fix/runtime-io` release contains the
+feed persistence and idle-queue fixes without new database migrations. The HomeOps
+backup deadline/progress fix has been installed separately. See the
+[release report](docs/next-phase-release.md) for exact tested and installed states;
+the new UI and the runtime hotfix are separate artifacts.
+
 StockWatch is a local research and **paper trading** application for US stocks,
 ETFs and BTC/USD. It combines instrument charts, immutable rule-based systems,
 historical research, forward observations, separate manual allocations, and
