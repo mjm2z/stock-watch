@@ -11,6 +11,19 @@ spec.loader.exec_module(configure)
 
 
 class ManualProvisioning(unittest.TestCase):
+    def test_unrelated_environment_syntax_is_ignored_and_preserved(self):
+        unrelated = ('SEC_USER_AGENT=StockWatch operator contact@example.com\n'
+                     "UNRELATED_LABEL=Operator's application\n"
+                     'UNRELATED_LABEL=another value\n')
+        original = unrelated + 'MANUAL_ALPACA_API_KEY_ID="fixture-key"\n'
+        self.assertEqual(configure.read_env(original), {'MANUAL_ALPACA_API_KEY_ID': 'fixture-key'})
+        updated = configure.update_env(original, {'STOCK_WATCH_AUTOBOT_TOKEN': 'a' * 40})
+        self.assertTrue(updated.startswith(original))
+        self.assertEqual(configure.read_env(updated)['STOCK_WATCH_AUTOBOT_TOKEN'], 'a' * 40)
+        for value in ['two words', '"unclosed']:
+            with self.subTest(value=value), self.assertRaises(configure.ConfigurationError):
+                configure.read_env('MANUAL_ALPACA_API_KEY_ID=' + value)
+
     def test_environment_edit_preserves_unrelated_secrets_and_supports_quotes(self):
         original = '# retained comment\nALPACA_API_KEY_ID="fixture-key"\nSYSTEMS_OPERATOR_TOKEN=fixture-operator\nSTOCK_WATCH_AUTOBOT_TOKEN=\n'
         updated = configure.update_env(original, {'STOCK_WATCH_AUTOBOT_TOKEN': 'a' * 40})

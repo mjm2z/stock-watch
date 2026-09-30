@@ -148,7 +148,9 @@ $1,000,000 simulated cash. No order or account setup is confirmed by this helper
 It preserves existing valid service tokens, generates missing tokens separately
 for browser and Autobot, installs matching Autobot runtime configuration, and
 retains root-protected backups under `/etc/stock-watch/manual-service-backups`.
-It rejects conflicting tokens, duplicate settings, changed authorization and
+It parses only the credentials and settings it consumes, preserving unrelated
+settings such as an unquoted `SEC_USER_AGENT` containing spaces. It rejects
+conflicting tokens, duplicate consumed settings, changed authorization and
 concurrent edits. The web/manual services and `note-bot.service` restart to load
 configuration. Its final state remains Unconfigured until the user previews and
 confirms the exact combined-account setup draft. Group conversations need a

@@ -26,6 +26,18 @@ class ConfigurationError(Exception):
     pass
 
 
+# Only interpret fields consumed by this helper. Other environment settings may
+# use systemd/dotenv syntax (including unquoted spaces) and remain untouched.
+CONFIG_KEYS = frozenset({
+    'ALPACA_API_KEY_ID', 'ALPACA_API_SECRET_KEY',
+    'BITCOIN_ALPACA_API_KEY_ID', 'BITCOIN_ALPACA_API_SECRET_KEY',
+    'MANUAL_ALPACA_API_KEY_ID', 'MANUAL_ALPACA_API_SECRET_KEY',
+    'STOCK_WATCH_AUTOBOT_TOKEN', 'STOCK_WATCH_BROWSER_SERVICE_TOKEN',
+    'STOCK_WATCH_TELEGRAM_USER_ID', 'STOCK_WATCH_TELEGRAM_CHAT_ID',
+    'STOCK_WATCH_DIGEST_TIME', 'TELEGRAM_CHAT_ID', 'TELEGRAM_BOT_TOKEN',
+})
+
+
 def read_env(text):
     values = {}
     for line in text.splitlines():
@@ -33,6 +45,8 @@ def read_env(text):
         if not match:
             continue
         key, raw = match.groups()
+        if key not in CONFIG_KEYS:
+            continue
         if key in values:
             raise ConfigurationError('Duplicate configuration variable: ' + key)
         try:
