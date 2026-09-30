@@ -1,6 +1,7 @@
 /** Coinbase observations only. No credentials or order submission capability. */
 import { createServer } from 'node:http'
-import { DatabaseSync } from 'node:sqlite'
+import { retention } from './market-retention.mjs'
+export { retention } from './market-retention.mjs'
 import { randomUUID } from 'node:crypto'
 import { pathToFileURL } from 'node:url'
 
@@ -43,6 +44,7 @@ export class Feed {
       sourceAgeMs: age,
       fresh,
       status: fresh ? 'Live' : this.connected ? 'Stale' : 'Reconnecting',
+      retention: this.persist.status?.(),
     }
   }
   publish() {
@@ -110,31 +112,6 @@ export class Feed {
   }
 }
 
-export function retention(path) {
-  const db = new DatabaseSync(path)
-  db.exec(`PRAGMA journal_mode=WAL; PRAGMA busy_timeout=1000;
-    CREATE TABLE IF NOT EXISTS minutes (minute INTEGER PRIMARY KEY, open REAL, high REAL, low REAL, close REAL, observations INTEGER);
-    CREATE TABLE IF NOT EXISTS diagnostics (at INTEGER PRIMARY KEY, source_age_ms INTEGER, processing_ms INTEGER, generation TEXT);`)
-  let lastMinute = -1
-  return (snapshot) => {
-    const minute = Math.floor(snapshot.receivedAt / 60000) * 60000
-    db.prepare(
-      `INSERT INTO minutes VALUES (?,?,?,?,?,1) ON CONFLICT(minute) DO UPDATE SET high=max(high,excluded.high),low=min(low,excluded.low),close=excluded.close,observations=observations+1`
-    ).run(minute, snapshot.price, snapshot.price, snapshot.price, snapshot.price)
-    if (minute !== lastMinute) {
-      lastMinute = minute
-      db.prepare('INSERT OR REPLACE INTO diagnostics VALUES (?,?,?,?)').run(
-        minute,
-        snapshot.sourceAgeMs,
-        Date.now() - snapshot.receivedAt,
-        snapshot.generation
-      )
-      db.prepare('DELETE FROM minutes WHERE minute < ?').run(minute - 90 * 86400000)
-      db.prepare('DELETE FROM diagnostics WHERE at < ?').run(minute - 7 * 86400000)
-    }
-  }
-}
-
 export function writeSnapshot(res, snapshot) {
   if (res.writableLength > 65536) {
     res.destroy()
@@ -152,10 +129,15 @@ export function serve(feed, port = 3012) {
     }
     if (req.url === '/snapshot' || req.url === '/health') {
       const snapshot = feed.snapshot()
-      res.writeHead(req.url === '/health' && !snapshot.fresh ? 503 : 200, {
-        'Content-Type': 'application/json',
-        'Cache-Control': 'no-store',
-      })
+      res.writeHead(
+        req.url === '/health' && (!snapshot.fresh || snapshot.retention?.healthy === false)
+          ? 503
+          : 200,
+        {
+          'Content-Type': 'application/json',
+          'Cache-Control': 'no-store',
+        }
+      )
       res.end(JSON.stringify(snapshot))
       return
     }
@@ -262,5 +244,6 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
       stop()
       server.closeAllConnections()
       server.close()
+      void feed.persist.close().catch((error) => console.error(error.message))
     })
 }
