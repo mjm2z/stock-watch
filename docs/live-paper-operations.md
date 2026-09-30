@@ -138,6 +138,23 @@ STOCK_WATCH_TELEGRAM_CHAT_ID=<allowed-chat-id>
 STOCK_WATCH_DIGEST_TIME=20:00
 ```
 
+After saving the dedicated paper keys, the reviewed helper
+`deploy/configure-manual-paper.py --use-existing-private-chat` can provision
+remaining service credentials on a1347-m under root. It performs GET-only checks
+of the existing private Telegram chat and all three paper account identities,
+and requires the new manual account to be active, empty and funded with
+$1,000,000 simulated cash. No order or account setup is confirmed by this helper.
+
+It preserves existing valid service tokens, generates missing tokens separately
+for browser and Autobot, installs matching Autobot runtime configuration, and
+retains root-protected backups under `/etc/stock-watch/manual-service-backups`.
+It rejects conflicting tokens, duplicate settings, changed authorization and
+concurrent edits. The web/manual services and `note-bot.service` restart to load
+configuration. Its final state remains Unconfigured until the user previews and
+confirms the exact combined-account setup draft. Group conversations need a
+separately verified allowed user ID and are not supported by this provisioning
+helper. Runtime configuration changes do not deploy new Autobot source code.
+
 The existing automated account credentials remain untouched. Configure Autobot's
 protected `.env` with the **Autobot token only**, the same allowed user ID, and its
 existing `TELEGRAM_CHAT_ID`. The client fixes its service URL to
