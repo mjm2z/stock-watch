@@ -5,6 +5,7 @@ requires each endpoint healthy first, preserves unrelated settings, backs up the
 original, and updates atomically. a1347-j remains the independent watchdog.
 """
 
+import argparse
 from datetime import datetime, timezone
 import json
 import os
@@ -13,17 +14,28 @@ import socket
 from urllib.request import urlopen
 
 
+COMPONENTS = ("market-feed", "execution", "notifications")
+
+
 def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--components", nargs="+", choices=COMPONENTS, default=COMPONENTS,
+                        help="Register ready components independently; default: all three")
+    args = parser.parse_args()
     if socket.gethostname().split(".")[0] != "a1347-m":
         raise SystemExit("Run on a1347-m")
     path = Path.home() / ".config/home-ops/server.json"
     original = path.read_bytes()
     config = json.loads(original)
     existing = {s["id"] for s in config["sites"]}
-    for component in ("market-feed", "execution", "notifications"):
+    added = []
+    for component in dict.fromkeys(args.components):
         url = "http://192.168.4.35:3001/api/health/" + component
         with urlopen(url, timeout=5) as response:
-            if response.status != 200:
+            body = json.load(response)
+            healthy = (body.get("fresh") is True and body.get("retention", {}).get("healthy") is True
+                       if component == "market-feed" else body.get("healthy") is True)
+            if response.status != 200 or not healthy:
                 raise RuntimeError(component + " is not ready")
         identifier = "stock-watch-" + component
         if identifier not in existing:
@@ -38,6 +50,10 @@ def main():
                     "page_url": url,
                 }
             )
+            added.append(component)
+    if not added:
+        print("Selected healthy components are already registered; no configuration changed.")
+        return
     stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
     backup = path.with_name(path.name + ".before-live-paper-" + stamp)
     with backup.open("xb") as stream:
@@ -51,7 +67,8 @@ def main():
         raise RuntimeError("Config changed concurrently; review staged file")
     os.replace(temporary, path)
     print(
-        "Registered three healthy StockWatch components. Restart HomeOps through its existing service workflow and verify a1347-j reporting."
+        "Registered healthy StockWatch components: " + ", ".join(added)
+        + ". Restart HomeOps through its existing service workflow and verify a1347-j reporting."
     )
 
 
