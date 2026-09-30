@@ -1,15 +1,15 @@
 # StockWatch
 
-To monitor the pending installation without an active Codex session, run
-`python3 deploy/monitor-release.py --watch` from this checkout. It shows the
-installer's current process step and host disk activity; see the
-[runtime guide](docs/guide/runtime.md#monitoring-a-quiet-installer) for details.
+Runtime hotfix `8074750` is installed on a1347-m. Its code-only deployment took
+about two minutes and ran no database backup or migration. Coinbase feed retention
+and execution-owner health passed post-install checks. Earlier stock-job failures
+still make overall health degraded; the new UI release remains pending.
 
-Runtime contention follow-up: a separate `fix/runtime-io` release contains the
-feed persistence and idle-queue fixes without new database migrations. The HomeOps
-backup deadline/progress fix has been installed separately. See the
-[release report](docs/next-phase-release.md) for exact tested and installed states;
-the new UI and the runtime hotfix are separate artifacts.
+HomeOps backup safeguards and the approved JobWatch lifecycle-write fix are also
+installed. See the [release report](docs/next-phase-release.md) for exact revisions,
+verification, rollback paths and remaining work. No installer polling is needed
+now. For future installations, the [runtime guide](docs/guide/runtime.md#monitoring-a-quiet-installer)
+explains monitoring without an active Codex session.
 
 StockWatch is a local research and **paper trading** application for US stocks,
 ETFs and BTC/USD. It combines instrument charts, immutable rule-based systems,

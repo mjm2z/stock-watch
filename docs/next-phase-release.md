@@ -2,7 +2,28 @@
 
 This report separates source work, tests, staging and installed operation.
 
-## Current checkpoint
+## Latest installed checkpoint
+
+At September 29 23:38 ET, runtime-only revision
+`80747508849cacd175a11a8326370656a79337e7` installed successfully. The supervised
+installer ran from 23:36:27 to 23:38:21, selected `code-only`, recorded no pending
+migrations, and created no database backup. Database initialization was skipped.
+The previous runtime is `/opt/stock-watch.before-20260930T033641Z`; configuration
+and deployment records are under
+`/var/backups/stock-watch-releases/20260930T033641Z` (not a fresh database backup).
+
+Post-install verification: web, market-data, execution and manual-paper services
+are active; Coinbase reports fresh ticks with healthy retention and zero dropped
+minute buckets; automated and manual owners report healthy heartbeats. Manual
+configuration is explicitly false. Both legacy Bitcoin timers remain disabled.
+The installed receipt confirms the execution owner and preserved ledger counts.
+Overall health remains degraded by earlier failed/stale stock operations; host
+disk pressure remains elevated. No broker orders or database cleanup were issued.
+The new UI/migration 022 remain uninstalled. Active installer polling is no longer
+needed; subsequent stock-job recovery and host I/O investigation are separate
+follow-up work, not a running backup or migration.
+
+## Earlier investigation checkpoints
 
 Implementation is committed and pushed. The exact runtime revision
 `5c374e316dd900a8f62746587982972f27352596` passed Linux staging at
@@ -77,7 +98,7 @@ recovery polls. Its regression test holds a competing write lock while both
 empty queue scopes return normally. All 406 worker tests passed. This change
 is not in installed `6e7120f` or staged `5c374e3`. The feed persistence fix now publishes ticks immediately and moves bounded
 minute-aggregate batches to a separate worker thread. Both fixes are included
-in the verified runtime-only stage described below, but are not installed yet.
+in the runtime-only release subsequently installed at 23:38 ET.
 
 
 ### Runtime-only remediation, September 29 late evening
@@ -111,8 +132,10 @@ installed source hash is
 `4ad20067fe0bf2c221bc4341333b81729c6023cd30054e5292d82c088c4770e4`; the prior
 source remains in `src/ingestion.ts.before-893a3a24e563`, and the host has
 `lifecycle-hotfix-installed.json`. The web app and database remained online.
-Autovacuum has not been disabled or cancelled. Post-restart load measurements
-remain in progress.
+Autovacuum has not been disabled or cancelled. The worker heartbeat recovered and processed Spotify/Ashby feeds. An idle
+sample left the job-update counter unchanged at 89,153,853. Existing autovacuum
+continued and disk utilization remained roughly 92–96% during short initial
+samples; host-wide recovery is not yet established.
 
 StockWatch branch `fix/runtime-io` revision
 `80747508849cacd175a11a8326370656a79337e7` is pushed and verified at
@@ -125,8 +148,8 @@ history; with the verified baseline it can install code-only without another
 large database backup. Linux validation passed 88 web tests, eight feed tests,
 396 worker tests, type checking, lint, production build, wheel packaging and
 manifest/preflight verification (32,264 files). The 34 deployment tests passed
-locally. This is staged, not installed; it is separate from the next-phase UI
-artifact `5c374e3`.
+locally. It was subsequently installed as recorded at the top of this report; it is
+separate from the next-phase UI artifact `5c374e3`.
 
 
 Manual credentials and combined-account setup were still pending at the last
@@ -184,9 +207,9 @@ with rsync; the 11:00 backup journal message was stale. The rotational host disk
 was heavily utilized. See the runtime guide for monitoring limits and prospective
 optimizations; the running installer and verified stage were not modified.
 
-The previous installer has completed. The runtime-only remediation is now the
-next reviewed artifact. After reviewing post-fix host health, the operator can
-start it on a1347-m (root is required):
+The previous installer has completed. The runtime-only remediation was
+installed with the command below. It is retained as an audit record; do not
+rerun it to monitor the completed deployment:
 
 ```bash
 sudo systemd-run --unit=stock-watch-release-80747508849c --collect \
@@ -204,7 +227,7 @@ The installer prints the deployment plan before stopping services. With unchange
 installed migration history it selects code-only, preserving configuration and
 the previous runtime while leaving databases in place. Verify the installed
 receipt, LAN access, feed retention/freshness, execution ownership and service
-health afterward. Root installation is still pending.
+health afterward. This runtime-only installation has completed.
 
 Do not subsequently install the old UI stage `5c374e3`: it predates these runtime
 fixes. Re-stage the current main branch for the full UI release after contention
@@ -221,8 +244,9 @@ System chart inspection does not invent missing historical indicator series.
 Legacy stock execution timers remain separate. Telegram's existing parser remains
 compatible; expanded browser forms do not imply undocumented Telegram syntax.
 
-Root installation must wait for runtime diagnosis and operator root access. The
-installed receipt and execution-owner health are verified; stock jobs remain degraded.
+The full UI release still needs re-staging, host-health review and operator root
+installation. The runtime hotfix receipt and execution-owner health are verified;
+stock jobs remain degraded.
 Provision protected credentials and confirm manual setup separately. HomeOps
 component registration, watchdog verification and paper-order tests remain
 explicit post-install checks; a fixture is not production verification.
