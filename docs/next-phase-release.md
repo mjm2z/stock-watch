@@ -37,6 +37,17 @@ available on the host for operator-root capture; no service restart was performe
 See the runtime guide for the command and the distinction between source,
 staged artifact and installed code.
 
+The operator's five-minute capture on September 29 22:54–22:59 ET produced 92
+change/heartbeat records. Main-database write ownership moved between execution
+PID 2160035 and short-lived worker/systems processes. The longest sampled interval
+with unchanged write ownership was approximately 11.1 seconds, below the configured
+30-second busy timeout; sampling cannot prove continuous ownership or exclude
+short missed locks. No new failed scan appears in the available operation records
+for this capture window. Earlier scan failures therefore remain uncorrelated with
+a blocking PID. Host I/O pressure remained high throughout. This is evidence
+against treating a visible ownership lock as a stuck lock, not proof that prior
+contention is fixed. No lock files were deleted and no owners were restarted.
+
 
 Manual credentials and combined-account setup were still pending at the last
 confirmed setup checkpoint. No account reset, strategy activation or end-to-end
