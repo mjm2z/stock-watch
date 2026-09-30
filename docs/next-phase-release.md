@@ -48,6 +48,23 @@ a blocking PID. Host I/O pressure remained high throughout. This is evidence
 against treating a visible ownership lock as a stuck lock, not proof that prior
 contention is fixed. No lock files were deleted and no owners were restarted.
 
+At 23:02 ET, a short `pidstat` sample attributed approximately 3.3 MiB/s of
+writes to PID 3651026, the user-level `home-ops-backup.service`. It had been
+running since September 28 08:33 ET. Its source database was approximately
+3.22 GB, its incomplete backup approximately 1.40 GB, and `/proc/3651026/io`
+reported approximately 2.71 TB of physical writes. Completed earlier backups
+remain present. Repeated online SQLite backup restarts are a plausible explanation,
+not directly observed; the copy has no deadline in the inspected backup code.
+Permission to stop this separate application's backup was requested; no stop
+has been performed as part of this checkpoint.
+
+A StockWatch source fix avoids acquiring a writer for empty workspace queue
+recovery polls. Its regression test holds a competing write lock while both
+empty queue scopes return normally. All 406 worker tests passed. This change
+is not in installed `6e7120f` or staged `5c374e3`. Separately, the feed collector
+still performs synchronous minute-aggregate writes per received ticker; moving
+those writes off the feed path with bounded buffering remains a follow-up.
+
 
 Manual credentials and combined-account setup were still pending at the last
 confirmed setup checkpoint. No account reset, strategy activation or end-to-end

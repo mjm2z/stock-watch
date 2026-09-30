@@ -44,6 +44,18 @@ class VisualRuleTests(unittest.TestCase):
         self.assertEqual(SystemConfig('bitcoin').sha256,'e664521e08effecaea9a67e44b54ccf858675184860ad186493eb0e8f4a5856d')
 
 class WorkspaceJobTests(unittest.TestCase):
+    def test_idle_queues_do_not_require_the_database_write_lock(self):
+        other = connect(self.path)
+        self.db.execute('PRAGMA busy_timeout=0')
+        try:
+            other.execute('BEGIN IMMEDIATE')
+            for charts_only in (False, True):
+                self.assertIsNone(run_workspace(self.db, self.path, charts_only=charts_only))
+            self.assertFalse(self.db.in_transaction)
+        finally:
+            other.rollback()
+            other.close()
+
     def setUp(self):
         self.tmp=tempfile.TemporaryDirectory();self.path=Path(self.tmp.name)/'app.db';self.db=connect(self.path);apply_migrations(self.db)
     def tearDown(self):self.db.close();self.tmp.cleanup()
