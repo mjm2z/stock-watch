@@ -72,18 +72,76 @@ test('SSE begins with current snapshot and closes listener on disconnect', async
     server.close()
   }
 })
-test('retention bounds minute aggregates and diagnostics independently', () => {
+test('retention bounds minute aggregates and diagnostics independently', async () => {
   const directory = mkdtempSync(join(tmpdir(), 'feed-'))
   const path = join(directory, 'db')
   try {
     const persist = retention(path)
     for (const day of [0, 1, 91])
       persist({ receivedAt: day * 86400000, price: 100, sourceAgeMs: 1, generation: 'g' })
+    await persist.close()
     const db = new DatabaseSync(path)
     assert.equal(db.prepare('SELECT count(*) n FROM minutes').get().n, 2)
     assert.equal(db.prepare('SELECT count(*) n FROM diagnostics').get().n, 1)
     db.close()
   } finally {
+    rmSync(directory, { recursive: true, force: true })
+  }
+})
+
+test('blocked diagnostic writes do not block ticks; batches retain exact OHLC and counts', async () => {
+  const directory = mkdtempSync(join(tmpdir(), 'feed-batched-'))
+  const path = join(directory, 'db')
+  const persist = retention(path, { intervalMs: 60000 })
+  let db
+  try {
+    const now = Date.now()
+    persist({ receivedAt: now, price: 100, sourceAgeMs: 0, generation: 'g' })
+    await persist.flush()
+    db = new DatabaseSync(path)
+    db.exec('BEGIN IMMEDIATE')
+    const feed = new Feed({ now: () => now, persist })
+    const prices = []
+    feed.listeners.add((s) => {
+      if (s.price !== null) prices.push(s.price)
+    })
+    feed.connect()
+    feed.accept(message(0, 0, now, 'heartbeats'))
+    for (let i = 1; i <= 100; i++) feed.accept(message(i, i + 100, now))
+    const flushed = persist.flush()
+    assert.equal(prices.length, 100)
+    // Main-thread timer must execute while the SQLite worker waits for its lock.
+    await new Promise((resolve) => setTimeout(resolve, 50))
+    db.exec('COMMIT')
+    await flushed
+    const row = db.prepare('SELECT * FROM minutes').get()
+    assert.deepEqual(
+      [row.open, row.high, row.low, row.close, row.observations],
+      [100, 200, 100, 200, 101]
+    )
+  } finally {
+    if (db) {
+      try {
+        db.exec('ROLLBACK')
+      } catch {}
+      db.close()
+    }
+    await persist.close()
+    rmSync(directory, { recursive: true, force: true })
+  }
+})
+
+test('diagnostic backlog is bounded and reports dropped minutes', async () => {
+  const directory = mkdtempSync(join(tmpdir(), 'feed-bounded-'))
+  const persist = retention(join(directory, 'db'), { intervalMs: 60000, maxMinutes: 2 })
+  try {
+    for (let minute = 0; minute < 1000; minute++)
+      persist({ receivedAt: minute * 60000, price: 100, sourceAgeMs: 0, generation: 'g' })
+    assert.equal(persist.status().pendingMinutes, 2)
+    assert.equal(persist.status().droppedMinutes, 998)
+    assert.equal(persist.status().healthy, false)
+  } finally {
+    await persist.close()
     rmSync(directory, { recursive: true, force: true })
   }
 })
