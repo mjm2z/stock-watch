@@ -96,8 +96,14 @@ def broker_get(values, prefix, route):
 
 def validate_accounts(manual, stocks, bitcoin, positions, orders):
     ids = [account.get('id') for account in (manual, stocks, bitcoin)]
-    if not all(ids) or len(set(ids)) != 3:
-        raise ConfigurationError('Manual and both automated paper account identities must differ.')
+    if not all(ids):
+        raise ConfigurationError('A paper account response is missing its account identity.')
+    labels = ['manual', 'automated stocks', 'automated Bitcoin']
+    collisions = [labels[i] + ' and ' + labels[j]
+                  for i in range(3) for j in range(i + 1, 3) if ids[i] == ids[j]]
+    if collisions:
+        raise ConfigurationError('Paper account identity conflict: ' + '; '.join(collisions)
+                                 + ' resolve to the same account. No configuration was changed.')
     try:
         cash = Decimal(str(manual['cash']))
     except Exception:

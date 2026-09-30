@@ -51,6 +51,14 @@ class ManualProvisioning(unittest.TestCase):
             with self.assertRaises(configure.ConfigurationError):
                 configure.validate_accounts(bad, stocks, other, positions, orders)
 
+    def test_identity_conflict_identifies_only_the_colliding_roles(self):
+        manual = {'id': 'private-account-id', 'cash': '1000000', 'status': 'ACTIVE'}
+        with self.assertRaises(configure.ConfigurationError) as error:
+            configure.validate_accounts(manual, {'id': 'other'}, {'id': manual['id']}, [], [])
+        self.assertIn('manual and automated Bitcoin', str(error.exception))
+        self.assertNotIn('automated stocks', str(error.exception))
+        self.assertNotIn(manual['id'], str(error.exception))
+
     def test_matching_tokens_preserved_and_conflicts_rejected(self):
         token = 'a' * 48
         self.assertEqual(configure.select_token(token, token), token)
