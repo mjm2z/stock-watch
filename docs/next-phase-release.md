@@ -2,6 +2,38 @@
 
 This report separates source work, tests, staging and installed operation.
 
+## Manual account and monitoring checkpoint: September 30, 14:12 ET
+
+The operator corrected the dedicated manual paper credentials, reran the
+provisioning helper successfully, and confirmed the combined setup in Telegram.
+The helper verified three distinct paper account identities and an empty
+$1,000,000 manual paper account. Telegram account output then reported configured,
+reconciled broker cash, separate $1,000 stocks and Bitcoin allocations, no reserved
+cash, no positions and zero initial P&L. Private-chat authorization and separate
+browser/Autobot service credentials are installed with protected backups.
+Account identifiers and secrets are deliberately omitted from this report.
+
+At 14:10 ET, execution health reported healthy automated/manual owners and
+configured manual trading; notification polling was healthy and configured.
+Coinbase was fresh with healthy retention and zero dropped minute buckets.
+The reviewed monitoring helper added the notification API child to the existing
+feed/execution checks. HomeOps web and network services restarted successfully;
+the collector remained active, and the notification endpoint passed over LAN.
+At 14:12 ET, a1347-j's independent watchdog reported HomeOps reachable with zero
+failures and no incident. It monitors HomeOps reachability, not each component
+directly. No HomeOps backup configuration was changed.
+
+Provisioning fixes `9484aec` and `25ba1ef` preserve unrelated environment syntax
+and identify conflicting account roles without disclosing account IDs. Seven
+focused helper tests passed locally and on Linux. These operational helper
+changes do not replace the installed application revision `c729243`.
+
+An exact user-confirmed paper order, fill reconciliation, activity display and
+Telegram trade-event delivery remain unverified. Healthy notification polling
+does not establish delivery of a trade event. No test trade was submitted by the
+agent. The 16:15 ET stock scan and sustained responsiveness under disk contention
+also remain follow-up checks. Earlier unconfigured checkpoints below are history.
+
 ## Latest installed checkpoint: full UI release
 
 Revision `c7292434e63ac53523dd2dc7eddfcb1a5aca7fd7` completed installation on

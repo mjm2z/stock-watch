@@ -11,13 +11,16 @@ backtesting, Activity and Crypto, with no JavaScript errors or horizontal overfl
 The BTC card updated live at a stable height. Earlier post-install page timeouts
 were not reproduced in this later check; sustained performance under disk pressure
 is still unproven. Overall health retains earlier failed/stale stock operations.
-The next scheduled scan must establish scan recovery. Manual trading remains
-unconfigured until the dedicated account credentials and setup are confirmed.
+The next scheduled scan must establish scan recovery. Manual account credentials
+and the combined-account setup are now confirmed; execution and notification
+polling health passed September 30 at 14:10 America/New_York. End-to-end paper
+order/fill and Telegram trade-notification delivery tests remain outstanding.
 
 HomeOps backup safeguards and the approved JobWatch lifecycle-write fix are also
 installed. See the [release report](docs/next-phase-release.md) for exact revisions,
 verification, rollback paths and remaining work. HomeOps now records separate
-feed and execution endpoint checks; notification monitoring awaits configuration.
+feed, execution and notification endpoint checks. The independent watchdog
+reported HomeOps reachable with zero failures at 14:12 America/New_York.
 No installer polling is needed.
 The [runtime guide](docs/guide/runtime.md#monitoring-a-quiet-installer) explains
 monitoring future installations without an active Codex session.
@@ -50,9 +53,10 @@ reachability of each change. Older rollout snapshots are retained in the
 instructions. Never install an obsolete stage merely to match an old document.
 
 The operator created one dedicated Alpaca paper account with **$1,000,000
-simulated cash**. Its API credentials and setup confirmation were still pending
-at the last confirmed account-setup checkpoint. It is distinct from the two
-existing automated accounts. StockWatch allocates **$1,000 to manual stocks and
+simulated cash**. The provisioning helper verified its identity differs from both
+automated accounts, and the operator confirmed the combined setup through
+Telegram. Initial cash reconciled with no positions or reservations. StockWatch
+allocates **$1,000 to manual stocks and
 $1,000 to manual Bitcoin**, with a **$100 entry cap including a 1% fee allowance**.
 The broker's larger cash balance does not enlarge either application budget.
 Code can be deployed while manual trading remains visibly **unconfigured**.
