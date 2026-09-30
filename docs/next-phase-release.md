@@ -55,8 +55,21 @@ running since September 28 08:33 ET. Its source database was approximately
 reported approximately 2.71 TB of physical writes. Completed earlier backups
 remain present. Repeated online SQLite backup restarts are a plausible explanation,
 not directly observed; the copy has no deadline in the inspected backup code.
-Permission to stop this separate application's backup was requested; no stop
-has been performed as part of this checkpoint.
+The user subsequently authorized stopping this backup. At approximately 23:07 ET,
+the original attempt was stopped. Its persistent timer immediately launched a
+catch-up attempt, which was also stopped. The final MainPID was zero. The current
+backup status was atomically recorded as failed/operator-interrupted and
+unverified, preserving its run identity. All three completed backup files and
+the partial copies were retained. HomeOps monitoring/collector and all four
+StockWatch services remained active. The backup timer remains enabled and its
+next scheduled run is September 30 around 08:30 ET; no timeout fix is deployed.
+
+The backup process's I/O disappeared from the follow-up process sample, but the
+disk remained roughly 95–100% utilized in subsequent five-second samples, with
+high I/O pressure and approximately 99 MB dirty memory. Stopping this abnormal
+backup removes a demonstrated writer; it has not yet resolved host-wide disk
+contention or established that stock execution failures are fixed. Other writes
+and pending writeback still require attribution before another long deployment.
 
 A StockWatch source fix avoids acquiring a writer for empty workspace queue
 recovery polls. Its regression test holds a competing write lock while both
