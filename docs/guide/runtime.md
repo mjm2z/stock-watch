@@ -14,6 +14,13 @@ Component checks are `/api/health/market-feed`, `/api/health/execution` and
 owner heartbeat and notification activity. Installation does not prove manual
 credentials, Telegram authorization or notification delivery. HomeOps registration
 must follow healthy endpoint verification and independent a1347-j checks.
+`deploy/register-live-monitoring.py --components market-feed execution` can
+register those ready API checks while notification configuration is pending.
+It preserves unrelated configuration and a protected backup, rejects unhealthy
+JSON states, and avoids duplicate registrations. Restart HomeOps web and network
+observer to load the registry, then verify fresh child-check observations. The
+a1347-j watchdog currently checks HomeOps reachability; it does not directly
+probe each StockWatch component.
 
 The reviewed release process is:
 

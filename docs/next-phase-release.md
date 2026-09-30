@@ -36,6 +36,47 @@ These are unresolved responsiveness findings, not proof of a specific SQL blocke
 Browser interaction, chart controls and complete page verification remain pending.
 No paper test orders, strategy activation, account reset or cleanup were performed.
 
+### Follow-up verification, September 30 10:56–11:08 ET
+
+Page responsiveness recovered without a web restart or new application release:
+a Stocks HTTP request completed in about 142 ms and manual paper in about 11 ms.
+This does not identify or prove resolution of the earlier intermittent stalls.
+Read-only Chromium checks at 1440px and 390px covered Stocks, manual paper,
+Bitcoin backtesting, Bitcoin Activity and Crypto. All ten navigations returned
+HTTP 200, with no JavaScript page errors or horizontal overflow. Screenshots
+confirmed the SPY candlestick/volume chart on mobile. The BTC card changed price
+and timestamps with stable height under reduced-motion preferences. The manual
+workspace clearly showed account setup required, distinct allocations, supported
+order controls and unavailable P&L rather than fabricated account values. Browser
+verification blocked trading/system mutation requests; no orders were previewed
+or confirmed. Additional live checks toggled candlesticks and activity layers,
+selected the Bitcoin allocation, and verified Limit/Market/Stop-limit choices
+without attempted trading or system mutations. Test elapsed times include intentional rendering waits and are not
+endpoint latency measurements.
+
+Worker, dispatcher, exits and maintenance reported successful scheduled runs;
+broker reconciliation matched at 10:15 ET. Calendar and CompanyFacts ingestion
+also reported success. No newer successful stock scan is established: the next
+scheduled scan is September 30 16:15 ET. Old failed/stale operation records have
+not been erased or relabelled as successful.
+
+HomeOps originally registered only the main StockWatch page. The reviewed helper
+now supports selecting independently ready components and validates their JSON
+health state before updating configuration. Three fixture tests verify unrelated
+configuration/backup preservation, idempotency, unhealthy-state rejection and
+correct API-child registration. Feed and execution checks were installed as
+API children of StockWatch, with a protected configuration backup. HomeOps web
+and network observer restarted; collector stayed active. Observations at 11:07 ET
+show HTTP 200 for feed and execution, approximately 136 ms and 89 ms respectively.
+The independent a1347-j HomeOps watchdog is running; its state reported reachable,
+zero failures and a fresh observation. It probes HomeOps reachability; direct
+per-component probing from a1347-j is not claimed. Notification registration remains
+pending because its endpoint reports unconfigured/unhealthy.
+
+The operator confirmed that new manual paper API keys have not yet been generated.
+Credential provisioning, exact setup confirmation and end-to-end paper trade tests
+therefore remain pending. These are not inferred from successful page rendering.
+
 ## Earlier runtime-only installation
 
 At September 29 23:38 ET, runtime-only revision

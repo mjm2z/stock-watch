@@ -6,14 +6,19 @@ applied migration 022, preserved ledger counts, and restored services. The
 independent Coinbase collector is fresh with healthy retention; execution health
 passed the initial check and the scheduled maintenance job succeeded.
 
-**Post-install UI verification remains incomplete:** page requests timed out under
-host I/O pressure, and overall health still reports earlier failed/stale stock
-operations. Manual trading remains unconfigured. Installation success does not
-mean these remaining issues are resolved.
+Desktop and mobile browser checks subsequently passed for Stocks, manual paper,
+backtesting, Activity and Crypto, with no JavaScript errors or horizontal overflow.
+The BTC card updated live at a stable height. Earlier post-install page timeouts
+were not reproduced in this later check; sustained performance under disk pressure
+is still unproven. Overall health retains earlier failed/stale stock operations.
+The next scheduled scan must establish scan recovery. Manual trading remains
+unconfigured until the dedicated account credentials and setup are confirmed.
 
 HomeOps backup safeguards and the approved JobWatch lifecycle-write fix are also
 installed. See the [release report](docs/next-phase-release.md) for exact revisions,
-verification, rollback paths and remaining work. No installer polling is needed.
+verification, rollback paths and remaining work. HomeOps now records separate
+feed and execution endpoint checks; notification monitoring awaits configuration.
+No installer polling is needed.
 The [runtime guide](docs/guide/runtime.md#monitoring-a-quiet-installer) explains
 monitoring future installations without an active Codex session.
 
