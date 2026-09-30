@@ -50,11 +50,12 @@ lock as proof that the new release caused a failure.
 From the local repository, run:
 
 ```bash
-python3 deploy/monitor-release.py --watch
+python3 deploy/monitor-release.py --unit stock-watch-release-<revision-prefix>.service --watch
 ```
 
-The default unit is the ongoing `6e7120fe1e9d` installation. For a future release,
-pass `--unit stock-watch-release-5c374e316dd9.service`. This read-only monitor uses
+Replace `<revision-prefix>` with the first 12 characters of the exact release
+you started; do not paste the placeholder literally. The script’s legacy default
+points to completed `6e7120fe1e9d`, so always pass the current unit. This read-only monitor uses
 one SSH connection, samples every 30 seconds, and needs no Codex session. Ctrl-C
 stops only the monitor. Omit `--watch` for one snapshot. It shows unit state, the
 actual installer process tree, host disk rates, I/O pressure and the last log.
@@ -104,9 +105,8 @@ metadata, not SQL rows or credentials.
 
 The source now retains `sqlite_errorcode` and `sqlite_errorname` in exception-chain
 diagnostics. Tests reproduce both `SQLITE_BUSY` and `SQLITE_BUSY_SNAPSHOT`, which
-otherwise share the same error text. This diagnostic change is not present in
-installed `6e7120f` or previously staged `5c374e3`; it requires a future reviewed
-artifact. It changes no timeout, order handling, qualification or retry behavior.
+otherwise share the same error text. This diagnostic change is installed in runtime hotfix `8074750` and retained
+in subsequent main-branch releases. It changes no timeout, order handling, qualification or retry behavior.
 
 Rollback retains databases, research artifacts, reservations and uncertain
 orders. Reconcile before resuming ownership. Do not roll back to a binary that

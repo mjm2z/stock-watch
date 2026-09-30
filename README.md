@@ -11,6 +11,12 @@ verification, rollback paths and remaining work. No installer polling is needed
 now. For future installations, the [runtime guide](docs/guide/runtime.md#monitoring-a-quiet-installer)
 explains monitoring without an active Codex session.
 
+The full UI release `c729243` has now passed Linux staging (96 web, eight feed,
+406 worker tests and production build). It is ready for operator installation,
+including a verified backup and migration 022; it is not installed yet. The
+[release report](docs/next-phase-release.md#full-ui-release-ready-for-operator-installation)
+contains exact install and independent monitoring commands.
+
 StockWatch is a local research and **paper trading** application for US stocks,
 ETFs and BTC/USD. It combines instrument charts, immutable rule-based systems,
 historical research, forward observations, separate manual allocations, and

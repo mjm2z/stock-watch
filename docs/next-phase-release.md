@@ -23,6 +23,46 @@ The new UI/migration 022 remain uninstalled. Active installer polling is no long
 needed; subsequent stock-job recovery and host I/O investigation are separate
 follow-up work, not a running backup or migration.
 
+## Full UI release ready for operator installation
+
+The September 29 follow-up verified full release
+`c7292434e63ac53523dd2dc7eddfcb1a5aca7fd7` at
+`/home/mjm2z/stock-watch-releases/c7292434e63a`. It includes the runtime fixes
+and next-phase UI/migration 022. Linux validation passed 96 web tests across
+26 suites, eight feed tests, 406 worker tests, type checking, lint (three existing
+warnings), production build, wheel packaging and verification of 32,330 files.
+The installer preflight passed without changing services or data.
+
+JobWatch autovacuum completed, its jobs table reported zero dead tuples, and its
+update counter no longer increased by thousands on idle housekeeping passes.
+StockWatch worker, chart and research timer ticks succeeded after the runtime
+hotfix. An idle worker tick does not establish that a fresh market scan succeeds;
+the earlier failed stock scans and stale operation records remain unresolved.
+The host remains I/O constrained; some web health requests timed out during the
+Linux build even while the direct feed stayed fresh with healthy retention.
+After the build, execution health returned HTTP 200/healthy in approximately
+5 ms; manual account configuration remains false.
+
+This artifact is **staged, not installed**. Installation must use the full reviewed
+path below, which backs up and verifies data before applying migration 022 and
+stops StockWatch services while it works. The earlier two-minute code-only timing
+is not an estimate for this migration release. Do not skip its backup or delete
+old recovery copies to speed it up.
+
+```bash
+ssh -t a1347-m 'sudo systemd-run --unit=stock-watch-release-c7292434e63a --collect /usr/bin/python3 /home/mjm2z/stock-watch-releases/c7292434e63a/deploy/install-reviewed-release.py /home/mjm2z/stock-watch-releases/c7292434e63a'
+```
+
+Monitor from this checkout without an active Codex session:
+
+```bash
+python3 deploy/monitor-release.py --unit stock-watch-release-c7292434e63a.service --watch
+```
+
+After the installer stops, verify its receipt, migration 022, service ownership,
+LAN pages, chart controls, live feed and existing automation. Manual configuration
+remains a separate operator step. No test orders or account reset are implied.
+
 ## Earlier investigation checkpoints
 
 Implementation is committed and pushed. The exact runtime revision
