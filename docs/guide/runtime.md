@@ -80,6 +80,34 @@ Do not skip a migration backup to obtain a faster deployment. A backup on the
 same physical disk adds read/write contention; moving it requires an explicit
 recovery design rather than changing the destination mid-installation.
 
+### Capturing database contention
+
+`deploy/record-database-locks.py` samples the main database and its WAL/shared-memory
+file locks once per second for five minutes (maximum one hour with `--seconds`).
+It reports changed locks and a 30-second heartbeat as JSON lines, including PIDs,
+program names, byte ranges and host I/O pressure. It reads filesystem metadata
+and `/proc`; it never opens a database connection. Sampling can miss short locks,
+and a write lock alone does not establish that a job was blocked for its timeout.
+Normal execution ownership lock files must not be deleted.
+
+An identical helper was copied to `/home/mjm2z/stockwatch-record-locks.py` and
+validated against an isolated Linux fixture. To capture a recurring failure:
+
+```bash
+ssh -t a1347-m 'sudo python3 /home/mjm2z/stockwatch-record-locks.py --seconds 300 | tee /home/mjm2z/stockwatch-locks.jsonl'
+```
+
+Root is needed to stat protected database paths, not to modify them. Run during
+the affected workload; an idle-period capture cannot exclude contention during
+a scan. Ctrl-C stops only the recorder. The saved file contains diagnostic
+metadata, not SQL rows or credentials.
+
+The source now retains `sqlite_errorcode` and `sqlite_errorname` in exception-chain
+diagnostics. Tests reproduce both `SQLITE_BUSY` and `SQLITE_BUSY_SNAPSHOT`, which
+otherwise share the same error text. This diagnostic change is not present in
+installed `6e7120f` or previously staged `5c374e3`; it requires a future reviewed
+artifact. It changes no timeout, order handling, qualification or retry behavior.
+
 Rollback retains databases, research artifacts, reservations and uncertain
 orders. Reconcile before resuming ownership. Do not roll back to a binary that
 cannot understand pending notional instructions, strip new request fields, or

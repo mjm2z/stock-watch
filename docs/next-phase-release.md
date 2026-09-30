@@ -26,6 +26,17 @@ high. Do not declare the application fully healthy or initiate another long
 installation before investigating this contention. `sudo -n true` still requires
 an operator password; no new installation or database cleanup was performed.
 
+A September 29 22:49 ET bounded kernel-lock sample observed brief writes from
+the execution owner and a systems worker, but no sustained blocking writer.
+The failure tracebacks locate stock scan writes in feature/signal/assessment
+persistence and maintenance writes in signal evaluations. This does not prove
+which competing operation caused the earlier failures. Source-only exception
+diagnostics now retain SQLite extended codes (405 worker tests passed), and the
+read-only lock recorder passed an isolated Linux fixture test. The recorder is
+available on the host for operator-root capture; no service restart was performed.
+See the runtime guide for the command and the distinction between source,
+staged artifact and installed code.
+
 
 Manual credentials and combined-account setup were still pending at the last
 confirmed setup checkpoint. No account reset, strategy activation or end-to-end

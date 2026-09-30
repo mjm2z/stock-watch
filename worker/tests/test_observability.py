@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import io
+from contextlib import closing
 import json
 import sqlite3
 import tempfile
@@ -12,6 +13,35 @@ from stock_watch_worker.observability import OperationMonitor, exception_chain
 
 
 class ObservabilityTests(unittest.TestCase):
+    def test_sqlite_busy_and_snapshot_have_distinct_diagnostics(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = str(Path(directory) / 'locks.db')
+            with closing(sqlite3.connect(path, timeout=0)) as first, closing(sqlite3.connect(path, timeout=0)) as second:
+                try:
+                    first.execute('PRAGMA journal_mode=WAL')
+                    first.execute('CREATE TABLE evidence(value INTEGER)')
+                    first.execute('INSERT INTO evidence VALUES (1)')
+                    first.commit()
+                    first.execute('BEGIN IMMEDIATE')
+                    with self.assertRaises(sqlite3.OperationalError) as busy:
+                        second.execute('INSERT INTO evidence VALUES (2)')
+                    self.assertEqual(exception_chain(busy.exception)[0]['sqlite_errorname'], 'SQLITE_BUSY')
+                    second.rollback()
+                    first.rollback()
+                    first.execute('BEGIN')
+                    first.execute('SELECT * FROM evidence').fetchall()
+                    second.execute('INSERT INTO evidence VALUES (2)')
+                    second.commit()
+                    with self.assertRaises(sqlite3.OperationalError) as stale:
+                        first.execute('INSERT INTO evidence VALUES (3)')
+                    detail = exception_chain(stale.exception)[0]
+                    self.assertEqual(detail['sqlite_errorname'], 'SQLITE_BUSY_SNAPSHOT')
+                    self.assertEqual(detail['sqlite_errorcode'], sqlite3.SQLITE_BUSY_SNAPSHOT)
+                    first.rollback()
+                finally:
+                    first.close()
+                    second.close()
+
     def setUp(self) -> None:
         self.directory = tempfile.TemporaryDirectory()
         self.database = Path(self.directory.name) / "worker.db"
