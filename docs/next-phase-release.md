@@ -2,7 +2,41 @@
 
 This report separates source work, tests, staging and installed operation.
 
-## Latest installed checkpoint
+## Latest installed checkpoint: full UI release
+
+Revision `c7292434e63ac53523dd2dc7eddfcb1a5aca7fd7` completed installation on
+September 30 at 10:13:44 America/New_York. The receipt records database mode,
+a verified backup, migration `022_research_inspection`, preserved ledger counts,
+and `stock-watch-execution.service` as the Bitcoin execution owner. Recovery is
+`/var/backups/stock-watch-releases/20260930T123254Z`; the prior runtime remains
+`/opt/stock-watch.before-20260930T123254Z`.
+
+The journal recorded backup completion at 09:13:46, verification continuing until
+10:04:04, auxiliary recovery copies, migration 022 at 10:12:59, then “Release
+verified” and successful service deactivation at 10:13:44. The later 10:14:09
+message about a missing transient systemd unit followed successful completion;
+it is not evidence of a failed installation. Do not rerun the installer based
+on that message or the monitor's inactive/dead unit state.
+
+At 10:33 ET, all four core services were active. Execution health was healthy,
+manual configuration was false, and Coinbase snapshots were fresh with healthy
+retention and zero dropped minute buckets. The execution service is enabled;
+legacy Bitcoin automation/trading timers are disabled. The scheduled maintenance
+job succeeded at 10:24:32 and the worker tick succeeded at 10:33:03. Overall app
+health still reports earlier failed stock jobs and a stale operation; a new
+successful stock scan has not been established.
+
+LAN requests for Stocks, manual paper and Research exceeded a 12-second check;
+Activity returned HTTP 200 but its response did not complete within that limit.
+A loopback root request also exceeded eight seconds, and a later execution-health
+request timed out after five seconds. The direct independent feed remained fresh.
+The web service stayed active with no restarts. Host I/O pressure was elevated
+(approximately 78% some / 74% full over ten seconds during the follow-up).
+These are unresolved responsiveness findings, not proof of a specific SQL blocker.
+Browser interaction, chart controls and complete page verification remain pending.
+No paper test orders, strategy activation, account reset or cleanup were performed.
+
+## Earlier runtime-only installation
 
 At September 29 23:38 ET, runtime-only revision
 `80747508849cacd175a11a8326370656a79337e7` installed successfully. The supervised
@@ -43,7 +77,9 @@ Linux build even while the direct feed stayed fresh with healthy retention.
 After the build, execution health returned HTTP 200/healthy in approximately
 5 ms; manual account configuration remains false.
 
-This artifact is **staged, not installed**. Installation must use the full reviewed
+At this earlier checkpoint the artifact was staged only; it subsequently installed
+as recorded above. The reviewed command below is retained for audit, not for
+rerunning the completed release. Installation uses the full reviewed
 path below, which backs up and verifies data before applying migration 022 and
 stops StockWatch services while it works. The earlier two-minute code-only timing
 is not an estimate for this migration release. Do not skip its backup or delete

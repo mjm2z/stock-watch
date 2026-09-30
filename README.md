@@ -1,21 +1,21 @@
 # StockWatch
 
-Runtime hotfix `8074750` is installed on a1347-m. Its code-only deployment took
-about two minutes and ran no database backup or migration. Coinbase feed retention
-and execution-owner health passed post-install checks. Earlier stock-job failures
-still make overall health degraded; the new UI release remains pending.
+Full UI release `c729243` is installed on a1347-m as of September 30, 2026,
+10:13:44 America/New_York. The reviewed installer verified recovery copies,
+applied migration 022, preserved ledger counts, and restored services. The
+independent Coinbase collector is fresh with healthy retention; execution health
+passed the initial check and the scheduled maintenance job succeeded.
+
+**Post-install UI verification remains incomplete:** page requests timed out under
+host I/O pressure, and overall health still reports earlier failed/stale stock
+operations. Manual trading remains unconfigured. Installation success does not
+mean these remaining issues are resolved.
 
 HomeOps backup safeguards and the approved JobWatch lifecycle-write fix are also
 installed. See the [release report](docs/next-phase-release.md) for exact revisions,
-verification, rollback paths and remaining work. No installer polling is needed
-now. For future installations, the [runtime guide](docs/guide/runtime.md#monitoring-a-quiet-installer)
-explains monitoring without an active Codex session.
-
-The full UI release `c729243` has now passed Linux staging (96 web, eight feed,
-406 worker tests and production build). It is ready for operator installation,
-including a verified backup and migration 022; it is not installed yet. The
-[release report](docs/next-phase-release.md#full-ui-release-ready-for-operator-installation)
-contains exact install and independent monitoring commands.
+verification, rollback paths and remaining work. No installer polling is needed.
+The [runtime guide](docs/guide/runtime.md#monitoring-a-quiet-installer) explains
+monitoring future installations without an active Codex session.
 
 StockWatch is a local research and **paper trading** application for US stocks,
 ETFs and BTC/USD. It combines instrument charts, immutable rule-based systems,
