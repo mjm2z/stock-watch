@@ -325,10 +325,10 @@ export function chartRequest(range: string, startInput?: string | null, endInput
           JOIN workspace_jobs j ON j.id='chart-' || c.key
           WHERE json_extract(j.payload_json,'$.range')=?
           AND json_extract(j.payload_json,'$.frame')=?
-          AND datetime(c.updated_at)>datetime('now','-2 days')
+          AND datetime(c.updated_at)>datetime(?)
           ORDER BY c.updated_at DESC LIMIT 1`
             )
-            .get(range, frame)
+            .get(range, frame, new Date(Date.now() - 2 * 86400000).toISOString())
         : undefined
     const fallback = previous ? parse(previous.payload_json) : null
     return cached
