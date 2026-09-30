@@ -33,6 +33,9 @@ class MonitoringRegistration(unittest.TestCase):
             self.assertEqual(actual['private_setting'], original['private_setting'])
             self.assertEqual(actual['sites'][0], original['sites'][0])
             self.assertEqual([s['id'] for s in actual['sites']], ['existing', 'stock-watch-market-feed', 'stock-watch-execution'])
+            self.assertEqual(actual['sites'][1]['kind'], 'API')
+            self.assertEqual(actual['sites'][1]['parent_site'], 'stock-watch')
+            self.assertNotIn('page_url', actual['sites'][1])
             backups = list(config.parent.glob('*.before-live-paper-*'))
             self.assertEqual(json.loads(backups[0].read_text()), original)
             before = config.read_bytes()
@@ -54,6 +57,19 @@ class MonitoringRegistration(unittest.TestCase):
                     self.run_registration(home, replies, list(replies))
                 self.assertEqual(config.read_text(), '{"sites":[]}')
                 self.assertEqual(list(config.parent.glob('*.before-live-paper-*')), [])
+
+    def test_previous_json_as_website_registration_is_corrected(self):
+        with tempfile.TemporaryDirectory() as directory:
+            home = Path(directory)
+            config = home / '.config/home-ops/server.json'
+            config.parent.mkdir(parents=True)
+            url = 'http://192.168.4.35:3001/api/health/execution'
+            config.write_text(json.dumps({'sites': [{'id': 'stock-watch-execution', 'url': url, 'page_url': url, 'kind': 'Website', 'extra': 'preserved'}]}))
+            self.run_registration(home, {'execution': {'healthy': True}}, ['execution'])
+            site = json.loads(config.read_text())['sites'][0]
+            self.assertEqual(site['kind'], 'API')
+            self.assertNotIn('page_url', site)
+            self.assertEqual(site['extra'], 'preserved')
 
 
 if __name__ == '__main__':

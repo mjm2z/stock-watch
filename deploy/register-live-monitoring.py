@@ -27,7 +27,7 @@ def main():
     path = Path.home() / ".config/home-ops/server.json"
     original = path.read_bytes()
     config = json.loads(original)
-    existing = {s["id"] for s in config["sites"]}
+    existing = {s["id"]: s for s in config["sites"]}
     added = []
     for component in dict.fromkeys(args.components):
         url = "http://192.168.4.35:3001/api/health/" + component
@@ -38,18 +38,24 @@ def main():
             if response.status != 200 or not healthy:
                 raise RuntimeError(component + " is not ready")
         identifier = "stock-watch-" + component
-        if identifier not in existing:
-            config["sites"].append(
-                {
+        if identifier in existing and existing[identifier].get("url") != url:
+            raise RuntimeError("Existing component URL differs; review " + identifier)
+        desired = {
                     "id": identifier,
                     "name": "StockWatch " + component,
                     "machine": "a1347-m",
                     "url": url,
-                    "kind": "Website",
+                    "kind": "API",
+                    "parent_site": "stock-watch",
                     "open_url": "http://stockwatch.home.arpa:3001/crypto?view=operations",
-                    "page_url": url,
                 }
-            )
+        if identifier not in existing:
+            config["sites"].append(desired)
+            added.append(component)
+        elif any(existing[identifier].get(key) != value for key, value in desired.items()) or existing[identifier].get("page_url") == url:
+            existing[identifier].update(desired)
+            if existing[identifier].get("page_url") == url:
+                del existing[identifier]["page_url"]
             added.append(component)
     if not added:
         print("Selected healthy components are already registered; no configuration changed.")
@@ -68,7 +74,7 @@ def main():
     os.replace(temporary, path)
     print(
         "Registered healthy StockWatch components: " + ", ".join(added)
-        + ". Restart HomeOps through its existing service workflow and verify a1347-j reporting."
+        + ". Restart home-ops.service and home-ops-network.service, then verify a1347-j reporting."
     )
 
 
