@@ -8,14 +8,24 @@ Implementation is committed and pushed. The exact runtime revision
 `5c374e316dd900a8f62746587982972f27352596` passed Linux staging at
 `/home/mjm2z/stock-watch-releases/5c374e316dd9`, including the reviewed installer's
 read-only preflight and verification of 32,327 artifact files. It has not replaced
-the pending reviewed installation of `6e7120fe1e9d`. That earlier installer remains the release
-owner. At the latest host check on September 29, its journal showed completion
-of the main database copy at 01:07 ET, verification of the recovery database, then
-auxiliary Bitcoin-history backup at 11:00 ET. Web, feed, execution and manual
-services were inactive during that operation and at the closeout check. No new
-installation was started. `/opt/stock-watch/installed-release.json` was absent at
-closeout, so this iteration cannot certify an installed revision. The earlier
-`e7346a4fa798` stage is superseded by `5c374e316dd9`; do not install it.
+the installed revision `6e7120fe1e9d26271032ffc55902722dcb345cdf`.
+Its receipt records completion at September 29 13:35 ET; the supervised unit
+exited successfully at 13:36 ET. Migration 021 was applied, recovery data retained,
+and the web, market-feed, execution and manual-paper services are active.
+Legacy Bitcoin automation/trading timers are disabled; the execution service is
+enabled. The earlier `e7346a4fa798` stage is superseded by `5c374e316dd9`.
+
+The evening follow-up found healthy execution heartbeats and fresh Coinbase
+prices, but overall application health remains degraded. Stock worker and
+maintenance runs failed with `database is locked`; the scheduled backup timed
+out while retaining its previous backup. Fundamentals and universe services also
+retain failed states, with their causes not yet verified. Some running operation
+records refer to exited processes; they were not rewritten to imply success.
+The earlier long-running scan worker has now exited. Host I/O pressure remains
+high. Do not declare the application fully healthy or initiate another long
+installation before investigating this contention. `sudo -n true` still requires
+an operator password; no new installation or database cleanup was performed.
+
 
 Manual credentials and combined-account setup were still pending at the last
 confirmed setup checkpoint. No account reset, strategy activation or end-to-end
@@ -53,8 +63,9 @@ that the demonstration creates no executable versions, enrollments or orders.
 The final Linux artifact passed the same 404 worker, 96 web and six feed tests,
 type checking, lint and production build. The additional deployment suite ran
 34 tests successfully with one platform-specific skip. Worker wheel packaging,
-manifest hashing and read-only installer preflight passed. Installed verification
-remains blocked by the earlier release owner; staging did not apply migration 022.
+manifest hashing and read-only installer preflight passed. Installation of this
+next-phase artifact remains pending runtime diagnosis and operator root access;
+staging did not apply migration 022.
 
 ## Installation handoff
 
@@ -71,9 +82,9 @@ with rsync; the 11:00 backup journal message was stale. The rotational host disk
 was heavily utilized. See the runtime guide for monitoring limits and prospective
 optimizations; the running installer and verified stage were not modified.
 
-After it completes, inspect its receipt and service health. Do not start the next
-installation merely because staging passed. Once ownership is released, root
-access and the existing market-window guard permit the reviewed installer:
+The previous installer has completed. Resolve the runtime contention above before
+starting the next installation. Once service health is reviewed, root access and
+the existing market-window guard permit the reviewed installer:
 
 ```bash
 sudo systemd-run --unit=stock-watch-release-5c374e316dd9 --collect \
@@ -96,8 +107,8 @@ System chart inspection does not invent missing historical indicator series.
 Legacy stock execution timers remain separate. Telegram's existing parser remains
 compatible; expanded browser forms do not imply undocumented Telegram syntax.
 
-Root installation must wait until the existing release owner completes. Confirm
-its installed receipt and execution-owner health before considering another stage.
+Root installation must wait for runtime diagnosis and operator root access. The
+installed receipt and execution-owner health are verified; stock jobs remain degraded.
 Provision protected credentials and confirm manual setup separately. HomeOps
 component registration, watchdog verification and paper-order tests remain
 explicit post-install checks; a fixture is not production verification.
