@@ -91,3 +91,15 @@ class AuthorityMigrationGuards(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+
+class ConcurrentReleaseTests(unittest.TestCase):
+    def test_existing_installer_is_not_confused_with_this_installer(self):
+        from unittest.mock import patch
+        def pid(*args):
+            return '123' if args[-1]=='stock-watch-release-new.service' else '456'
+        with patch.object(release,'output',side_effect=pid):
+            owners=release.other_release_owners([
+                'stock-watch-release-new.service loaded active running new',
+                'stock-watch-release-old.service loaded active running old',
+            ],current_pid=123)
+        self.assertEqual(owners,['stock-watch-release-old.service'])

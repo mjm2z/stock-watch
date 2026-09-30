@@ -306,8 +306,8 @@ def monitor_cli_operation(args: argparse.Namespace) -> Iterator[OperationMonitor
         monitor.close()
 
 
-def exception_chain(error: BaseException) -> list[dict[str, str]]:
-    values: list[dict[str, str]] = []
+def exception_chain(error: BaseException) -> list[dict[str, Any]]:
+    values: list[dict[str, Any]] = []
     seen: set[int] = set()
     current: BaseException | None = error
     while current is not None and id(current) not in seen:
@@ -318,6 +318,11 @@ def exception_chain(error: BaseException) -> list[dict[str, str]]:
                 "message": str(current) or type(current).__name__,
             }
         )
+        if isinstance(current, sqlite3.Error):
+            for name in ("sqlite_errorcode", "sqlite_errorname"):
+                value = getattr(current, name, None)
+                if value is not None:
+                    values[-1][name] = value
         current = current.__cause__ or (
             None if current.__suppress_context__ else current.__context__
         )

@@ -132,7 +132,10 @@ def execute(db,job,database):
 def run_workspace(db,database,charts_only=False):
     # Chart and research workers hold separate process locks and disjoint queues.
     scope="kind='chart'" if charts_only else "kind!='chart'"
-    with db:db.execute(f"UPDATE workspace_jobs SET status='failed',error='Worker interrupted; retry explicitly',finished_at=? WHERE status='running' AND {scope}",(now_iso(),))
+    # An idle poll must not compete for SQLite's single writer. The command's
+    # process lock owns this queue, so recovery remains scoped to interrupted work.
+    if db.execute(f"SELECT 1 FROM workspace_jobs WHERE status='running' AND {scope} LIMIT 1").fetchone():
+        with db:db.execute(f"UPDATE workspace_jobs SET status='failed',error='Worker interrupted; retry explicitly',finished_at=? WHERE status='running' AND {scope}",(now_iso(),))
     job=db.execute(f"SELECT * FROM workspace_jobs WHERE status='queued' AND cancel_requested=0 AND {scope} ORDER BY created_at LIMIT 1").fetchone()
     if not job:return
     with db:db.execute("UPDATE workspace_jobs SET status='running',started_at=?,progress=10 WHERE id=?",(now_iso(),job['id']))
