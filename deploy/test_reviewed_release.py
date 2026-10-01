@@ -13,6 +13,16 @@ manifest_spec.loader.exec_module(manifest_builder)
 
 
 class ReleaseGuards(unittest.TestCase):
+    def test_ui_release_requires_finished_storage_not_only_committed_migration(self):
+        with tempfile.TemporaryDirectory() as directory:
+            runtime = Path(directory)
+            with self.assertRaisesRegex(RuntimeError, 'Complete and verify'):
+                release.require_completed_storage(runtime, {'pending_migrations': []})
+            (runtime / 'installed-release.json').write_text('{"revision":"verified","installed_at":"2026-10-01"}')
+            with self.assertRaisesRegex(RuntimeError, 'Complete and verify'):
+                release.require_completed_storage(runtime, {'pending_migrations': ['023_company_fact_storage']})
+            release.require_completed_storage(runtime, {'pending_migrations': ['024_signal_navigation']})
+
     def test_manifest_traversal_preserves_payload_and_excludes_caches_and_links(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory).resolve()

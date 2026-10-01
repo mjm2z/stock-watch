@@ -228,6 +228,18 @@ def preserve_database(database, recovery, plan):
     return before, authority_before
 
 
+def require_completed_storage(runtime, plan):
+    # A committed migration alone is insufficient: compaction/readiness may
+    # have failed after the previous runtime was replaced. Only a completed
+    # reviewed install writes this receipt into the new runtime.
+    receipt = runtime / 'installed-release.json'
+    if '023_company_fact_storage' in plan['pending_migrations'] or not receipt.is_file():
+        raise RuntimeError('Complete and verify staged storage release fb6c33a before installing this UI release; no services changed')
+    installed = json.loads(receipt.read_text())
+    if not installed.get('installed_at') or not installed.get('revision'):
+        raise RuntimeError('Installed release receipt is incomplete; review storage maintenance before proceeding')
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('source', type=Path)
@@ -267,8 +279,7 @@ def main():
     runtime = Path('/opt/stock-watch')
     database = Path('/var/lib/stock-watch/stock-watch.db')
     plan = deployment_plan(source, runtime, database, args.full_backup or args.compact_database)
-    if '023_company_fact_storage' in plan['pending_migrations']:
-        raise SystemExit('Complete and verify staged storage release fb6c33a before installing this UI release; no services changed')
+    require_completed_storage(runtime, plan)
     print('Deployment plan: ' + json.dumps(plan), flush=True)
     stamp = datetime.now(ZoneInfo('UTC')).strftime('%Y%m%dT%H%M%SZ')
     recovery = Path('/var/backups/stock-watch-releases') / stamp
