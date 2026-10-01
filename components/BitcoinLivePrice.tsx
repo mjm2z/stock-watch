@@ -9,7 +9,7 @@ export function BitcoinLivePrice() {
       className="sw-live-badge"
     >
       <span className="text-xs font-semibold text-muted-foreground">BTC/USD</span>
-      <p className="font-mono text-lg tabular-nums" aria-live="off">
+      <p className="font-mono text-2xl tabular-nums" aria-live="off">
         {snapshot?.price != null
           ? snapshot.price.toLocaleString('en-US', { style: 'currency', currency: 'USD' })
           : '—'}

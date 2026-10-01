@@ -460,3 +460,13 @@ python3 deploy/monitor-release.py --unit stock-watch-release-41fb35b5797c.servic
 Verify the installed receipt, health endpoints, overview controls and green sidebar
 icon before calling this release operational. No new migration or worker execution
 change is introduced by this UI release.
+
+## Overview layout follow-up (source checkpoint)
+
+Horizontal fixed-height ticker legend, stock style/reset toolbar without a resolution
+selector, always-visible research coverage with aligned external headings, and compact
+two-row Bitcoin badge. No schema or execution changes. Local type checks, focused UI
+tests and production build passed. Desktop/mobile browser checks verified five-symbol
+additions do not shift the chart, no duplicate Reset view or resolution selector,
+no horizontal page overflow, and correct badge label/status/price alignment. Linux
+staging and deployment remain separate checkpoints.

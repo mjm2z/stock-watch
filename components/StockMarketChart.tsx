@@ -3,7 +3,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { LoaderCircle, X } from 'lucide-react'
 import { ChartBar, InteractiveChart } from './MarketChart'
 import { StockSearch } from './StockSearch'
-import { ChartControls, type ChartStyle } from './ChartControls'
+import { ChartControls, ChartStyleSelect, type ChartStyle } from './ChartControls'
 const palette = ['#6699ee', '#e7828e', '#54bda0', '#c59ae8', '#d9a64c']
 type Series = { bars: ChartBar[]; loading: boolean; error?: string; partial?: boolean }
 export function StockMarketChart() {
@@ -14,7 +14,7 @@ export function StockMarketChart() {
     [volume, setVolume] = useState(true)
   const [scale, setScale] = useState<'dollars' | 'percent'>('dollars'),
     [custom, setCustom] = useState({ start: '', end: '' })
-  const [resolution, setResolution] = useState(''),
+  const [resetToken, setResetToken] = useState(0),
     [data, setData] = useState<Record<string, Series>>({}),
     [notice, setNotice] = useState(''),
     [retry, setRetry] = useState(0)
@@ -60,7 +60,6 @@ export function StockMarketChart() {
       const query = new URLSearchParams({
         range: range.toUpperCase(),
         adjustment: 'all',
-        ...(resolution ? { timeframe: resolution } : {}),
         ...(range.toUpperCase() === 'CUSTOM' ? custom : {}),
       })
       const key = symbol + query.toString(),
@@ -94,7 +93,7 @@ export function StockMarketChart() {
         })
     }
     return () => controller.abort()
-  }, [symbols, range, resolution, custom, ready, retry])
+  }, [symbols, range, custom, ready, retry])
   const loaded = useMemo(
     () =>
       symbols
@@ -194,18 +193,15 @@ export function StockMarketChart() {
         volume={volume}
         onVolume={() => setVolume(!volume)}
         multiple={symbols.length > 1}
+        hideStyle
       />
-      <div className="flex items-center justify-between gap-3 mb-4">
-        <select
-          aria-label="Chart resolution"
-          value={resolution}
-          onChange={(e) => setResolution(e.target.value)}
-        >
-          <option value="">Automatic resolution</option>
-          <option value="5Min">5 minutes</option>
-          <option value="1Hour">Hourly</option>
-          <option value="1Day">Daily</option>
-        </select>
+      <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
+        <div className="flex items-center gap-2">
+          <ChartStyleSelect style={style} onStyle={setStyle} multiple={symbols.length > 1} />
+          <button className="sw-button" onClick={() => setResetToken((n) => n + 1)}>
+            Reset view
+          </button>
+        </div>
         <div className="sw-segmented" role="radiogroup" aria-label="Price scale">
           {(['dollars', 'percent'] as const).map((v) => (
             <button
@@ -260,6 +256,8 @@ export function StockMarketChart() {
           percent={scale === 'percent'}
           volume={volume && symbols.length === 1}
           showDataTable={false}
+          externalReset
+          resetToken={resetToken}
         />
       ) : (
         <div className="sw-chart-empty" role="status">
@@ -284,6 +282,7 @@ export function StockMarketChart() {
               label={`${s.name} volume`}
               volume
               volumeOnly
+              resetToken={resetToken}
               height={100}
               showDataTable={false}
             />

@@ -34,12 +34,7 @@ export default function Home() {
       ) : (
         <>
           <section className="grid gap-6 xl:grid-cols-[1.6fr_0.8fr]">
-            <details className="sw-panel self-start">
-              <summary className="font-semibold">Research coverage and methodology</summary>
-              <div className="mt-4">
-                <ResearchQuality />
-              </div>
-            </details>
+            <ResearchQuality />
 
             <div>
               <div className="mb-4">

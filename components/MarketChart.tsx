@@ -43,11 +43,15 @@ export function InteractiveChart({
   color,
   showDataTable = true,
   volumeOnly = false,
+  resetToken = 0,
+  externalReset = false,
 }: {
   bars: ChartBar[]
   style?: ChartStyle
   color?: string
   showDataTable?: boolean
+  resetToken?: number
+  externalReset?: boolean
   volumeOnly?: boolean
   candles?: boolean
   volume?: boolean
@@ -209,6 +213,9 @@ export function InteractiveChart({
     }
   }, [bars, chartStyle, ohlc, volume, theme, height, percent, comparisons, color, volumeOnly])
   useEffect(() => {
+    chart.current?.timeScale().fitContent()
+  }, [resetToken])
+  useEffect(() => {
     const series = primary.current
     if (!series) return
     for (const line of priceLines.current) series.removePriceLine(line)
@@ -276,9 +283,11 @@ export function InteractiveChart({
                 ? `${new Date(hover.at).toLocaleString()} · O $${hover.open.toLocaleString()} · H $${hover.high.toLocaleString()} · L $${hover.low.toLocaleString()} · C $${hover.close.toLocaleString()}`
                 : 'Hover or touch the chart to inspect a point'}
           </div>
-          <button className="sw-button" onClick={() => chart.current?.timeScale().fitContent()}>
-            Reset view
-          </button>
+          {!externalReset && (
+            <button className="sw-button" onClick={() => chart.current?.timeScale().fitContent()}>
+              Reset view
+            </button>
+          )}
         </div>
       )}
       <div

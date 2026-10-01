@@ -359,3 +359,10 @@ It still consumes the event stream without adding display polling or throttling.
 Historical candles remain separate Alpaca data. Source details are available on the
 badge tooltip/accessibility label. The sidebar uses the same green arrow artwork as the
 favicon with a versioned URL so a cached older icon cannot survive a new page load.
+
+The selected-stock legend grows horizontally in a fixed-height row (scrollable on
+narrow screens), so adding tickers does not push the chart down. Stock resolution
+is chosen automatically from the range; the style selector and Reset view share
+one toolbar row. Research coverage is always expanded, with an external heading
+aligned with Recent scans. The compact Bitcoin badge places BTC/USD and feed status
+on its top row and the larger, left-aligned price immediately below.

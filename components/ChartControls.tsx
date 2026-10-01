@@ -12,6 +12,7 @@ export function ChartControls({
   volume,
   onVolume,
   multiple = false,
+  hideStyle = false,
 }: {
   range: string
   onRange: (r: string) => void
@@ -22,6 +23,7 @@ export function ChartControls({
   onStyle: (s: ChartStyle) => void
   volume: boolean
   onVolume: () => void
+  hideStyle?: boolean
   multiple?: boolean
 }) {
   const dialog = useRef<HTMLDialogElement>(null)
@@ -64,18 +66,7 @@ export function ChartControls({
         </button>
       </div>
       <div className="flex flex-wrap items-center gap-3">
-        <select
-          aria-label="Chart style"
-          value={style}
-          disabled={multiple}
-          title={multiple ? 'Multiple stocks use lines' : undefined}
-          onChange={(e) => onStyle(e.target.value as ChartStyle)}
-        >
-          <option value="candles">Candles</option>
-          <option value="hollow">Hollow candles</option>
-          <option value="line">Lines</option>
-          <option value="bars">Bars</option>
-        </select>
+        {!hideStyle && <ChartStyleSelect style={style} onStyle={onStyle} multiple={multiple} />}
         <button className="sw-chart-text-button" aria-pressed={volume} onClick={onVolume}>
           {volume ? 'Hide Volume' : 'Show Volume'}
         </button>
@@ -132,5 +123,30 @@ export function ChartControls({
         </form>
       </dialog>
     </div>
+  )
+}
+
+export function ChartStyleSelect({
+  style,
+  onStyle,
+  multiple = false,
+}: {
+  style: ChartStyle
+  onStyle: (s: ChartStyle) => void
+  multiple?: boolean
+}) {
+  return (
+    <select
+      aria-label="Chart style"
+      value={style}
+      disabled={multiple}
+      title={multiple ? 'Multiple stocks use lines' : undefined}
+      onChange={(e) => onStyle(e.target.value as ChartStyle)}
+    >
+      <option value="candles">Candles</option>
+      <option value="hollow">Hollow candles</option>
+      <option value="line">Lines</option>
+      <option value="bars">Bars</option>
+    </select>
   )
 }
