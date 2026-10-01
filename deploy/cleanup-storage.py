@@ -68,7 +68,7 @@ def candidates(runtime=RUNTIME, staging=STAGING, backups=BACKUPS, now=None):
                    for p in backups.iterdir() if TEMP.fullmatch(p.name) and plain(p) and now - p.stat().st_mtime > 6*3600]
     for entry in result:
         info = Path(entry['path']).lstat()
-        entry['identity'] = [info.st_dev, info.st_ino, info.st_mtime_ns]
+        entry['identity'] = [info.st_dev, info.st_ino, info.st_mtime_ns, info.st_ctime_ns, info.st_size]
     return {'revision': receipt['revision'], 'preserved_runtimes': sorted(map(str, keep)),
             'preserved_staging': sorted(map(str, protected_stages)), 'candidates': result}
 
@@ -91,7 +91,7 @@ def recovery_candidates(root=Path('/var/backups/stock-watch-releases')):
         path=directory/'stock-watch.db'
         info=path.lstat()
         rows.append({'path':str(path),'kind':'old-recovery-database','bytes':info.st_size,
-                     'identity':[info.st_dev,info.st_ino,info.st_mtime_ns]})
+                     'identity':[info.st_dev,info.st_ino,info.st_mtime_ns,info.st_ctime_ns,info.st_size]})
     return rows, list(map(str, verified[:2]))
 
 
@@ -133,7 +133,7 @@ def remove_plan(plan):
     for entry in plan['candidates']:
         p = Path(entry['path'])
         info = p.lstat()
-        if [info.st_dev, info.st_ino, info.st_mtime_ns] != entry['identity'] or p.is_symlink():
+        if [info.st_dev, info.st_ino, info.st_mtime_ns, info.st_ctime_ns, info.st_size] != entry['identity'] or p.is_symlink():
             raise RuntimeError('Candidate changed; aborting: ' + str(p))
     for entry in plan['candidates']:
         p = Path(entry['path'])

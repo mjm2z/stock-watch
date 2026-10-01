@@ -41,7 +41,7 @@ class CleanupTests(unittest.TestCase):
     def test_refuses_open_handles_and_changed_candidates_before_deleting(self):
         with tempfile.TemporaryDirectory() as directory:
             p = Path(directory)/'candidate'; p.write_text('original'); s=p.stat()
-            plan={'candidates':[{'path':str(p),'kind':'abandoned-backup','identity':[s.st_dev,s.st_ino,s.st_mtime_ns]}]}
+            plan={'candidates':[{'path':str(p),'kind':'abandoned-backup','identity':[s.st_dev,s.st_ino,s.st_mtime_ns,s.st_ctime_ns,s.st_size]}]}
             with patch.object(cleanup,'in_use',return_value={str(p)}):
                 with self.assertRaisesRegex(RuntimeError,'still in use'):cleanup.remove_plan(plan)
             self.assertTrue(p.exists()); p.write_text('changed')
