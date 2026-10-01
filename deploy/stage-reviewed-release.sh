@@ -41,6 +41,7 @@ npm test -- --runInBand
 npm run test:feed
 npm run build
 PYTHONPATH=worker/src python3.12 -m unittest discover -s worker/tests -q
+python3.12 -m unittest discover -s deploy -p 'test_*.py' -q
 python3.12 -m venv .build-venv
 .build-venv/bin/pip wheel --no-deps ./worker --wheel-dir release-wheels
 rm -rf .build-venv

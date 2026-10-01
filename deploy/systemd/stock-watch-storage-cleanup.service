@@ -1,0 +1,12 @@
+[Unit]
+Description=Prune retired StockWatch builds and redundant recovery copies
+
+[Service]
+Type=oneshot
+User=root
+ExecStart=/usr/bin/python3 /opt/stock-watch/deploy/cleanup-storage.py --automatic --recovery-backups --apply
+TimeoutStartSec=30min
+Nice=19
+IOSchedulingClass=idle
+UMask=0077
+NoNewPrivileges=true

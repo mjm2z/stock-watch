@@ -8,6 +8,8 @@ import json
 import shutil
 import sqlite3
 import subprocess
+import signal
+import threading
 import time
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -56,8 +58,18 @@ def create_sqlite_backup(
             fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
         except BlockingIOError as exc:
             raise RuntimeError('already_running: another database backup holds the lock') from exc
-        return _copy(source_path, destination_path, temporary_path, final_path,
-                     keep, reserve_bytes, timeout_seconds)
+        previous = None
+        if threading.current_thread() is threading.main_thread():
+            previous = signal.getsignal(signal.SIGTERM)
+            def interrupted(signum, frame):
+                raise InterruptedError('Backup interrupted; previous completed backup preserved')
+            signal.signal(signal.SIGTERM, interrupted)
+        try:
+            return _copy(source_path, destination_path, temporary_path, final_path,
+                         keep, reserve_bytes, timeout_seconds)
+        finally:
+            if previous is not None:
+                signal.signal(signal.SIGTERM, previous)
 
 
 def _copy(source_path, destination_path, temporary_path, final_path, keep, reserve_bytes, timeout_seconds):
@@ -140,6 +152,8 @@ def _copy(source_path, destination_path, temporary_path, final_path, keep, reser
         source.close()
         if not completed:
             temporary_path.unlink(missing_ok=True)
+            for suffix in ('-wal', '-shm', '-journal'):
+                Path(str(temporary_path) + suffix).unlink(missing_ok=True)
 
     temporary_path.replace(final_path)
     backups = sorted(destination_path.glob("stock-watch-*.db"), reverse=True)

@@ -64,3 +64,76 @@ Back up the main and auxiliary databases and artifact directories before
 migration. The reviewed installer already includes sibling artifact directories
 in recovery inputs. Never copy an active SQLite database with a plain file copy
 and assume the WAL was captured consistently.
+
+## Storage maintenance
+
+The September 30 audit found roughly 232 GiB of release database copies, 75 GiB
+of scheduled/abandoned backups, 44 GiB of live application data, and numerous
+old runtime/staging trees. Live Coinbase and manual-paper databases were only
+kilobytes/megabytes; they did not explain the main database's size. Old copies
+and an abandoned 41 GB backup were cleaned first. Host free space rose from
+about 78 GiB to 279 GiB, with all four core services active. The original cleanup
+reported 60,472,094,720 bytes reclaimed; the later disk measurement is consistent
+with removing four older recovery databases totaling 155,874,992,128 bytes.
+
+The following prevention changes are prepared in source, pending installation.
+Migration **023_company_fact_storage** separates SEC CompanyFacts observations
+from their JSON bodies. Every observation retains its original ID, capture time,
+instrument, provider and ingestion reference. Identical bodies share a SHA-256
+content record. The historical `company_fact_documents` read interface becomes
+a view. Hash/body conflicts abort the migration transaction; they are never
+silently merged. Application inserts use the underlying tables for durable IDs.
+Historical dataset assembly reads only the latest eligible body per instrument.
+No trading ledgers, historical results, qualification decisions or Bitcoin
+calculations are rewritten.
+
+A bounded sample contained 14 identical bodies: 71.7 MB stored versus 5.1 MB
+unique. This demonstrates duplication, not a database-wide savings estimate.
+The live database had zero free pages, so VACUUM alone would not reclaim that
+space. Deduplication frees pages; offline VACUUM then returns them to the disk.
+
+The reviewed installer makes and verifies a fresh full recovery backup, drains
+StockWatch writers, applies the transaction, compacts, checks SQLite integrity
+and foreign keys, and verifies observation/content counts before resuming.
+It reserves space for the backup plus twice the original database size and
+5 GiB for compaction (at least the usual 20 GiB deployment reserve). Reading and
+rebuilding a roughly 41 GiB database on this disk can take hours. The app and
+application-managed trading instructions are unavailable during maintenance;
+broker-held orders remain at Alpaca. Do not start a second installer.
+Migration and compaction log progress at approximately 30-second intervals
+while SQLite executes; kernel I/O can delay progress output.
+
+Monitor from the staged release directory using:
+
+```sh
+python3 deploy/monitor-release.py --unit stock-watch-release-<revision-prefix>.service --watch
+```
+
+Use the actual unit name printed by the installer launcher. A stopped unit alone
+does not prove success: check exit status, installed receipt and service health.
+If migration succeeds but compaction fails, leave services stopped and rerun the
+reviewed installer with `--compact-database`; it forces another verified backup
+and retries compaction. VACUUM is transactional, but it does not roll back the
+already committed schema migration. A rollback to older application code needs
+its matching pre-migration database and retained artifacts/configuration, not a
+code-only switch: older writers do not understand the new observation tables.
+
+The installed daily `stock-watch-storage-cleanup.timer` will run at 03:30 UTC
+plus up to ten minutes of jitter, without missed-run catch-up. Its helper keeps:
+
+- The current runtime, two newest rollback runtimes and receipt-linked rollback.
+- Matching staged revisions plus the two newest staging directories.
+- The two newest verified full release database copies. Older release metadata,
+  protected configuration, auxiliary databases and artifacts remain untouched.
+- Completed scheduled backups under their existing backup retention policy.
+
+It deletes only recognized older candidates and abandoned temporary backups more
+than six hours old when a completed backup exists. Release/backup locks, active
+process checks, symlink rejection and file identity checks guard removal. It
+leaves unrelated applications and the separate migration archive alone. Inspect
+without mutation with `cleanup-storage.py --automatic --recovery-backups`;
+`--apply` is required to delete. The helper must run as root on a1347-m.
+Scheduled backup SIGTERM handling now closes SQLite and removes its incomplete
+temporary files while preserving completed backups; SIGKILL leftovers are handled
+by later cleanup. Root-only verification markers describe past recovery checks;
+actual database file presence is required before a copy counts toward retention.

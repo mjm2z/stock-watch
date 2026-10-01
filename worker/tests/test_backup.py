@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import sqlite3
+import signal
+import os
 import tempfile
 import unittest
 from datetime import datetime, timezone
@@ -12,6 +14,32 @@ from stock_watch_worker.backup import create_sqlite_backup
 
 
 class BackupTests(unittest.TestCase):
+    def test_sigterm_removes_partial_copy_and_restores_handler(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            database = root / 'source.db'
+            with sqlite3.connect(database) as connection:
+                connection.execute('CREATE TABLE evidence(value TEXT)')
+            destination = root / 'backups'
+            destination.mkdir()
+            previous_backup = destination / 'stock-watch-20260901T000000000000Z.db'
+            previous_backup.write_bytes(b'preserved')
+            previous_handler = signal.getsignal(signal.SIGTERM)
+            original_connect = sqlite3.connect
+            class InterruptedSource(sqlite3.Connection):
+                def backup(self, target, **kwargs):
+                    os.kill(os.getpid(), signal.SIGTERM)
+            def connect(path, *args, **kwargs):
+                if kwargs.get('uri'):
+                    kwargs['factory'] = InterruptedSource
+                return original_connect(path, *args, **kwargs)
+            with patch('stock_watch_worker.backup.sqlite3.connect', side_effect=connect):
+                with self.assertRaises(InterruptedError):
+                    create_sqlite_backup(database, destination, reserve_bytes=0)
+            self.assertEqual(signal.getsignal(signal.SIGTERM), previous_handler)
+            self.assertEqual(previous_backup.read_bytes(), b'preserved')
+            self.assertEqual(list(destination.glob('.*.tmp*')), [])
+
     def test_wal_backup_keeps_snapshot_while_another_connection_writes(self):
         with tempfile.TemporaryDirectory() as directory:
             root=Path(directory); database=root/'source.db'

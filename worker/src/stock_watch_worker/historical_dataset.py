@@ -503,7 +503,12 @@ def _latest_company_facts(
         FROM company_fact_documents AS documents
         JOIN instruments ON instruments.id = documents.instrument_id
         WHERE instruments.symbol IN ({placeholders})
-        ORDER BY instruments.symbol, documents.captured_at DESC, documents.id DESC
+          AND documents.id = (
+              SELECT latest.id FROM company_fact_observations AS latest
+              WHERE latest.instrument_id = instruments.id
+              ORDER BY latest.captured_at DESC, latest.id DESC LIMIT 1
+          )
+        ORDER BY instruments.symbol
         """,
         tuple(symbols),
     ).fetchall()

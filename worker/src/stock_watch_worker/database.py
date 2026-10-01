@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import sqlite3
 import sys
+import time
 from pathlib import Path
 
 from .config import LoadedStrategy
@@ -69,6 +70,15 @@ def apply_migrations(
         # DDL and its version stamp inside the script's own explicit transaction
         # so an interrupted additive release cannot leave half a migration.
         escaped_version = version.replace("'", "''")
+        started = time.monotonic()
+        last_report = [started]
+        def progress():
+            if version == '023_company_fact_storage' and time.monotonic() - last_report[0] >= 30:
+                print(f'Migration {version}: validating/deduplicating SEC observations; '
+                      f'elapsed {time.monotonic() - started:.0f}s', flush=True)
+                last_report[0] = time.monotonic()
+            return 0
+        connection.set_progress_handler(progress, 10000)
         try:
             connection.executescript(
                 "BEGIN IMMEDIATE;\n" + script +
@@ -77,6 +87,8 @@ def apply_migrations(
         except Exception:
             connection.rollback()
             raise
+        finally:
+            connection.set_progress_handler(None, 0)
         newly_applied.append(version)
     return newly_applied
 

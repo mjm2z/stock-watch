@@ -13,6 +13,13 @@ execution and notification polling health passed. The September 30 close scan
 succeeded at 16:16:01 ET, with execution readiness reporting ready and no issues.
 Sustained performance under disk pressure remains unproven.
 
+Storage cleanup has reduced host disk usage from approximately **86% to 49%**,
+with **279 GiB available** at the latest check. Core StockWatch services remain
+active. The next storage release adds SEC document deduplication, offline
+compaction and automatic retention; **these code changes are not installed yet**.
+See [storage maintenance](docs/guide/storage.md#storage-maintenance) for the
+retention policy, migration cost, progress monitoring and rollback requirements.
+
 Manual account credentials and combined-account setup are confirmed. End-to-end
 paper order/fill and Telegram trade-notification delivery tests remain outstanding.
 

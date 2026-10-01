@@ -74,14 +74,20 @@ def persist_company_facts(
             )
         return CompanyFactsPersistResult(int(existing["id"]), False, digest)
     with connection:
+        content = connection.execute(
+            "SELECT facts_json FROM company_fact_contents WHERE content_sha256 = ?", (digest,)
+        ).fetchone()
+        if content is not None and content["facts_json"] != canonical:
+            raise DataConflictError("CompanyFacts content hash conflict")
+        connection.execute(
+            "INSERT INTO company_fact_contents(content_sha256, facts_json) VALUES (?, ?) "
+            "ON CONFLICT DO NOTHING", (digest, canonical)
+        )
         cursor = connection.execute(
-            """
-            INSERT INTO company_fact_documents(
-                instrument_id, captured_at, content_sha256,
-                facts_json, ingestion_id
-            ) VALUES (?, ?, ?, ?, ?)
-            """,
-            (instrument["id"], captured_at, digest, canonical, ingestion_id),
+            """INSERT INTO company_fact_observations(
+                instrument_id, captured_at, content_sha256, ingestion_id
+            ) VALUES (?, ?, ?, ?)""",
+            (instrument["id"], captured_at, digest, ingestion_id),
         )
     return CompanyFactsPersistResult(int(cursor.lastrowid), True, digest)
 

@@ -233,6 +233,7 @@ def main():
     parser.add_argument('source', type=Path)
     parser.add_argument('--check', action='store_true', help='Verify staging without changing files or services')
     parser.add_argument('--full-backup', action='store_true', help='Force a verified database recovery copy, even without pending migrations')
+    parser.add_argument('--compact-database', action='store_true', help='Retry offline compaction after migration 023; forces a fresh verified backup')
     args = parser.parse_args()
     if socket.gethostname().split('.')[0] != 'a1347-m' or (os.geteuid() != 0 and not args.check):
         raise SystemExit('Run on a1347-m; installation requires root')
@@ -265,14 +266,16 @@ def main():
         raise SystemExit('Existing release owner must finish first: ' + ', '.join(owners))
     runtime = Path('/opt/stock-watch')
     database = Path('/var/lib/stock-watch/stock-watch.db')
-    plan = deployment_plan(source, runtime, database, args.full_backup)
+    plan = deployment_plan(source, runtime, database, args.full_backup or args.compact_database)
     print('Deployment plan: ' + json.dumps(plan), flush=True)
     stamp = datetime.now(ZoneInfo('UTC')).strftime('%Y%m%dT%H%M%SZ')
     recovery = Path('/var/backups/stock-watch-releases') / stamp
     databases, artifact_directories = recovery_inputs(database)
     backup_bytes = (sum(p.stat().st_size for p in databases) +
                     sum(p.stat().st_size for p in artifact_files(database))) if plan['mode'] == 'database' else 0
-    if shutil.disk_usage('/').free < backup_bytes + 20 * 1024**3:
+    needs_compaction = args.compact_database or '023_company_fact_storage' in plan['pending_migrations']
+    reserve = max(20 * 1024**3, database.stat().st_size * 2 + 5 * 1024**3) if needs_compaction else 20 * 1024**3
+    if shutil.disk_usage('/').free < backup_bytes + reserve:
         raise RuntimeError('Insufficient room for fresh backup and reserve')
     if plan['mode'] == 'database': verify_artifact_locations(database)
     os.umask(0o077)
@@ -301,7 +304,7 @@ def main():
         time.sleep(5)
     run('systemctl', 'stop', 'stock-watch-web.service')
     # Recheck after draining writers, before replacing any runtime files.
-    if deployment_plan(source, runtime, database, args.full_backup) != plan:
+    if deployment_plan(source, runtime, database, args.full_backup or args.compact_database) != plan:
         raise RuntimeError('Migration state changed during drain; review before retrying')
     before, authority_before = preserve_database(database, recovery, plan)
     previous = runtime.with_name('stock-watch.before-' + stamp)
@@ -323,10 +326,17 @@ def main():
     if 'SYSTEMS_OPERATOR_TOKEN=\n' in text:
         text = text.replace('SYSTEMS_OPERATOR_TOKEN=\n', 'SYSTEMS_OPERATOR_TOKEN=' + secrets.token_urlsafe(48) + '\n')
         env.write_text(text)
-    # Only additive systems migration/seeding; legacy strategy authority is unchanged.
+    # Migrate storage and seed systems; existing trading authority is verified below.
     if plan['mode'] == 'database':
         run('runuser', '-u', 'stock-watch', '--', str(runtime / '.venv/bin/stock-watch-systems'),
             '--database', str(database), 'init')
+    if needs_compaction:
+        marker = json.loads((recovery / 'backup-verified.json').read_text())
+        if marker.get('verified') is not True:
+            raise RuntimeError('Fresh recovery verification is required before compaction')
+        print('Deduplication applied. Compacting offline; services remain stopped until verified.', flush=True)
+        run('runuser', '-u', 'stock-watch', '--', str(runtime / '.venv/bin/python'),
+            str(runtime / 'deploy/compact-database.py'), str(database))
     with closing(sqlite3.connect(database.as_uri() + '?mode=ro', uri=True)) as current:
         current_counts=counts(current)
         if any(current_counts.get(key)!=value for key,value in before.items()):
@@ -337,7 +347,11 @@ def main():
     run('bash', str(runtime / 'deploy/install-systems-root.sh'), '--skip-init')
     for name in ('market-data','manual-paper','execution'):
         run('install','-o','root','-g','root','-m','0644',str(runtime / ('deploy/systemd/stock-watch-'+name+'.service')),'/etc/systemd/system/')
+    for name in ('stock-watch-storage-cleanup.service', 'stock-watch-storage-cleanup.timer'):
+        run('install', '-o', 'root', '-g', 'root', '-m', '0644',
+            str(runtime / 'deploy/systemd' / name), '/etc/systemd/system/')
     run('systemctl','daemon-reload')
+    run('systemctl', 'enable', '--now', 'stock-watch-storage-cleanup.timer')
     if coordinator_enabled:
         run('systemctl','disable','--now','stock-watch-bitcoin-automation.timer')
         enabled.pop('stock-watch-bitcoin-automation.timer',None)

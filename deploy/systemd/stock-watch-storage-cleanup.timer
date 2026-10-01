@@ -1,0 +1,11 @@
+[Unit]
+Description=Bound StockWatch artifact retention daily outside US market hours
+
+[Timer]
+OnCalendar=*-*-* 03:30:00 UTC
+RandomizedDelaySec=10m
+Persistent=false
+Unit=stock-watch-storage-cleanup.service
+
+[Install]
+WantedBy=timers.target
