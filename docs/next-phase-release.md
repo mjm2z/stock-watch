@@ -2,6 +2,32 @@
 
 This report separates source work, tests, staging and installed operation.
 
+## Installed overview polish: September 30, 23:09 ET
+
+Installed runtime: `41fb35b5797c12f71fa9e105f81358450cb1a7b8`.
+The installer exited successfully and recorded installation at 23:09:17 ET.
+Mode was code-only, with no pending migrations or initialization changes; no new
+database backup was made. Existing databases were retained. Configuration/release
+recovery: `/var/backups/stock-watch-releases/20261001T030833Z`;
+previous runtime: `/opt/stock-watch.before-20261001T030833Z`.
+
+All four core services are active. Execution and notification endpoints are healthy
+and manual trading remains configured. Coinbase is fresh with healthy retention.
+Legacy Bitcoin automation/trading timers remain inactive, preserving one execution
+owner. The stock close scan completed successfully at 16:16:01 ET; the execution
+status endpoint reports ready with no issues and matched broker reconciliation.
+
+Live LAN Chromium checks at 1440px and 390px passed for Stocks and Crypto: HTTP 200,
+no page errors or horizontal overflow, one Stocks search, hidden legacy performance,
+and separately labelled automated equity ($100,000.88) and manual stock allocation
+($1,000.00). The Crypto badge displayed Live with stable height. Screenshot inspection
+confirmed the green sidebar arrow; the served versioned SVG hash matches the source
+favicon artwork. No trades were submitted during verification.
+
+Pre-release checks passed: 100 JavaScript tests, 8 feed tests, 406 worker tests,
+production build and installer preflight. Historical entries below describe earlier
+states; this checkpoint supersedes their pending-install statements.
+
 ## Manual account and monitoring checkpoint: September 30, 14:12 ET
 
 The operator corrected the dedicated manual paper credentials, reran the

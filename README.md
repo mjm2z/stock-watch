@@ -1,20 +1,20 @@
 # StockWatch
 
-Full UI release `c729243` is installed on a1347-m as of September 30, 2026,
-10:13:44 America/New_York. The reviewed installer verified recovery copies,
-applied migration 022, preserved ledger counts, and restored services. The
-independent Coinbase collector is fresh with healthy retention; execution health
-passed the initial check and the scheduled maintenance job succeeded.
+Overview polish release **`41fb35b`** is installed on a1347-m as of September 30,
+2026, **23:09:17 America/New_York**. The reviewed installer completed a code-only
+update with no pending migrations; existing databases were retained. Recovery and
+prior-runtime paths are recorded in the [release report](docs/next-phase-release.md).
 
-Desktop and mobile browser checks subsequently passed for Stocks, manual paper,
-backtesting, Activity and Crypto, with no JavaScript errors or horizontal overflow.
-The BTC card updated live at a stable height. Earlier post-install page timeouts
-were not reproduced in this later check; sustained performance under disk pressure
-is still unproven. Overall health retains earlier failed/stale stock operations.
-The next scheduled scan must establish scan recovery. Manual account credentials
-and the combined-account setup are now confirmed; execution and notification
-polling health passed September 30 at 14:10 America/New_York. End-to-end paper
-order/fill and Telegram trade-notification delivery tests remain outstanding.
+Post-deployment desktop/mobile checks passed for Stocks and Crypto: no JavaScript
+errors or horizontal overflow, one chart search, separate automated/manual stock
+valuations, and the versioned green arrow icon matching the favicon artwork.
+The compact Coinbase badge displayed Live at a stable height. Feed freshness,
+execution and notification polling health passed. The September 30 close scan
+succeeded at 16:16:01 ET, with execution readiness reporting ready and no issues.
+Sustained performance under disk pressure remains unproven.
+
+Manual account credentials and combined-account setup are confirmed. End-to-end
+paper order/fill and Telegram trade-notification delivery tests remain outstanding.
 
 HomeOps backup safeguards and the approved JobWatch lifecycle-write fix are also
 installed. See the [release report](docs/next-phase-release.md) for exact revisions,
