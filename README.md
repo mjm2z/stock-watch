@@ -1,7 +1,7 @@
 # StockWatch
 
-Overview polish release **`41fb35b`** is installed on a1347-m as of September 30,
-2026, **23:09:17 America/New_York**. The reviewed installer completed a code-only
+Overview layout release **`22b69c9`** is installed on a1347-m as of September 30,
+2026, **23:27:21 America/New_York**. The reviewed installer completed a code-only
 update with no pending migrations; existing databases were retained. Recovery and
 prior-runtime paths are recorded in the [release report](docs/next-phase-release.md).
 

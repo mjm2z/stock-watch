@@ -2,6 +2,22 @@
 
 This report separates source work, tests, staging and installed operation.
 
+## Installed layout follow-up: September 30, 23:27 ET
+
+Installed runtime: `22b69c9524d284366ec2b43a6a746b3aae1a1e86` at 23:27:21 ET.
+Installer exited successfully with code-only mode and no pending migrations.
+Existing databases were retained, with no new database backup. Configuration/release
+recovery: `/var/backups/stock-watch-releases/20261001T032701Z`;
+prior runtime: `/opt/stock-watch.before-20261001T032701Z`.
+
+All four core services are active. Execution, configured manual owner, notification
+polling and fresh Coinbase feed health passed after installation. Live Chromium
+checks at 1440px and 390px confirmed HTTP 200, no page errors or horizontal overflow,
+horizontal ticker layout, no resolution selector, one Reset view button, and visible
+research coverage outside any collapsible wrapper. BTC label/status/price alignment
+and stable badge height passed; a changed live price was observed in the mobile check.
+No orders were submitted. This checkpoint supersedes pending-install notes below.
+
 ## Installed overview polish: September 30, 23:09 ET
 
 Installed runtime: `41fb35b5797c12f71fa9e105f81358450cb1a7b8`.
