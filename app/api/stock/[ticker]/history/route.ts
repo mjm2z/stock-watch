@@ -2,9 +2,20 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getAlpacaHistory, hasAlpacaData } from '@/lib/alpaca-market-data'
 import { getHistoricalPrices as yahooHistory } from '@/lib/yahoo-finance'
 
-type ValidRange = '1D' | '1W' | '1M' | '3M' | '1Y' | '5Y' | 'CUSTOM'
+type ValidRange = '1D' | '1W' | '1M' | '3M' | '6M' | '10Y' | '30Y' | '1Y' | '5Y' | 'CUSTOM'
 
-const VALID_RANGES: ValidRange[] = ['1D', '1W', '1M', '3M', '1Y', '5Y', 'CUSTOM']
+const VALID_RANGES: ValidRange[] = [
+  '1D',
+  '1W',
+  '1M',
+  '3M',
+  '6M',
+  '10Y',
+  '30Y',
+  '1Y',
+  '5Y',
+  'CUSTOM',
+]
 
 interface RouteContext {
   params: Promise<{
@@ -18,7 +29,7 @@ interface RouteContext {
  * Uses Yahoo Finance (free, no API key required)
  *
  * Query params:
- * - range: '1D' | '1W' | '1M' | '3M' | '1Y' | '5Y' (default: '1M')
+ * - range: '1D' | '1W' | '1M' | '3M' | '6M' | '10Y' | '30Y' | '1Y' | '5Y' (default: '1M')
  */
 export async function GET(request: NextRequest, context: RouteContext) {
   try {
@@ -52,22 +63,39 @@ export async function GET(request: NextRequest, context: RouteContext) {
       end: searchParams.get('end') || undefined,
       timeframe: searchParams.get('timeframe') || undefined,
     }
-    if (!useAlpaca && (range === 'CUSTOM' || options.timeframe))
+    if (!useAlpaca && (['CUSTOM', '6M', '10Y', '30Y'].includes(range) || options.timeframe))
       return NextResponse.json(
         { error: 'Custom resolution/dates require configured Alpaca data' },
         { status: 503 }
       )
     const prices = useAlpaca
       ? await getAlpacaHistory(ticker, range, adjustment, options)
-      : await yahooHistory(ticker.toUpperCase(), range as Exclude<ValidRange, 'CUSTOM'>)
+      : await yahooHistory(ticker.toUpperCase(), range as '1D' | '1W' | '1M' | '3M' | '1Y' | '5Y')
 
     if (!prices || prices.length === 0) {
       return NextResponse.json({ error: `No historical data found for ${ticker}` }, { status: 404 })
     }
 
+    const days = (
+      {
+        '1D': 4,
+        '1W': 7,
+        '1M': 32,
+        '3M': 95,
+        '6M': 184,
+        '1Y': 370,
+        '5Y': 1830,
+        '10Y': 3653,
+        '30Y': 10958,
+      } as Record<string, number>
+    )[range]
+    const requestedStart = options.start || new Date(Date.now() - days * 86400000).toISOString()
     return NextResponse.json({
       data: prices,
       meta: {
+        requestedStart,
+        requestedEnd: options.end || new Date().toISOString(),
+        partial: Date.parse(prices[0].date) - Date.parse(requestedStart) > 7 * 86400000,
         ticker: ticker.toUpperCase(),
         range,
         count: prices.length,

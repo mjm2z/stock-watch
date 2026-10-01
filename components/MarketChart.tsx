@@ -1,7 +1,7 @@
 'use client'
 import { useEffect, useRef, useState } from 'react'
 import { groupChartEvents, type ChartEvent } from '@/lib/chart-events'
-import { ChartInspection } from './ChartInspection'
+import { ChartControls, type ChartStyle } from './ChartControls'
 import type { ChartLevel } from '@/lib/inspection-store'
 import type { Time, IChartApi, IRange, ISeriesApi, IPriceLine } from 'lightweight-charts'
 export type ChartBar = {
@@ -39,8 +39,16 @@ export function InteractiveChart({
   comparisons = NO_COMPARISONS,
   events = NO_EVENTS,
   onEvent,
+  style,
+  color,
+  showDataTable = true,
+  volumeOnly = false,
 }: {
   bars: ChartBar[]
+  style?: ChartStyle
+  color?: string
+  showDataTable?: boolean
+  volumeOnly?: boolean
   candles?: boolean
   volume?: boolean
   label?: string
@@ -49,10 +57,12 @@ export function InteractiveChart({
   levels?: ChartLevel[]
   events?: ChartEvent[]
   onEvent?: (events: ChartEvent[]) => void
-  comparisons?: { name: string; bars: ChartBar[] }[]
+  comparisons?: { name: string; bars: ChartBar[]; color?: string }[]
 }) {
+  const chartStyle = style || (candles ? 'candles' : 'line')
+  const ohlc = chartStyle !== 'line'
   const [tablePage, setTablePage] = useState(0)
-  const primary = useRef<ISeriesApi<'Line' | 'Candlestick'> | null>(null)
+  const primary = useRef<ISeriesApi<'Line' | 'Candlestick' | 'Bar'> | null>(null)
   const priceLines = useRef<IPriceLine[]>([])
   const [chartGeneration, setChartGeneration] = useState(0)
   const viewport = useRef<IRange<Time> | null>(null)
@@ -79,6 +89,7 @@ export function InteractiveChart({
         LineSeries,
         CandlestickSeries,
         HistogramSeries,
+        BarSeries,
       }) => {
         if (disposed || !container.current) return
         const dark = theme === 'dark',
@@ -108,20 +119,26 @@ export function InteractiveChart({
           ).entries(),
         ].sort((a, b) => a[0] - b[0])
         const byTime = new Map(sorted)
-        const series = candles
-          ? c.addSeries(CandlestickSeries, {
-              upColor: '#8cd5bc',
+        const series = ohlc
+          ? c.addSeries(chartStyle === 'bars' ? BarSeries : CandlestickSeries, {
+              upColor: chartStyle === 'hollow' ? 'transparent' : '#8cd5bc',
               downColor: '#ee909b',
-              borderVisible: false,
+              borderVisible: chartStyle === 'hollow',
+              borderUpColor: '#8cd5bc',
+              borderDownColor: '#ee909b',
               wickUpColor: '#8cd5bc',
               wickDownColor: '#ee909b',
             })
-          : c.addSeries(LineSeries, { color: dark ? '#a8bcff' : '#5068d4', lineWidth: 2 })
+          : c.addSeries(LineSeries, {
+              color: color || (dark ? '#a8bcff' : '#5068d4'),
+              lineWidth: 2,
+            })
         primary.current = series
         setChartGeneration((g) => g + 1)
         if (percent)
           series.applyOptions({ priceFormat: { type: 'percent', precision: 2, minMove: 0.01 } })
-        if (candles)
+        if (volumeOnly) series.applyOptions({ visible: false })
+        if (ohlc)
           series.setData(
             sorted.map(([time, b]) => ({
               time: time as Time,
@@ -142,10 +159,11 @@ export function InteractiveChart({
           ].sort((a, b) => a[0] - b[0])
           const overlay = c.addSeries(LineSeries, {
             title: comparison.name,
-            priceScaleId: percent ? 'right' : 'comparison',
-            color: ['#f4c77a', '#ee909b', '#8cd5bc', '#c6a5f4', '#78cddd'][i % 5],
+            priceScaleId: 'right',
+            color:
+              comparison.color || ['#f4c77a', '#ee909b', '#8cd5bc', '#c6a5f4', '#78cddd'][i % 5],
             lineWidth: 1,
-            priceFormat: { type: 'percent' },
+            priceFormat: { type: percent ? 'percent' : 'price' },
           })
           overlay.setData(points.map(([time, value]) => ({ time: time as Time, value })))
         }
@@ -154,7 +172,9 @@ export function InteractiveChart({
             priceFormat: { type: 'volume' },
             priceScaleId: 'volume',
           })
-          v.priceScale().applyOptions({ scaleMargins: { top: 0.82, bottom: 0 } })
+          v.priceScale().applyOptions({
+            scaleMargins: { top: volumeOnly ? 0.08 : 0.82, bottom: 0 },
+          })
           v.setData(
             sorted.map(([time, b]) => ({
               time: time as Time,
@@ -187,7 +207,7 @@ export function InteractiveChart({
       disposed = true
       dispose()
     }
-  }, [bars, candles, volume, theme, height, percent, comparisons])
+  }, [bars, chartStyle, ohlc, volume, theme, height, percent, comparisons, color, volumeOnly])
   useEffect(() => {
     const series = primary.current
     if (!series) return
@@ -247,22 +267,24 @@ export function InteractiveChart({
   }, [events, bars, onEvent, chartGeneration])
   return (
     <div>
-      <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
-        <div className="min-h-5 text-xs text-muted-foreground" aria-live="off">
-          {hover && percent
-            ? `${new Date(hover.at).toLocaleString()} · ${label} ${hover.close.toFixed(2)}%`
-            : hover
-              ? `${new Date(hover.at).toLocaleString()} · O $${hover.open.toLocaleString()} · H $${hover.high.toLocaleString()} · L $${hover.low.toLocaleString()} · C $${hover.close.toLocaleString()}`
-              : 'Hover or touch the chart to inspect a point'}
+      {!volumeOnly && (
+        <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
+          <div className="min-h-5 text-xs text-muted-foreground" aria-live="off">
+            {hover && percent
+              ? `${new Date(hover.at).toLocaleString()} · ${label} ${hover.close.toFixed(2)}%`
+              : hover
+                ? `${new Date(hover.at).toLocaleString()} · O $${hover.open.toLocaleString()} · H $${hover.high.toLocaleString()} · L $${hover.low.toLocaleString()} · C $${hover.close.toLocaleString()}`
+                : 'Hover or touch the chart to inspect a point'}
+          </div>
+          <button className="sw-button" onClick={() => chart.current?.timeScale().fitContent()}>
+            Reset view
+          </button>
         </div>
-        <button className="sw-button" onClick={() => chart.current?.timeScale().fitContent()}>
-          Reset view
-        </button>
-      </div>
+      )}
       <div
         ref={container}
         role="img"
-        aria-label={`${label} interactive chart. Data table available below.`}
+        aria-label={`${label} interactive chart${showDataTable ? '. Data table available below.' : ''}`}
         style={{ height }}
       />
       <p className="mt-2 text-right text-xs text-muted-foreground">
@@ -270,52 +292,54 @@ export function InteractiveChart({
           Charts by TradingView
         </a>
       </p>
-      <details className="mt-4 text-xs text-muted-foreground">
-        <summary>Accessible chart data ({bars.length.toLocaleString()} observations)</summary>
-        <div className="flex gap-3 items-center mt-3">
-          <button
-            className="sw-button"
-            disabled={tablePage === 0}
-            onClick={() => setTablePage(tablePage - 1)}
-          >
-            Previous observations
-          </button>
-          <span>
-            {tablePage * 100 + 1}–{Math.min((tablePage + 1) * 100, bars.length)} of {bars.length}
-          </span>
-          <button
-            className="sw-button"
-            disabled={(tablePage + 1) * 100 >= bars.length}
-            onClick={() => setTablePage(tablePage + 1)}
-          >
-            Next observations
-          </button>
-        </div>
-        <div className="max-h-64 overflow-auto mt-3">
-          <table className="w-full">
-            <thead>
-              <tr>
-                <th>Date (UTC)</th>
-                <th>Open</th>
-                <th>High</th>
-                <th>Low</th>
-                <th>Close</th>
-                <th>Volume</th>
-              </tr>
-            </thead>
-            <tbody>
-              {bars.slice(tablePage * 100, (tablePage + 1) * 100).map((b) => (
-                <tr key={b.at}>
-                  <td>{b.at}</td>
-                  {['open', 'high', 'low', 'close', 'volume'].map((k) => (
-                    <td key={k}>{Number(b[k as keyof ChartBar]).toLocaleString()}</td>
-                  ))}
+      {showDataTable && (
+        <details className="mt-4 text-xs text-muted-foreground">
+          <summary>Accessible chart data ({bars.length.toLocaleString()} observations)</summary>
+          <div className="flex gap-3 items-center mt-3">
+            <button
+              className="sw-button"
+              disabled={tablePage === 0}
+              onClick={() => setTablePage(tablePage - 1)}
+            >
+              Previous observations
+            </button>
+            <span>
+              {tablePage * 100 + 1}–{Math.min((tablePage + 1) * 100, bars.length)} of {bars.length}
+            </span>
+            <button
+              className="sw-button"
+              disabled={(tablePage + 1) * 100 >= bars.length}
+              onClick={() => setTablePage(tablePage + 1)}
+            >
+              Next observations
+            </button>
+          </div>
+          <div className="max-h-64 overflow-auto mt-3">
+            <table className="w-full">
+              <thead>
+                <tr>
+                  <th>Date (UTC)</th>
+                  <th>Open</th>
+                  <th>High</th>
+                  <th>Low</th>
+                  <th>Close</th>
+                  <th>Volume</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </details>
+              </thead>
+              <tbody>
+                {bars.slice(tablePage * 100, (tablePage + 1) * 100).map((b) => (
+                  <tr key={b.at}>
+                    <td>{b.at}</td>
+                    {['open', 'high', 'low', 'close', 'volume'].map((k) => (
+                      <td key={k}>{Number(b[k as keyof ChartBar]).toLocaleString()}</td>
+                    ))}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </details>
+      )}
     </div>
   )
 }
@@ -323,7 +347,7 @@ export function CryptoMarketChart() {
   const [range, setRange] = useState('1M'),
     [dates, setDates] = useState({ start: '', end: '' }),
     [custom, setCustom] = useState({ start: '', end: '' }),
-    [candles, setCandles] = useState(false),
+    [style, setStyle] = useState<ChartStyle>('line'),
     [volume, setVolume] = useState(false)
   const cache = useRef(new Map<string, HistoryResponse>())
   const [data, setData] = useState<HistoryResponse>({ bars: [], status: 'loading' }),
@@ -386,56 +410,18 @@ export function CryptoMarketChart() {
             )}
           </div>
         </div>
-        <div className="flex flex-wrap gap-2">
-          <button className="sw-button" aria-pressed={candles} onClick={() => setCandles(!candles)}>
-            {candles ? 'Candlesticks' : 'Line chart'}
-          </button>
-          <button className="sw-button" aria-pressed={volume} onClick={() => setVolume(!volume)}>
-            Volume {volume ? 'on' : 'off'}
-          </button>
-        </div>
       </div>
-      <div className="sw-tabs" aria-label="Price history range">
-        {['1D', '1W', '1M', '3M', '6M', '1Y', 'ALL', 'custom'].map((r) => (
-          <button
-            className="sw-button"
-            key={r}
-            aria-pressed={range === r}
-            onClick={() => (r === 'custom' ? setRange(r) : setRange(r))}
-          >
-            {r === 'ALL' ? 'All available' : r === 'custom' ? 'Custom' : r}
-          </button>
-        ))}
-      </div>
-      {range === 'custom' && (
-        <form
-          className="sw-inline-form mb-4"
-          onSubmit={(e) => {
-            e.preventDefault()
-            setCustom({ start: dates.start + 'T00:00:00Z', end: dates.end + 'T00:00:00Z' })
-          }}
-        >
-          <label className="sw-field">
-            From
-            <input
-              type="date"
-              required
-              value={dates.start}
-              onChange={(e) => setDates({ ...dates, start: e.target.value })}
-            />
-          </label>
-          <label className="sw-field">
-            To
-            <input
-              type="date"
-              required
-              value={dates.end}
-              onChange={(e) => setDates({ ...dates, end: e.target.value })}
-            />
-          </label>
-          <button className="sw-button">Apply dates</button>
-        </form>
-      )}
+      <ChartControls
+        range={range}
+        onRange={setRange}
+        ranges={['1D', '1W', '1M', '3M', '6M', '1Y', 'ALL']}
+        custom={custom}
+        onCustom={setCustom}
+        style={style}
+        onStyle={setStyle}
+        volume={volume}
+        onVolume={() => setVolume(!volume)}
+      />
       {data.gaps || data.partial ? (
         <p className="sw-notice mb-3">
           {data.partial ? 'Partial provider response. ' : ''}
@@ -446,9 +432,7 @@ export function CryptoMarketChart() {
       {data.stale && (
         <p className="sw-muted mb-3" role="status">
           Showing previously collected history
-          {data.refreshing
-            ? ' · Refreshing in the background…'
-            : ' · Refresh unavailable; last collection time shown below.'}
+          {data.refreshing ? ' · Refreshing in the background…' : ' · Refresh unavailable.'}
         </p>
       )}
       {error && (
@@ -457,19 +441,14 @@ export function CryptoMarketChart() {
         </p>
       )}
       {data.bars.length ? (
-        <ChartInspection asset="bitcoin" symbol="BTC/USD">
-          {(levels, events, onEvent) => (
-            <InteractiveChart
-              levels={levels}
-              events={events}
-              onEvent={onEvent}
-              key={range + custom.start + custom.end}
-              bars={data.bars}
-              candles={candles}
-              volume={volume}
-            />
-          )}
-        </ChartInspection>
+        <InteractiveChart
+          key={range + custom.start + custom.end}
+          bars={data.bars}
+          style={style}
+          volume={volume}
+          label="BTC/USD"
+          showDataTable={false}
+        />
       ) : (
         <div className="sw-empty" style={{ minHeight: 420 }}>
           {data.status === 'ready'
@@ -479,18 +458,6 @@ export function CryptoMarketChart() {
               : 'Collecting this range for the first time… Previously viewed ranges stay cached.'}
         </div>
       )}
-      <p className="sw-muted mt-4">
-        Alpaca US · {data.resolution || 'History'} ·{' '}
-        {data.observedAt
-          ? 'Collected ' + new Date(data.observedAt).toLocaleString()
-          : 'Waiting for collection'}
-        {data.coverageStart &&
-          ' · Coverage ' +
-            data.coverageStart.slice(0, 10) +
-            ' to ' +
-            data.coverageEnd?.slice(0, 10)}{' '}
-        · Historical display data is not execution evidence.
-      </p>
     </section>
   )
 }

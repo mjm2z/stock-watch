@@ -13,7 +13,7 @@ beforeEach(() => {
 })
 test('initial snapshot, changed prices, reconnect retaining price and cleanup', () => {
   const view = render(<BitcoinLivePrice />)
-  expect(screen.getByText('Live Price')).toBeInTheDocument()
+  expect(screen.getByText('BTC/USD')).toBeInTheDocument()
   const tick = (price: number) =>
     act(() =>
       source.onmessage?.({

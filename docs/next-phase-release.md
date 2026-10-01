@@ -399,3 +399,17 @@ stock jobs remain degraded.
 Provision protected credentials and confirm manual setup separately. HomeOps
 component registration, watchdog verification and paper-order tests remain
 explicit post-install checks; a fixture is not production verification.
+
+## Overview polish release (implementation checkpoint)
+
+Implemented the chart-first Stocks layout, five-symbol search/legend, $/% comparison,
+four single-symbol chart styles, inclusive custom-date popover, long stock ranges,
+compact separate manual/automated summaries, and the Crypto live-price badge.
+Overview inspection clutter is removed without changing execution or stored records.
+The sidebar icon URL is versioned to invalidate the previously cached blue icon.
+
+Local verification: production build and type checking passed; desktop (1440px) and
+mobile (390px) Chromium fixture checks found no page errors, horizontal overflow, or
+chart movement when opening Custom. Checked all four styles and multi-symbol switching.
+Linux staging and installed-revision verification are separate deployment checkpoints;
+this entry alone does not establish that the new UI is installed.

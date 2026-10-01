@@ -93,8 +93,8 @@ test('raw and adjusted chart caches stay separate; custom resolution is bounded'
   expect(String((global.fetch as jest.Mock).mock.calls[0][0])).toContain('adjustment=raw')
   expect(String((global.fetch as jest.Mock).mock.calls[1][0])).toContain('adjustment=all')
   await expect(
-    getAlpacaHistory('SPY', 'CUSTOM', 'raw', { start: '2000-01-01', end: '2026-01-01' })
-  ).rejects.toThrow('ten years')
+    getAlpacaHistory('SPY', 'CUSTOM', 'raw', { start: '1990-01-01', end: '2026-01-01' })
+  ).rejects.toThrow('thirty years')
   await expect(
     getAlpacaHistory('SPY', 'CUSTOM', 'raw', {
       start: '2026-01-01',
@@ -102,4 +102,15 @@ test('raw and adjusted chart caches stay separate; custom resolution is bounded'
       timeframe: '1Second',
     })
   ).rejects.toThrow('resolution')
+})
+
+test('30Y requests bounded daily history rather than substituting a shorter range', async () => {
+  global.fetch = jest.fn().mockResolvedValue({ ok: true, json: async () => ({ bars: [bar] }) })
+  await getAlpacaHistory('SPY', '30Y', 'all')
+  const url = new URL((global.fetch as jest.Mock).mock.calls[0][0])
+  expect(url.searchParams.get('timeframe')).toBe('1Day')
+  expect(url.searchParams.get('adjustment')).toBe('all')
+  expect(Date.now() - Date.parse(url.searchParams.get('start')!)).toBeGreaterThan(
+    29 * 365 * 86400000
+  )
 })

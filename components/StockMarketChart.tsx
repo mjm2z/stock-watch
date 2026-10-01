@@ -1,276 +1,294 @@
 'use client'
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { LoaderCircle, X } from 'lucide-react'
 import { ChartBar, InteractiveChart } from './MarketChart'
-import { ChartInspection } from './ChartInspection'
+import { StockSearch } from './StockSearch'
+import { ChartControls, type ChartStyle } from './ChartControls'
+const palette = ['#6699ee', '#e7828e', '#54bda0', '#c59ae8', '#d9a64c']
+type Series = { bars: ChartBar[]; loading: boolean; error?: string; partial?: boolean }
 export function StockMarketChart() {
-  const [symbol, setSymbol] = useState('SPY'),
-    [entry, setEntry] = useState('SPY'),
-    [watchlist, setWatchlist] = useState(['SPY'])
+  const [symbols, setSymbols] = useState(['SPY']),
+    [ready, setReady] = useState(false)
   const [range, setRange] = useState('3M'),
-    [candles, setCandles] = useState(true),
-    [volume, setVolume] = useState(true),
-    [basis, setBasis] = useState('raw')
-  const [custom, setCustom] = useState({ start: '', end: '' }),
-    [dates, setDates] = useState({ start: '', end: '' }),
-    [resolution, setResolution] = useState('')
-  const [compare, setCompare] = useState(''),
-    [comparisonSymbols, setComparisonSymbols] = useState<string[]>([])
-  const [data, setData] = useState<{
-      bars: ChartBar[]
-      meta?: any
-      comparisons: { name: string; bars: ChartBar[] }[]
-    }>({ bars: [], comparisons: [] }),
-    [error, setError] = useState(''),
-    [loading, setLoading] = useState(true)
+    [style, setStyle] = useState<ChartStyle>('candles'),
+    [volume, setVolume] = useState(true)
+  const [scale, setScale] = useState<'dollars' | 'percent'>('dollars'),
+    [custom, setCustom] = useState({ start: '', end: '' })
+  const [resolution, setResolution] = useState(''),
+    [data, setData] = useState<Record<string, Series>>({}),
+    [notice, setNotice] = useState(''),
+    [retry, setRetry] = useState(0)
+  const chosenScale = useRef(false),
+    colors = useRef<Record<string, string>>({ SPY: palette[0] })
+  const cache = useRef(new Map<string, Series>())
   useEffect(() => {
     try {
-      const list = JSON.parse(localStorage.getItem('stockwatch-chart-watchlist') || 'null')
-      if (Array.isArray(list))
-        setWatchlist(list.filter((s) => /^[A-Z][A-Z0-9.-]{0,14}$/.test(s)).slice(0, 20))
+      const stored = JSON.parse(localStorage.getItem('stockwatch-overview-symbols') || 'null')
+      if (Array.isArray(stored)) {
+        const list = [
+          ...new Set(
+            stored.filter(
+              (s): s is string => typeof s === 'string' && /^[A-Z][A-Z0-9.-]{0,14}$/.test(s)
+            )
+          ),
+        ].slice(0, 5)
+        setSymbols(list)
+        if (list.length > 1) {
+          setStyle('line')
+          setScale('percent')
+        }
+      }
     } catch {}
+    setReady(true)
   }, [])
   useEffect(() => {
-    if (range === 'CUSTOM' && (!custom.start || !custom.end)) return
-    const controller = new AbortController()
-    setLoading(true)
-    setError('')
-    setData({ bars: [], comparisons: [] })
-    async function history(ticker: string) {
-      const r = await fetch(
-        `/api/stock/${encodeURIComponent(ticker)}/history?` +
-          new URLSearchParams({
-            range,
-            adjustment: basis,
-            ...(resolution ? { timeframe: resolution } : {}),
-            ...(range === 'CUSTOM' ? custom : {}),
-          }),
-        { signal: controller.signal }
-      )
-      const d = await r.json()
-      if (!r.ok) throw Error(`${ticker}: ${d.error}`)
-      return { bars: d.data.map((b: any) => ({ ...b, at: b.date })) as ChartBar[], meta: d.meta }
+    if (ready) {
+      try {
+        localStorage.setItem('stockwatch-overview-symbols', JSON.stringify(symbols))
+      } catch {}
     }
-    void Promise.all([
-      history(symbol),
-      ...comparisonSymbols
-        .filter((s) => s !== symbol)
-        .map(async (s) => ({ name: s, ...(await history(s)) })),
-    ])
-      .then(([main, ...others]) => {
-        if (!controller.signal.aborted)
-          setData({ ...main, comparisons: others as { name: string; bars: ChartBar[] }[] })
+  }, [symbols, ready])
+  for (const s of symbols)
+    if (!colors.current[s])
+      colors.current[s] =
+        palette.find((c) => !symbols.some((t) => colors.current[t] === c)) || palette[0]
+  useEffect(() => {
+    if (!ready) return
+    const controller = new AbortController()
+    setData(() => Object.fromEntries(symbols.map((s) => [s, { bars: [], loading: true }])))
+    for (const symbol of symbols) {
+      const query = new URLSearchParams({
+        range: range.toUpperCase(),
+        adjustment: 'all',
+        ...(resolution ? { timeframe: resolution } : {}),
+        ...(range.toUpperCase() === 'CUSTOM' ? custom : {}),
       })
-      .catch((e) => {
-        if (!controller.signal.aborted) setError(e.message)
+      const key = symbol + query.toString(),
+        cached = cache.current.get(key)
+      if (cached && retry === 0) {
+        setData((old) => ({ ...old, [symbol]: cached }))
+        continue
+      }
+      void fetch(`/api/stock/${encodeURIComponent(symbol)}/history?${query}`, {
+        signal: controller.signal,
       })
-      .finally(() => {
-        if (!controller.signal.aborted) setLoading(false)
-      })
+        .then(async (r) => {
+          const d = await r.json()
+          if (!r.ok) throw Error(d.error || 'History unavailable')
+          if (d.meta?.adjustment !== 'all')
+            throw Error('Adjusted history unavailable from this provider')
+          const next: Series = {
+            bars: d.data.map((b: any) => ({ ...b, at: b.date })),
+            loading: false,
+            partial: d.meta.partial,
+          }
+          if (!controller.signal.aborted) {
+            cache.current.set(key, next)
+            if (cache.current.size > 50) cache.current.delete(cache.current.keys().next().value!)
+            setData((old) => ({ ...old, [symbol]: next }))
+          }
+        })
+        .catch((e) => {
+          if (!controller.signal.aborted)
+            setData((old) => ({ ...old, [symbol]: { bars: [], loading: false, error: e.message } }))
+        })
+    }
     return () => controller.abort()
-  }, [symbol, range, basis, comparisonSymbols, custom, resolution])
-  const normalized = useMemo(() => {
-    // Same exact available timestamps and common start; never fill missing prices.
-    const all = [{ name: symbol, bars: data.bars }, ...data.comparisons]
-    if (all.length < 2) return []
-    const maps = all.map((s) => new Map(s.bars.map((b) => [b.at, b])))
-    const times = data.bars.map((b) => b.at).filter((t) => maps.every((m) => m.has(t)))
-    return all.map((s, i) => ({
-      name: s.name,
-      bars: times.map((t) => {
-        const b = maps[i].get(t)!
-        const close = (b.close / maps[i].get(times[0])!.close - 1) * 100
-        return { ...b, open: close, high: close, low: close, close }
-      }),
-    }))
-  }, [data, symbol])
+  }, [symbols, range, resolution, custom, ready, retry])
+  const loaded = useMemo(
+    () =>
+      symbols
+        .filter((s) => data[s]?.bars.length)
+        .map((name) => ({ name, bars: data[name].bars, color: colors.current[name] })),
+    [symbols, data]
+  )
+  const plotted = useMemo(() => {
+    if (scale === 'dollars' || !loaded.length) return loaded
+    const sets = loaded.map((s) => new Set(s.bars.map((b) => b.at)))
+    const baseline = loaded[0].bars.find((b) => sets.every((s) => s.has(b.at)))?.at
+    if (!baseline) return []
+    return loaded.map((s) => {
+      const base = s.bars.find((b) => b.at === baseline)!.close
+      return {
+        ...s,
+        bars: s.bars
+          .filter((b) => b.at >= baseline)
+          .map((b) => ({
+            ...b,
+            open: (b.open / base - 1) * 100,
+            high: (b.high / base - 1) * 100,
+            low: (b.low / base - 1) * 100,
+            close: (b.close / base - 1) * 100,
+          })),
+      }
+    })
+  }, [loaded, scale])
+  function add(ticker: string) {
+    if (symbols.includes(ticker)) {
+      setNotice(`${ticker} is already on the chart.`)
+      return
+    }
+    if (symbols.length >= 5) {
+      setNotice('Remove a stock to add another (five maximum).')
+      return
+    }
+    if (symbols.length >= 1) {
+      setStyle('line')
+      if (symbols.length === 1) setVolume(false)
+      if (!chosenScale.current) setScale('percent')
+    }
+    setSymbols([...symbols, ticker])
+    setNotice('')
+  }
   return (
-    <section className="sw-panel space-y-4">
-      <div>
-        <h2 className="text-xl font-semibold">Stocks chart</h2>
-        <p className="text-sm text-muted-foreground">
-          Focus on one instrument; compare up to five others. Display history is separate from
-          strategy decision cadence.
+    <section className="sw-panel sw-overview-chart" aria-label="Stocks price chart">
+      <div className="sw-chart-top">
+        <StockSearch
+          className="sw-chart-search"
+          onSelect={(s) => add(s.ticker)}
+          addExactMatch
+          clearOnSelect
+        />
+        <ul className="sw-chart-legend" aria-label="Selected stocks">
+          {symbols.map((s) => (
+            <li key={s}>
+              <span className="sw-legend-indicator">
+                {data[s]?.loading ? (
+                  <LoaderCircle
+                    size={14}
+                    className="animate-spin motion-reduce:animate-none"
+                    aria-label={`Loading ${s}`}
+                  />
+                ) : (
+                  <span style={{ background: colors.current[s] }} />
+                )}
+              </span>
+              <strong>{s}</strong>
+              <button
+                aria-label={`Remove ${s}`}
+                onClick={() => {
+                  setSymbols(symbols.filter((t) => t !== s))
+                  delete colors.current[s]
+                  setNotice('')
+                }}
+              >
+                <X size={15} />
+              </button>
+            </li>
+          ))}
+        </ul>
+      </div>
+      {notice && (
+        <p role="status" className="text-sm text-muted-foreground">
+          {notice}
         </p>
-      </div>
-      <form
-        className="flex flex-wrap items-end gap-3"
-        onSubmit={(e) => {
-          e.preventDefault()
-          const value = entry.trim().toUpperCase()
-          if (!/^[A-Z][A-Z0-9.-]{0,14}$/.test(value)) {
-            setError('Enter a stock symbol')
-            return
-          }
-          setSymbol(value)
-          const next = [...new Set([...watchlist, value])].slice(-20)
-          setWatchlist(next)
-          try {
-            localStorage.setItem('stockwatch-chart-watchlist', JSON.stringify(next))
-          } catch {}
-        }}
-      >
-        <label className="sw-field">
-          Symbol
-          <input value={entry} onChange={(e) => setEntry(e.target.value)} maxLength={15} />
-        </label>
-        <button className="sw-button">Show & save</button>
-        {watchlist.map((s) => (
-          <button
-            type="button"
-            key={s}
-            className="sw-button"
-            aria-pressed={s === symbol}
-            onClick={() => {
-              setSymbol(s)
-              setEntry(s)
-            }}
-          >
-            {s}
-          </button>
-        ))}
-      </form>
-      <div className="flex flex-wrap gap-3 text-sm">
-        <label>
-          Range{' '}
-          <select
-            value={range}
-            onChange={(e) => setRange(e.target.value)}
-            className="rounded border bg-background p-2"
-          >
-            {['1D', '1W', '1M', '3M', '1Y', '5Y', 'CUSTOM'].map((r) => (
-              <option key={r}>{r}</option>
-            ))}
-          </select>
-        </label>
-        <label>
-          Resolution{' '}
-          <select
-            className="rounded border bg-background p-2"
-            value={resolution}
-            onChange={(e) => setResolution(e.target.value)}
-          >
-            <option value="">Automatic</option>
-            <option value="5Min">5 minutes</option>
-            <option value="1Hour">Hourly</option>
-            <option value="1Day">Daily</option>
-          </select>
-        </label>
-        <label>
-          Price basis{' '}
-          <select
-            className="rounded border bg-background p-2"
-            value={basis}
-            onChange={(e) => setBasis(e.target.value)}
-          >
-            <option value="raw">Raw · broker levels</option>
-            <option value="all">Adjusted · analysis only</option>
-          </select>
-        </label>
-        <label>
-          <input type="checkbox" checked={candles} onChange={(e) => setCandles(e.target.checked)} />{' '}
-          Candlesticks
-        </label>
-        <label>
-          <input type="checkbox" checked={volume} onChange={(e) => setVolume(e.target.checked)} />{' '}
-          Volume
-        </label>
-      </div>
-      {range === 'CUSTOM' && (
-        <form
-          className="flex flex-wrap items-end gap-3"
-          onSubmit={(e) => {
-            e.preventDefault()
-            setCustom({ start: dates.start + 'T00:00:00Z', end: dates.end + 'T00:00:00Z' })
-          }}
-        >
-          <label className="sw-field">
-            From (UTC)
-            <input
-              required
-              type="date"
-              value={dates.start}
-              onChange={(e) => setDates((d) => ({ ...d, start: e.target.value }))}
-            />
-          </label>
-          <label className="sw-field">
-            Until, exclusive (UTC)
-            <input
-              required
-              type="date"
-              value={dates.end}
-              onChange={(e) => setDates((d) => ({ ...d, end: e.target.value }))}
-            />
-          </label>
-          <button className="sw-button">Apply dates</button>
-        </form>
       )}
-      {error && <p role="alert">{error}</p>}
-      {loading && <p role="status">Loading {symbol} history…</p>}
-      {!!data.bars.length && (
-        <ChartInspection
-          asset="stocks"
-          symbol={symbol}
-          compatible={data.meta?.adjustment === 'raw'}
+      <ChartControls
+        range={range}
+        onRange={setRange}
+        ranges={['1D', '1W', '1M', '3M', '6M', '1Y', '5Y', '10Y', '30Y']}
+        custom={custom}
+        onCustom={setCustom}
+        style={style}
+        onStyle={setStyle}
+        volume={volume}
+        onVolume={() => setVolume(!volume)}
+        multiple={symbols.length > 1}
+      />
+      <div className="flex items-center justify-between gap-3 mb-4">
+        <select
+          aria-label="Chart resolution"
+          value={resolution}
+          onChange={(e) => setResolution(e.target.value)}
         >
-          {(levels, events, onEvent) => (
-            <InteractiveChart
-              events={events}
-              onEvent={onEvent}
-              key={symbol + range + basis}
-              bars={data.bars}
-              candles={candles}
-              volume={volume}
-              label={symbol}
-              levels={levels}
-            />
-          )}
-        </ChartInspection>
-      )}
-      <p className="text-xs text-muted-foreground">
-        {data.meta?.provider || 'Source unavailable'} ·{' '}
-        {data.meta?.resolution || 'resolution unavailable'} · {data.meta?.adjustment || basis}{' '}
-        prices · collected {data.meta?.asOf || 'unavailable'} · {data.meta?.from} – {data.meta?.to}
-      </p>
-      <form
-        className="flex flex-wrap items-end gap-3"
-        onSubmit={(e) => {
-          e.preventDefault()
-          const symbols = [...new Set(compare.toUpperCase().split(/[ ,]+/).filter(Boolean))]
-          if (symbols.length > 5 || symbols.some((s) => !/^[A-Z][A-Z0-9.-]{0,14}$/.test(s))) {
-            setError('Choose up to five valid comparison symbols')
-            return
-          }
-          setComparisonSymbols(symbols)
-        }}
-      >
-        <label className="sw-field">
-          Compare symbols (comma separated)
-          <input
-            value={compare}
-            placeholder="QQQ, DIA"
-            onChange={(e) => setCompare(e.target.value)}
-          />
-        </label>
-        <button className="sw-button">Apply comparison</button>
-      </form>
-      {normalized.length > 1 && (
-        <div>
-          <h3 className="font-semibold">
-            Aligned price return · {normalized.map((s) => s.name).join(', ')}
-          </h3>
-          <p className="text-xs text-muted-foreground">
-            Common observed timestamps, first common close = 0%. Price returns exclude trading
-            costs; this is not a funding-matched strategy benchmark.
+          <option value="">Automatic resolution</option>
+          <option value="5Min">5 minutes</option>
+          <option value="1Hour">Hourly</option>
+          <option value="1Day">Daily</option>
+        </select>
+        <div className="sw-segmented" role="radiogroup" aria-label="Price scale">
+          {(['dollars', 'percent'] as const).map((v) => (
+            <button
+              key={v}
+              role="radio"
+              aria-checked={scale === v}
+              aria-label={v === 'dollars' ? 'Dollar prices' : 'Percentage change'}
+              onClick={() => {
+                chosenScale.current = true
+                setScale(v)
+              }}
+              onKeyDown={(e) => {
+                if (['ArrowLeft', 'ArrowRight'].includes(e.key)) {
+                  e.preventDefault()
+                  chosenScale.current = true
+                  setScale(v === 'dollars' ? 'percent' : 'dollars')
+                  ;(
+                    e.currentTarget.parentElement?.querySelector(
+                      `[aria-label="${v === 'dollars' ? 'Percentage change' : 'Dollar prices'}"]`
+                    ) as HTMLElement
+                  )?.focus()
+                }
+              }}
+            >
+              {v === 'dollars' ? '$' : '%'}
+            </button>
+          ))}
+        </div>
+      </div>
+      {symbols.map((s) =>
+        data[s]?.error ? (
+          <p role="alert" key={s} className="sw-notice">
+            {s}: {data[s].error}{' '}
+            <button className="underline" onClick={() => setRetry((n) => n + 1)}>
+              Retry
+            </button>
           </p>
-          <InteractiveChart
-            key={symbol + range + basis + compare}
-            bars={normalized[0].bars}
-            percent
-            label={symbol}
-            comparisons={normalized.slice(1)}
-          />
+        ) : data[s]?.partial ? (
+          <p key={s} className="text-xs text-muted-foreground">
+            {s}: Partial history · available from {data[s].bars[0]?.at.slice(0, 10)}
+          </p>
+        ) : null
+      )}
+      {plotted.length ? (
+        <InteractiveChart
+          key={range + custom.start + custom.end + scale + symbols.join(',')}
+          bars={plotted[0].bars}
+          comparisons={plotted.slice(1)}
+          label={plotted[0].name}
+          color={plotted[0].color}
+          style={symbols.length > 1 ? 'line' : style}
+          percent={scale === 'percent'}
+          volume={volume && symbols.length === 1}
+          showDataTable={false}
+        />
+      ) : (
+        <div className="sw-chart-empty" role="status">
+          {!symbols.length
+            ? 'Search for a stock to start your chart.'
+            : symbols.some((s) => data[s]?.loading)
+              ? 'Loading price history…'
+              : loaded.length
+                ? 'No shared starting observation for this comparison.'
+                : 'No history available for this range.'}
         </div>
       )}
+      {volume &&
+        symbols.length > 1 &&
+        loaded.map((s) => (
+          <div key={s.name} className="mt-3">
+            <p className="text-xs font-medium" style={{ color: s.color }}>
+              {s.name} volume
+            </p>
+            <InteractiveChart
+              bars={s.bars}
+              label={`${s.name} volume`}
+              volume
+              volumeOnly
+              height={100}
+              showDataTable={false}
+            />
+          </div>
+        ))}
     </section>
   )
 }

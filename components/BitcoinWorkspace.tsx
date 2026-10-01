@@ -96,6 +96,7 @@ export function BitcoinWorkspace({ view }: { view: string }) {
                   : 'Crypto operations'
         }
         description="Bitcoin · BTC/USD · Continuous market · Paper trading only"
+        action={view === 'overview' ? <BitcoinLivePrice /> : undefined}
       />
       {view === 'paper' && <PaperWorkspaceTabs asset="bitcoin" active="automated" />}
       {view === 'paper' && (
@@ -108,7 +109,6 @@ export function BitcoinWorkspace({ view }: { view: string }) {
       )}
       {view === 'overview' && (
         <>
-          <BitcoinLivePrice />
           <CryptoMarketChart />
         </>
       )}

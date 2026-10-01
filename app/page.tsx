@@ -1,13 +1,11 @@
 import { StockMarketChart } from '@/components/StockMarketChart'
 import { PageHeader } from '@/components/PageHeader'
-import { PerformanceSummary } from '@/components/dashboard/PerformanceSummary'
+import { CompactPerformance } from '@/components/dashboard/CompactPerformance'
 import { incidentText } from '@/lib/dashboard-presentation'
 import { ExecutionStatus } from '@/components/dashboard/ExecutionStatus'
 import Link from 'next/link'
-import { StockSearch } from '@/components/StockSearch'
 import { MarketOverview } from '@/components/dashboard/MarketOverview'
 import { DatabaseUnavailable } from '@/components/dashboard/DatabaseUnavailable'
-import { SignalTable } from '@/components/dashboard/SignalTable'
 import { StatusBadge } from '@/components/dashboard/StatusBadge'
 import { ResearchQuality } from '@/components/dashboard/ResearchQuality'
 import { formatTimestamp } from '@/lib/utils'
@@ -22,34 +20,26 @@ export default function Home() {
     <main className="container mx-auto space-y-8 p-4 sm:p-8">
       <PageHeader
         title="Stocks overview"
-        description="S&P 500 signals, paper execution, and performance against SPY."
-        action={<StockSearch />}
+        description="Track stocks, compare market performance, and monitor your paper accounts."
       />
 
       <StockMarketChart />
-      <ExecutionStatus />
+      <MarketOverview />
+      <div className="grid gap-6 xl:grid-cols-2">
+        <ExecutionStatus />
+        <CompactPerformance />
+      </div>
       {!overview.available ? (
         <DatabaseUnavailable reason={overview.unavailableReason} />
       ) : (
         <>
-          <PerformanceSummary />
           <section className="grid gap-6 xl:grid-cols-[1.6fr_0.8fr]">
-            <div className="min-w-0">
-              <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
-                <div>
-                  <h2 className="text-xl font-semibold">Highest-ranked signals</h2>
-                  <p className="text-sm text-muted-foreground">
-                    {overview.topSignals[0]
-                      ? `Scored ${formatTimestamp(overview.topSignals[0].asOf)} ET · Latest available scored scan`
-                      : 'Awaiting scored signals'}
-                  </p>
-                </div>
-                <Link href="/signals" className="text-sm font-medium text-primary hover:underline">
-                  View all
-                </Link>
+            <details className="sw-panel self-start">
+              <summary className="font-semibold">Research coverage and methodology</summary>
+              <div className="mt-4">
+                <ResearchQuality />
               </div>
-              <SignalTable signals={overview.topSignals} />
-            </div>
+            </details>
 
             <div>
               <div className="mb-4">
@@ -86,13 +76,6 @@ export default function Home() {
               </div>
             </div>
           </section>
-          <MarketOverview />
-          <details className="rounded-xl border p-4">
-            <summary className="font-semibold">Research coverage and methodology</summary>
-            <div className="mt-4">
-              <ResearchQuality />
-            </div>
-          </details>
         </>
       )}
     </main>

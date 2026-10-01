@@ -104,6 +104,9 @@ export async function getAlpacaHistory(
     '1W': [7, '1Hour'],
     '1M': [32, '1Day'],
     '3M': [95, '1Day'],
+    '6M': [184, '1Day'],
+    '10Y': [3653, '1Day'],
+    '30Y': [10958, '1Day'],
     '1Y': [370, '1Day'],
     '5Y': [1830, '1Day'],
   }
@@ -120,9 +123,9 @@ export async function getAlpacaHistory(
     !Number.isFinite(+end) ||
     start >= end ||
     +end > Date.now() ||
-    +end - +start > 3660 * 86400000
+    +end - +start > 10959 * 86400000
   )
-    throw new Error('Choose a historical interval up to ten years')
+    throw new Error('Choose a historical interval up to thirty years')
   if (range === 'CUSTOM' && (!options.start || !options.end))
     throw new Error('Custom history requires both dates')
   const tickerSymbol = symbol(ticker)
@@ -146,8 +149,8 @@ export async function getAlpacaHistory(
       params
     )
     bars.push(...(result.bars ?? []))
-    if (bars.length > 6000)
-      throw new Error('More than 6,000 chart bars; shorten the interval or increase resolution')
+    if (bars.length > (timeframe === '1Day' ? 12000 : 6000))
+      throw new Error('Too many chart bars; shorten the interval or increase resolution')
     if (!result.next_page_token) break
     if (tokens.has(result.next_page_token) || tokens.size >= 10)
       throw new Error('Incomplete Alpaca history response')

@@ -28,6 +28,8 @@ interface StockSearchProps {
   /** Callback when a stock is selected */
   onSelect?: (stock: Stock) => void
   /** Additional class names for the container */
+  addExactMatch?: boolean
+  clearOnSelect?: boolean
   className?: string
 }
 
@@ -36,6 +38,8 @@ export function StockSearch({
   autoFocus = false,
   onSelect,
   className,
+  addExactMatch = false,
+  clearOnSelect = false,
 }: StockSearchProps) {
   const router = useRouter()
   const [query, setQuery] = useState('')
@@ -59,44 +63,57 @@ export function StockSearch({
   const inputRef = useRef<HTMLInputElement>(null)
 
   // Perform search (only called on Enter)
-  const performSearch = useCallback(async (searchQuery: string) => {
-    if (!searchQuery.trim()) {
-      setResults([])
-      setIsOpen(false)
-      return
-    }
-
-    const id = ++requestId.current
-    controller.current?.abort()
-    controller.current = new AbortController()
-    setIsLoading(true)
-    setError(null)
-
-    try {
-      const response = await fetch(
-        `/api/stock/search?query=${encodeURIComponent(searchQuery.trim())}`,
-        { signal: AbortSignal.any([controller.current.signal, AbortSignal.timeout(10000)]) }
-      )
-
-      if (!response.ok) {
-        const errorData = await response.json()
-        throw new Error(errorData.error || 'Search failed')
+  const performSearch = useCallback(
+    async (searchQuery: string) => {
+      if (!searchQuery.trim()) {
+        setResults([])
+        setIsOpen(false)
+        return
       }
 
-      const data: SearchResponse = await response.json()
-      if (id !== requestId.current) return
-      setResults(data.data)
-      setIsOpen(data.data.length > 0 || data.data.length === 0)
-      setSelectedIndex(-1)
-    } catch (err) {
-      if (id !== requestId.current) return
-      setError(err instanceof Error ? err.message : 'Search failed')
-      setResults([])
-      setIsOpen(false)
-    } finally {
-      if (id === requestId.current) setIsLoading(false)
-    }
-  }, [])
+      const id = ++requestId.current
+      controller.current?.abort()
+      controller.current = new AbortController()
+      setIsLoading(true)
+      setError(null)
+
+      try {
+        const response = await fetch(
+          `/api/stock/search?query=${encodeURIComponent(searchQuery.trim())}`,
+          { signal: AbortSignal.any([controller.current.signal, AbortSignal.timeout(10000)]) }
+        )
+
+        if (!response.ok) {
+          const errorData = await response.json()
+          throw new Error(errorData.error || 'Search failed')
+        }
+
+        const data: SearchResponse = await response.json()
+        if (id !== requestId.current) return
+        const exact = data.data.find(
+          (s) => s.ticker.toUpperCase() === searchQuery.trim().toUpperCase()
+        )
+        if (addExactMatch && exact && onSelect) {
+          onSelect(exact)
+          setQuery(clearOnSelect ? '' : exact.ticker)
+          setIsOpen(false)
+          setResults([])
+          return
+        }
+        setResults(data.data)
+        setIsOpen(data.data.length > 0 || data.data.length === 0)
+        setSelectedIndex(-1)
+      } catch (err) {
+        if (id !== requestId.current) return
+        setError(err instanceof Error ? err.message : 'Search failed')
+        setResults([])
+        setIsOpen(false)
+      } finally {
+        if (id === requestId.current) setIsLoading(false)
+      }
+    },
+    [addExactMatch, clearOnSelect, onSelect]
+  )
 
   // Handle input change - just update state, auto-capitalize
   const handleInputChange = useCallback(
@@ -119,7 +136,7 @@ export function StockSearch({
   // Handle stock selection
   const handleSelectStock = useCallback(
     (stock: Stock) => {
-      setQuery(stock.ticker)
+      setQuery(clearOnSelect ? '' : stock.ticker)
       setIsOpen(false)
       setResults([])
 
@@ -132,7 +149,7 @@ export function StockSearch({
         )
       }
     },
-    [onSelect, router]
+    [onSelect, router, clearOnSelect]
   )
 
   // Handle keyboard navigation

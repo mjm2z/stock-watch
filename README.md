@@ -314,3 +314,48 @@ a competing owner. See the release report for concrete commands and status.
 - [Existing live-paper operations and Telegram command reference](docs/live-paper-operations.md)
 - [Correctness audit](docs/correctness-release-audit.md) and [stock evidence readiness](docs/stock-evidence-readiness.md)
 - [Historical architecture and development notes](docs/readme-history-before-next-phase.md)
+
+### Overview charts and compact monitoring
+
+The Stocks overview starts with a searchable chart. Search by company name or ticker;
+select a result (or submit an exact matching ticker) to add it. Up to **five symbols
+including SPY** can be selected. The list above the chart is also the color legend:
+spinners identify individual history requests and the × buttons remove symbols.
+Selections are saved in this browser, independently of the research watchlist.
+
+A single stock supports candles, hollow candles, lines, and OHLC bars. Adding another
+stock switches to colored lines and initially selects percentage comparison; the
+**$ / %** control switches between actual adjusted prices and percentage change.
+Explicit scale choices are retained while the page is open. Percentage comparisons
+start at the first shared observed timestamp, without filling missing observations.
+Removing stocks leaves the line style selected. Volume is hidden when entering a
+multi-stock comparison; Show Volume exposes separately labelled volume panes.
+
+Stock ranges include 6M, 5Y, 10Y and 30Y. These are requested windows, not promises of
+provider coverage. Only returned bars are plotted; partial-history notices identify
+limited coverage. Daily requests are bounded to 12,000 bars and finer resolutions to
+6,000. The overview requires verified adjusted Alpaca history; it will not relabel
+provider-defined fallback prices as adjusted. Custom dates open a floating calendar
+panel. Both selected dates are included; the API receives UTC boundaries with an
+exclusive end, capped at now for today. Apply commits the range; Cancel leaves it alone.
+
+Overview charts omit order ownership, simulated overlays, and the detailed data table.
+Their removal does not cancel orders, alter systems, or delete evidence. Other trading
+and research workspaces remain available for those records. Raw broker price levels
+are not drawn against adjusted stock prices. Chart controls use the same styling in
+Stocks and Crypto; dropdown arrows have consistent inset spacing throughout the app.
+
+Market prices appear immediately below the Stocks chart. Execution monitoring and
+paper performance share the next row. Performance keeps **Automated stocks** and the
+**Manual stocks allocation** separate: equity, return, observed drawdown and as-of time.
+The manual row uses its allocation valuation, never the combined broker account's
+$1,000,000 balance. These summaries refresh every minute. Legacy fill-cohort cards and
+highest-ranked signals are hidden on Overview; historical calculations and records are
+retained. Research coverage sits beside Recent scans on wide screens and stacks on mobile.
+
+The Crypto header contains a compact **BTC/USD** Coinbase badge. Its green Live status
+requires a fresh feed; disconnects retain the last price with Stale/Reconnecting status.
+It still consumes the event stream without adding display polling or throttling.
+Historical candles remain separate Alpaca data. Source details are available on the
+badge tooltip/accessibility label. The sidebar uses the same green arrow artwork as the
+favicon with a versioned URL so a cached older icon cannot survive a new page load.

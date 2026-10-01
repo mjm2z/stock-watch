@@ -156,7 +156,7 @@ export function Navigation() {
         aria-label="Workspace navigation"
       >
         <Link href="/" className="sw-brand">
-          <img src="/icon.svg" width="34" height="34" alt="" />
+          <img src="/icon.svg?v=7ff73a225c84" width="34" height="34" alt="" />
           <span>
             Stock<span className="font-normal text-muted-foreground">Watch</span>
             <small>RESEARCH & PAPER TRADING</small>
