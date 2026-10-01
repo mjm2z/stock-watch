@@ -413,3 +413,24 @@ mobile (390px) Chromium fixture checks found no page errors, horizontal overflow
 chart movement when opening Custom. Checked all four styles and multi-symbol switching.
 Linux staging and installed-revision verification are separate deployment checkpoints;
 this entry alone does not establish that the new UI is installed.
+
+Verified Linux staging for `41fb35b5797c12f71fa9e105f81358450cb1a7b8`:
+`/home/mjm2z/stock-watch-releases/41fb35b5797c`. All 100 JavaScript tests,
+8 feed tests and 406 worker tests passed, as did type checking, lint (existing warnings),
+production build, manifest verification and installer preflight. Account-card browser
+fixtures also verified that the manual allocation is not replaced by total broker cash.
+Installation remains pending because a1347-m requires an interactive sudo password.
+
+```sh
+ssh -t a1347-m 'sudo systemd-run --unit=stock-watch-release-41fb35b5797c --collect /usr/bin/python3 /home/mjm2z/stock-watch-releases/41fb35b5797c/deploy/install-reviewed-release.py /home/mjm2z/stock-watch-releases/41fb35b5797c'
+```
+
+After starting, monitor from the local StockWatch checkout:
+
+```sh
+python3 deploy/monitor-release.py --unit stock-watch-release-41fb35b5797c.service --watch
+```
+
+Verify the installed receipt, health endpoints, overview controls and green sidebar
+icon before calling this release operational. No new migration or worker execution
+change is introduced by this UI release.
