@@ -3,8 +3,9 @@
 As verified on **October 1, 2026**, production on a1347-m still runs **`22b69c9`**.
 The storage release **`fb6c33a`** is staged but **not installed**: its attempted
 installation stopped before changing services because US trading hours were open.
-The green-theme/chart-navigation release described below is implemented in source
-and under release verification; it is **not yet deployed**. See the
+The green-theme/chart-navigation release **`8f8c26a`** passed local and Linux
+staging verification; it is **not yet deployed**. Its reviewed stage is
+`/home/mjm2z/stock-watch-releases/8f8c26ae62b4`. See the
 [UI release report](docs/ui-polish-2026-10-01.md) for verification and rollout status.
 
 Completed cleanup reclaimed about **201 GiB** from old builds, abandoned backups
