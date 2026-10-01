@@ -470,3 +470,16 @@ tests and production build passed. Desktop/mobile browser checks verified five-s
 additions do not shift the chart, no duplicate Reset view or resolution selector,
 no horizontal page overflow, and correct badge label/status/price alignment. Linux
 staging and deployment remain separate checkpoints.
+
+Linux staging completed for `22b69c9524d284366ec2b43a6a746b3aae1a1e86` at
+`/home/mjm2z/stock-watch-releases/22b69c9524d2`: 100 JavaScript tests, 8 feed tests,
+406 worker tests, production build and reviewed installer preflight passed. The final
+browser checks covered five-stock layout stability and the populated live badge.
+Installation requires the operator's interactive sudo password:
+
+```sh
+ssh -t a1347-m 'sudo systemd-run --unit=stock-watch-release-22b69c9524d2 --collect /usr/bin/python3 /home/mjm2z/stock-watch-releases/22b69c9524d2/deploy/install-reviewed-release.py /home/mjm2z/stock-watch-releases/22b69c9524d2'
+```
+
+The installed runtime remains `41fb35b` until that installation and receipt verification
+complete. No new database migration is included.
