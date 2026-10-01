@@ -6,7 +6,6 @@ import { PaperTradingGuide } from './PaperTradingGuide'
 import { PageHeader } from './PageHeader'
 import { CryptoMarketChart } from './MarketChart'
 import { AccountPerformanceClient } from './AccountPerformanceClient'
-import { BitcoinSystemResearch } from './BitcoinSystemResearch'
 import { useCallback, useEffect, useState } from 'react'
 import { OperatorAccess } from './SystemsWorkspace'
 type Row = Record<string, unknown>
@@ -84,6 +83,7 @@ export function BitcoinWorkspace({ view }: { view: string }) {
   return (
     <main className="container mx-auto space-y-6 p-4 sm:p-8">
       <PageHeader
+        compact={view === 'overview'}
         title={
           view === 'overview'
             ? 'Crypto overview'
@@ -113,7 +113,6 @@ export function BitcoinWorkspace({ view }: { view: string }) {
         </>
       )}
       {(view === 'overview' || view === 'paper') && <AccountPerformanceClient />}
-      {view === 'overview' && <BitcoinSystemResearch compact />}
       {error && (
         <p role="alert" className="rounded border border-amber-500 p-3">
           {error}
@@ -145,20 +144,6 @@ export function BitcoinWorkspace({ view }: { view: string }) {
               ? 'Awaiting fresh market data · check Bitcoin worker configuration'
               : `Alpaca US · ${String(market.observed_at)}`}
           </p>
-        </section>
-      )}
-      {view === 'overview' && !account.id && !portfolio && (
-        <section className="sw-panel flex flex-wrap items-center justify-between gap-4">
-          <div>
-            <h2>From research to paper trading</h2>
-            <p className="sw-muted mt-2">
-              No paper system is active. Start with a researched idea, review a backtest, then
-              collect forward observations.
-            </p>
-          </div>
-          <Link className="sw-button" href="/crypto?view=paper">
-            Review paper setup
-          </Link>
         </section>
       )}
       {(view === 'overview' && (account.id || portfolio)) || view === 'paper' ? (
@@ -280,15 +265,17 @@ export function BitcoinWorkspace({ view }: { view: string }) {
         </section>
       ) : null}
       {view === 'overview' || view === 'blockchain' ? (
-        <section className="space-y-4 rounded-xl border p-5">
-          <h2 className="text-xl font-semibold">Network conditions</h2>
-          <p
-            className={`text-sm ${stale ? 'text-amber-700 dark:text-amber-400' : 'text-muted-foreground'}`}
-          >
-            {stale ? 'Awaiting fresh network observations' : 'Network observation current'}
-            {network.observed_at ? ` · ${String(network.observed_at)}` : ''}
-          </p>
-          <div className="grid gap-4 sm:grid-cols-3">
+        <section className="sw-network-card rounded-xl border">
+          <div className="sw-network-heading">
+            <h2 className="text-base font-semibold">Network conditions</h2>
+            <p
+              className={`text-sm ${stale ? 'text-amber-700 dark:text-amber-400' : 'text-muted-foreground'}`}
+            >
+              {stale ? 'Awaiting fresh network observations' : 'Network observation current'}
+              {network.observed_at ? ` · ${String(network.observed_at)}` : ''}
+            </p>
+          </div>
+          <div className="grid gap-3 sm:grid-cols-3">
             <Metric title="Block height" value={String(block.height ?? 'Unavailable')} />
             <Metric
               title="Pending transactions"
@@ -300,8 +287,7 @@ export function BitcoinWorkspace({ view }: { view: string }) {
             />
           </div>
           <p className="text-sm text-muted-foreground">
-            Congestion and transfers are research observations. They do not establish trading intent
-            or generate orders.
+            Network research only · does not generate orders.
           </p>
         </section>
       ) : null}

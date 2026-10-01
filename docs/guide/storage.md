@@ -52,7 +52,7 @@ are not order/audit records, and no broker or trading-ledger durability is relax
 | `/api/activity?asset=bitcoin&scope=manual&before=…` | Cursor pages, default 50, maximum 200; filters are SQL-bound parameters |
 | `/api/systems/lab?asset=bitcoin` | At most 30 previews, 50 experiments, 100 snapshot metadata rows |
 | `/api/systems/lab/artifact?sha=…` | Known retained preview hash only; no caller-supplied filesystem path |
-| Stock history | Provider/cache isolation by symbol, range, raw/adjusted basis, custom dates and resolution; 6,000 bars maximum |
+| Stock history | Provider/cache isolation by symbol, range, raw/adjusted basis, custom dates and resolution; 6,000 intraday bars / 12,000 daily stock bars maximum |
 
 Activity IDs identify recorded transitions, not hypothetical market events.
 Existing rows do not produce retrospective insert events during migration.
@@ -137,3 +137,15 @@ Scheduled backup SIGTERM handling now closes SQLite and removes its incomplete
 temporary files while preserving completed backups; SIGKILL leftovers are handled
 by later cleanup. Root-only verification markers describe past recovery checks;
 actual database file presence is required before a copy counts toward retention.
+
+## Display cache budgets (UI release, pending deployment)
+
+The shared browser chart LRU holds at most 32 entries / 16 MiB of serialized JSON;
+stock history's server LRU holds at most 64 MiB with a one-minute TTL. Crypto chart
+response cache entries retain at most two days / 64 MiB, with expired and over-budget
+payloads evicted on reads and writes. These are payload budgets, not JavaScript heap
+or allocated SQLite file measurements. In-flight requests are coalesced and bounded.
+Research history, immutable datasets and order evidence do not use these eviction
+rules. Migration 024 adds the scan/ranking index used for paginated Signals reads.
+The background Signals reader has two workers, up to 16 outstanding distinct requests,
+a 15-second execution deadline and an 8 MiB/64-entry result cache lasting 15 seconds.

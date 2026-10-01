@@ -13,7 +13,7 @@ export function PerformanceSummary() {
       <section aria-label="Paper performance" className="space-y-3">
         <AccountPerformance />
         <div>
-          <h2 className="text-xl font-semibold">Legacy fill-cohort performance</h2>
+          <h2 className="text-xl font-semibold">Scanner fill-cohort performance</h2>
           <p className="mt-1 text-sm text-muted-foreground">
             Scanner-owned lots · Return on accumulated entry cost ·{' '}
             {snapshotAt

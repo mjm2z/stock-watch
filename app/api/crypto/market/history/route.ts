@@ -5,7 +5,15 @@ export const dynamic = 'force-dynamic'
 export async function GET(r: NextRequest) {
   try {
     const p = r.nextUrl.searchParams
-    return NextResponse.json(chartRequest(p.get('range') || '1M', p.get('start'), p.get('end')))
+    return NextResponse.json(
+      chartRequest(
+        p.get('range') || '1M',
+        p.get('start'),
+        p.get('end'),
+        p.get('timeframe'),
+        p.get('retry') === '1'
+      )
+    )
   } catch (e) {
     return NextResponse.json(
       {

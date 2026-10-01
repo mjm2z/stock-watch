@@ -1,5 +1,6 @@
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { StockMarketChart } from '@/components/StockMarketChart'
+import { clearChartHistoryCache } from '@/components/useChartHistory'
 import { ChartControls } from '@/components/ChartControls'
 jest.mock('@/components/StockSearch', () => ({
   StockSearch: ({ onSelect }: any) => (
@@ -36,6 +37,7 @@ const response = {
   }),
 }
 beforeEach(() => {
+  clearChartHistoryCache()
   localStorage.clear()
   global.fetch = jest.fn().mockResolvedValue(response)
 })

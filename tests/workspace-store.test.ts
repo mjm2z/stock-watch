@@ -125,3 +125,15 @@ test('archiving versions retains history and cannot hide paper authority', () =>
     'Original name'
   )
 })
+
+test('evicted chart results are recollected and failed chart jobs retry only explicitly', () => {
+  chartRequest('1M')
+  const db = new DatabaseSync(process.env.STOCK_WATCH_DATABASE_PATH!)
+  db.exec("UPDATE workspace_jobs SET status='succeeded'")
+  expect(chartRequest('1M').status).toBe('queued')
+  db.exec("UPDATE workspace_jobs SET status='failed',error='provider unavailable'")
+  expect(chartRequest('1M').status).toBe('failed')
+  expect(chartRequest('1M', null, null, null, true).status).toBe('queued')
+  expect(db.prepare('SELECT count(*) AS n FROM workspace_jobs').get()!.n).toBe(1)
+  db.close()
+})

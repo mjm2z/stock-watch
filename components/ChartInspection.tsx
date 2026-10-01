@@ -102,7 +102,7 @@ export function ChartInspection({
           >
             <option value="manual">Manual allocation</option>
             <option value="automated">Automated systems</option>
-            {asset === 'stocks' && <option value="scanner">Legacy scanner</option>}
+            {asset === 'stocks' && <option value="scanner">Scanner</option>}
           </select>
         </label>
         {layers.map((layer) => (

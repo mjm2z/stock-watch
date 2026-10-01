@@ -1,9 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
-import {
-  readDashboardSignals,
-  readSignalSummary,
-  WorkerDatabaseUnavailable,
-} from '@/lib/worker-dashboard'
+import { readSignalsAsync } from '@/lib/signal-reader'
+import { easternDayBoundary } from '@/lib/dashboard-presentation'
+import { WorkerDatabaseUnavailable } from '@/lib/worker-dashboard'
 
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
@@ -25,8 +23,9 @@ export async function GET(request: NextRequest) {
       minimumScore: optionalNumber(params.get('minimumScore')),
       limit: optionalNumber(params.get('limit')),
     }
-    const signals = readDashboardSignals(filters)
-    const summary = readSignalSummary(filters)
+    if (filters.since) easternDayBoundary(filters.since)
+    if (filters.until) easternDayBoundary(filters.until)
+    const { signals, summary } = await readSignalsAsync(filters)
     if (params.get('format') === 'csv') {
       const cell = (value: unknown) => {
         let text = value == null ? '' : String(value)

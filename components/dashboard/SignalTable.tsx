@@ -189,7 +189,7 @@ export function SignalTable({
                     <>
                       {signal.outcomeVersion !== 'alpaca-iex-completed-sessions-v2' && (
                         <div className="text-xs text-amber-600">
-                          Legacy result · freshness unverified
+                          Earlier result · freshness unverified
                         </div>
                       )}
                       <div className={signal.netReturn >= 0 ? 'text-gain' : 'text-loss'}>

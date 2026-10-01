@@ -282,7 +282,13 @@ export function workspaceCommand(body: Record<string, unknown>) {
     return { id, status: 'queued' }
   })
 }
-export function chartRequest(range: string, startInput?: string | null, endInput?: string | null) {
+export function chartRequest(
+  range: string,
+  startInput?: string | null,
+  endInput?: string | null,
+  timeframe?: string | null,
+  retry = false
+) {
   const days: Record<string, number> = {
     '1D': 1,
     '1W': 7,
@@ -308,7 +314,15 @@ export function chartRequest(range: string, startInput?: string | null, endInput
   )
     throw new SystemsInputError('Choose an ordered range up to ten years.')
   const span = (+endAt - +start) / 86400000,
-    frame = span <= 2 ? '5Min' : span <= 32 ? '1Hour' : span <= 190 ? '4Hour' : '1Day'
+    frame =
+      timeframe || (span <= 2 ? '5Min' : span <= 32 ? '1Hour' : span <= 190 ? '4Hour' : '1Day')
+  if (!['5Min', '1Hour', '4Hour', '1Day'].includes(frame))
+    throw new SystemsInputError('Invalid chart resolution.')
+  const frameMinutes = { '5Min': 5, '1Hour': 60, '4Hour': 240, '1Day': 1440 }[
+    frame as '5Min' | '1Hour' | '4Hour' | '1Day'
+  ]
+  if ((span * 1440) / frameMinutes > 6000)
+    throw new SystemsInputError('Choose a coarser chart resolution.')
   // Daily charts do not need a new multi-year download every five minutes.
   if (!endInput)
     endAt.setUTCMinutes(frame === '1Day' ? 0 : Math.floor(endAt.getUTCMinutes() / 5) * 5, 0, 0)
@@ -322,10 +336,29 @@ export function chartRequest(range: string, startInput?: string | null, endInput
   }
   const key = createHash('sha256').update(JSON.stringify(payload)).digest('hex')
   return researchDatabase(true, (db) => {
+    db.prepare('DELETE FROM crypto_chart_cache WHERE datetime(updated_at)<datetime(?)').run(
+      new Date(Date.now() - 2 * 86400000).toISOString()
+    )
+    db.prepare(
+      `DELETE FROM crypto_chart_cache WHERE key IN (
+      SELECT key FROM (SELECT key, SUM(length(CAST(payload_json AS BLOB))) OVER (ORDER BY updated_at DESC,key) AS bytes FROM crypto_chart_cache) WHERE bytes>67108864
+    )`
+    ).run()
     const cached = db
       .prepare('SELECT payload_json,updated_at FROM crypto_chart_cache WHERE key=?')
       .get(key)
-    const job = db.prepare('SELECT status,error FROM workspace_jobs WHERE id=?').get('chart-' + key)
+    let job = db.prepare('SELECT status,error FROM workspace_jobs WHERE id=?').get('chart-' + key)
+    if (
+      !cached &&
+      (job?.status === 'succeeded' ||
+        (retry && ['failed', 'canceled'].includes(String(job?.status))))
+    ) {
+      db.prepare(
+        `UPDATE workspace_jobs SET status='queued',error=NULL,progress=0,cancel_requested=0,started_at=NULL,finished_at=NULL
+        WHERE id=? AND (SELECT COUNT(*) FROM workspace_jobs WHERE kind='chart' AND status IN ('queued','running'))<10`
+      ).run('chart-' + key)
+      job = db.prepare('SELECT status,error FROM workspace_jobs WHERE id=?').get('chart-' + key)
+    }
     if (!cached && !job)
       db.prepare(
         "INSERT INTO workspace_jobs(id,kind,payload_json,created_at) SELECT ?,?,?,? WHERE (SELECT COUNT(*) FROM workspace_jobs WHERE kind='chart' AND status IN ('queued','running'))<10"

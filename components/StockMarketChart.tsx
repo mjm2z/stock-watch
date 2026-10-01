@@ -1,11 +1,11 @@
 'use client'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { LoaderCircle, X } from 'lucide-react'
-import { ChartBar, InteractiveChart } from './MarketChart'
+import { InteractiveChart } from './MarketChart'
 import { StockSearch } from './StockSearch'
+import { useChartHistory } from './useChartHistory'
 import { ChartControls, ChartStyleSelect, type ChartStyle } from './ChartControls'
-const palette = ['#6699ee', '#e7828e', '#54bda0', '#c59ae8', '#d9a64c']
-type Series = { bars: ChartBar[]; loading: boolean; error?: string; partial?: boolean }
+const palette = ['#32956f', '#6699ee', '#e7828e', '#c59ae8', '#d9a64c']
 export function StockMarketChart() {
   const [symbols, setSymbols] = useState(['SPY']),
     [ready, setReady] = useState(false)
@@ -14,13 +14,11 @@ export function StockMarketChart() {
     [volume, setVolume] = useState(true)
   const [scale, setScale] = useState<'dollars' | 'percent'>('dollars'),
     [custom, setCustom] = useState({ start: '', end: '' })
-  const [resetToken, setResetToken] = useState(0),
-    [data, setData] = useState<Record<string, Series>>({}),
-    [notice, setNotice] = useState(''),
-    [retry, setRetry] = useState(0)
+  const [notice, setNotice] = useState('')
+  const history = useChartHistory('stocks', ready ? symbols : [], range, custom)
+  const { data, resetToken } = history
   const chosenScale = useRef(false),
     colors = useRef<Record<string, string>>({ SPY: palette[0] })
-  const cache = useRef(new Map<string, Series>())
   useEffect(() => {
     try {
       const stored = JSON.parse(localStorage.getItem('stockwatch-overview-symbols') || 'null')
@@ -52,48 +50,6 @@ export function StockMarketChart() {
     if (!colors.current[s])
       colors.current[s] =
         palette.find((c) => !symbols.some((t) => colors.current[t] === c)) || palette[0]
-  useEffect(() => {
-    if (!ready) return
-    const controller = new AbortController()
-    setData(() => Object.fromEntries(symbols.map((s) => [s, { bars: [], loading: true }])))
-    for (const symbol of symbols) {
-      const query = new URLSearchParams({
-        range: range.toUpperCase(),
-        adjustment: 'all',
-        ...(range.toUpperCase() === 'CUSTOM' ? custom : {}),
-      })
-      const key = symbol + query.toString(),
-        cached = cache.current.get(key)
-      if (cached && retry === 0) {
-        setData((old) => ({ ...old, [symbol]: cached }))
-        continue
-      }
-      void fetch(`/api/stock/${encodeURIComponent(symbol)}/history?${query}`, {
-        signal: controller.signal,
-      })
-        .then(async (r) => {
-          const d = await r.json()
-          if (!r.ok) throw Error(d.error || 'History unavailable')
-          if (d.meta?.adjustment !== 'all')
-            throw Error('Adjusted history unavailable from this provider')
-          const next: Series = {
-            bars: d.data.map((b: any) => ({ ...b, at: b.date })),
-            loading: false,
-            partial: d.meta.partial,
-          }
-          if (!controller.signal.aborted) {
-            cache.current.set(key, next)
-            if (cache.current.size > 50) cache.current.delete(cache.current.keys().next().value!)
-            setData((old) => ({ ...old, [symbol]: next }))
-          }
-        })
-        .catch((e) => {
-          if (!controller.signal.aborted)
-            setData((old) => ({ ...old, [symbol]: { bars: [], loading: false, error: e.message } }))
-        })
-    }
-    return () => controller.abort()
-  }, [symbols, range, custom, ready, retry])
   const loaded = useMemo(
     () =>
       symbols
@@ -104,24 +60,26 @@ export function StockMarketChart() {
   const plotted = useMemo(() => {
     if (scale === 'dollars' || !loaded.length) return loaded
     const sets = loaded.map((s) => new Set(s.bars.map((b) => b.at)))
+    if (history.baseline.current.identity !== history.identity)
+      history.baseline.current = { identity: history.identity, prices: {} }
     const baseline = loaded[0].bars.find((b) => sets.every((s) => s.has(b.at)))?.at
     if (!baseline) return []
     return loaded.map((s) => {
-      const base = s.bars.find((b) => b.at === baseline)!.close
+      const base =
+        history.baseline.current.prices[s.name] ?? s.bars.find((b) => b.at === baseline)!.close
+      history.baseline.current.prices[s.name] = base
       return {
         ...s,
-        bars: s.bars
-          .filter((b) => b.at >= baseline)
-          .map((b) => ({
-            ...b,
-            open: (b.open / base - 1) * 100,
-            high: (b.high / base - 1) * 100,
-            low: (b.low / base - 1) * 100,
-            close: (b.close / base - 1) * 100,
-          })),
+        bars: s.bars.map((b) => ({
+          ...b,
+          open: (b.open / base - 1) * 100,
+          high: (b.high / base - 1) * 100,
+          low: (b.low / base - 1) * 100,
+          close: (b.close / base - 1) * 100,
+        })),
       }
     })
-  }, [loaded, scale])
+  }, [loaded, scale, history.baseline, history.identity])
   function add(ticker: string) {
     if (symbols.includes(ticker)) {
       setNotice(`${ticker} is already on the chart.`)
@@ -198,7 +156,7 @@ export function StockMarketChart() {
       <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
         <div className="flex items-center gap-2">
           <ChartStyleSelect style={style} onStyle={setStyle} multiple={symbols.length > 1} />
-          <button className="sw-button" onClick={() => setResetToken((n) => n + 1)}>
+          <button className="sw-button" onClick={history.reset}>
             Reset view
           </button>
         </div>
@@ -235,7 +193,7 @@ export function StockMarketChart() {
         data[s]?.error ? (
           <p role="alert" key={s} className="sw-notice">
             {s}: {data[s].error}{' '}
-            <button className="underline" onClick={() => setRetry((n) => n + 1)}>
+            <button className="underline" onClick={history.retry}>
               Retry
             </button>
           </p>
@@ -245,31 +203,42 @@ export function StockMarketChart() {
           </p>
         ) : null
       )}
-      {plotted.length ? (
-        <InteractiveChart
-          key={range + custom.start + custom.end + scale + symbols.join(',')}
-          bars={plotted[0].bars}
-          comparisons={plotted.slice(1)}
-          label={plotted[0].name}
-          color={plotted[0].color}
-          style={symbols.length > 1 ? 'line' : style}
-          percent={scale === 'percent'}
-          volume={volume && symbols.length === 1}
-          showDataTable={false}
-          externalReset
-          resetToken={resetToken}
-        />
-      ) : (
-        <div className="sw-chart-empty" role="status">
-          {!symbols.length
-            ? 'Search for a stock to start your chart.'
-            : symbols.some((s) => data[s]?.loading)
-              ? 'Loading price history…'
-              : loaded.length
-                ? 'No shared starting observation for this comparison.'
-                : 'No history available for this range.'}
-        </div>
-      )}
+      <div className="relative">
+        {(history.loading || history.notice || history.customView) && (
+          <div className="sw-chart-status" role="status">
+            {history.loading && (
+              <LoaderCircle size={14} className="animate-spin motion-reduce:animate-none" />
+            )}
+            {history.loading ? 'Loading history…' : history.notice || 'Custom view'}
+          </div>
+        )}
+        {plotted.length ? (
+          <InteractiveChart
+            key={range + custom.start + custom.end + scale + symbols.join(',') + resetToken}
+            bars={plotted[0].bars}
+            comparisons={plotted.slice(1)}
+            label={plotted[0].name}
+            color={plotted[0].color}
+            style={symbols.length > 1 ? 'line' : style}
+            percent={scale === 'percent'}
+            volume={volume && symbols.length === 1}
+            showDataTable={false}
+            externalReset
+            resetToken={resetToken}
+            onVisibleRange={history.onVisibleRange}
+          />
+        ) : (
+          <div className="sw-chart-empty" role="status">
+            {!symbols.length
+              ? 'Search for a stock to start your chart.'
+              : symbols.some((s) => data[s]?.loading)
+                ? 'Loading price history…'
+                : loaded.length
+                  ? 'No shared starting observation for this comparison.'
+                  : 'No history available for this range.'}
+          </div>
+        )}
+      </div>
       {volume &&
         symbols.length > 1 &&
         loaded.map((s) => (

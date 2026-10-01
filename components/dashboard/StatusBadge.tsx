@@ -2,13 +2,13 @@ import { cn } from '@/lib/utils'
 
 const statusStyles: Record<string, string> = {
   succeeded: 'bg-emerald-500/10 text-emerald-700 border-emerald-500/20',
-  score_qualified: 'bg-blue-500/10 text-blue-700 border-blue-500/20',
+  score_qualified: 'bg-primary/10 text-primary border-primary/20',
   qualified: 'bg-emerald-500/10 text-emerald-700 border-emerald-500/20',
   filled: 'bg-emerald-500/10 text-emerald-700 border-emerald-500/20',
   matched: 'bg-emerald-500/10 text-emerald-700 border-emerald-500/20',
-  open: 'bg-blue-500/10 text-blue-700 border-blue-500/20',
-  running: 'bg-blue-500/10 text-blue-700 border-blue-500/20',
-  accepted: 'bg-blue-500/10 text-blue-700 border-blue-500/20',
+  open: 'bg-primary/10 text-primary border-primary/20',
+  running: 'bg-primary/10 text-primary border-primary/20',
+  accepted: 'bg-primary/10 text-primary border-primary/20',
   queued: 'bg-amber-500/10 text-amber-700 border-amber-500/20',
   pending: 'bg-amber-500/10 text-amber-700 border-amber-500/20',
   partial: 'bg-amber-500/10 text-amber-700 border-amber-500/20',

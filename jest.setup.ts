@@ -1,3 +1,5 @@
+import { TextEncoder } from 'node:util'
+Object.assign(globalThis, { TextEncoder })
 import '@testing-library/jest-dom'
 
 // Mock window.matchMedia for components that use media queries

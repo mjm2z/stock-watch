@@ -146,13 +146,13 @@
   --card-foreground: 218 27% 17%;
   --popover: 0 0% 100%;
   --popover-foreground: 218 27% 17%;
-  --primary: 226 53% 51%;
+  --primary: 157 55% 28%;
   --primary-foreground: 0 0% 100%;
   --muted: 220 22% 94%;
   --muted-foreground: 219 13% 43%;
   --border: 220 20% 88%;
   --input: 220 20% 88%;
-  --ring: 226 53% 51%;
+  --ring: 157 55% 28%;
   --side: #fff;
   --gain: 151 59% 31%;
   --loss: 352 48% 48%;
@@ -165,13 +165,13 @@
   --card-foreground: 219 28% 92%;
   --popover: 220 17% 11%;
   --popover-foreground: 219 28% 92%;
-  --primary: 227 75% 80%;
-  --primary-foreground: 223 35% 15%;
+  --primary: 157 42% 68%;
+  --primary-foreground: 157 35% 10%;
   --muted: 220 18% 15%;
   --muted-foreground: 219 13% 63%;
   --border: 220 15% 19%;
   --input: 220 15% 19%;
-  --ring: 227 75% 80%;
+  --ring: 157 42% 68%;
   --side: #0d1014;
   --gain: 157 48% 69%;
   --loss: 351 77% 75%;
@@ -831,4 +831,60 @@ select:disabled {
 .sw-live-badge {
   width: max-content;
   max-width: 100%;
+}
+
+/* Compact overview headers share the chart's outer content edge. */
+.sw-overview-header {
+  min-height: 0;
+  margin-bottom: 0 !important;
+  gap: 16px;
+}
+.sw-overview-header + * {
+  margin-top: 16px !important;
+}
+.sw-overview-header .sw-page-action {
+  width: auto;
+  flex: 0 0 auto;
+  margin-left: auto;
+}
+.sw-overview-header p {
+  margin-top: 6px;
+}
+.sw-overview-header .sw-live-badge p {
+  margin: 0;
+  font-size: 30px;
+  font-weight: 600;
+  color: hsl(var(--foreground));
+  line-height: 1.15;
+}
+.sw-network-card {
+  padding: 16px;
+  display: grid;
+  gap: 12px;
+}
+.sw-network-heading {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.sw-chart-status {
+  position: absolute;
+  right: 10px;
+  top: 8px;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px;
+  border-radius: 6px;
+  background: hsl(var(--card) / 0.94);
+  font-size: 12px;
+  pointer-events: none;
+}
+@media (max-width: 640px) {
+  .sw-overview-header .sw-live-badge p {
+    font-size: 26px;
+  }
 }

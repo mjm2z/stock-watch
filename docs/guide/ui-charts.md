@@ -3,23 +3,38 @@
 [Application guide](../../README.md)
 
 The sidebar retains Stocks/Crypto context. Paper trading leads to the manual
-allocation workspace with visible links to automated portfolios and legacy
-scanner lots. Forms use labelled inputs, keyboard-operable controls, bounded
+allocation workspace with visible links to automated portfolios and scanner
+paper trades. Paper trading follows Overview in desktop/mobile navigation. Activity
+uses an ordered-list icon; Signals uses a radar icon. Green primary accents, links
+and focus rings distinguish StockWatch from other local applications; surfaces stay
+neutral and profit/loss colors retain their meaning. Forms use labelled inputs, keyboard-operable controls, bounded
 responsive tables, explicit loading/error/empty states and preview/confirmation.
 Read-only users can inspect records but cannot submit mutations.
 
-Stocks Overview focuses on SPY initially. A browser-local watchlist stores symbols
-only; it contains no credentials. Choose presets, custom UTC dates, 5-minute /
-hourly / daily display resolution, line or candles and volume. Up to five other
-symbols appear in normalized comparison on common timestamps. Prices are not
-forward-filled through absent observations. Raw and adjusted caches are separate.
-The focused price chart and normalized comparison remain separate views.
+Stocks Overview starts with SPY and supports **five total symbols**. Search by
+company name or ticker; selected symbols form a horizontal removable legend.
+Only symbol choices persist in browser storage. One symbol supports candles,
+hollow candles, OHLC bars and lines; multiple symbols use lines with an explicit
+$/% scale. Comparison starts at a shared observation and keeps that baseline
+fixed while older bars load. Missing prices are not forward-filled.
 
-Existing Lightweight Charts 5 is reused, including attribution, accessible data
-tables, pan/zoom and resize cleanup. Current overlay price lines update without
-rebuilding the base chart. Larger data/mode changes preserve the viewport.
-Comparison series share a percentage scale; different autoscaled axes must not
-make unequal returns look equal. No drag-to-trade behavior is implemented.
+Presets choose resolution automatically. Zoom/pan expansion loads bounded adjacent
+history with a small chart-corner status, preserves the viewport, and switches to
+coarser bars when needed. Custom calendar dates remain explicit boundaries. Reset
+view restores the selected preset/date interval. History ends and retryable errors
+are distinct states. Overview charts use adjusted stocks and separate Alpaca
+Crypto candles; Coinbase's live badge is not a candle source.
+
+The overview has no ownership selector, simulated layers or accessible data table.
+Dedicated inspection views retain those interfaces. Existing Lightweight Charts 5
+provides pan/zoom, attribution and cleanup. Current overlay price lines update
+without rebuilding the base chart; no drag-to-trade behavior is implemented.
+
+Crypto's live badge aligns with the chart's right edge, with BTC/USD and status
+above a larger left-aligned price. Overview headers use compact spacing. Crypto
+research/setup promotions are absent from Overview but remain reachable through
+Systems, Backtesting and Paper trading. Network conditions presents freshness and
+three compact metrics rather than a large promotional card.
 
 Layer controls select presentation only. Scope is explicit: Manual, Automated,
 or scanner. Limit/stop/trigger prices, current position basis when reconciled,
@@ -41,7 +56,7 @@ rule values and fills, always marked PREVIEW. Higher-timeframe values are labell
 with their completed decision bar; they are not painted into earlier intraday
 history as if already known. Volume/RSI values are not drawn on a dollar-price axis.
 
-Bitcoin Live Price uses shared SSE with stable tabular numbers and no per-tick
+The BTC/USD badge uses shared SSE with stable tabular numbers and no per-tick
 screen-reader announcement. Its observed Coinbase price stays separate from the
 historical chart. Stale data remains visible with stale/reconnecting text.
 Reduced motion requires no special animation override because price updates

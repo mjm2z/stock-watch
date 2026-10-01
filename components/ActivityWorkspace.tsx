@@ -69,7 +69,7 @@ export function ActivityWorkspace({
           <select value={filters.scope} onChange={(e) => edit('scope', e.target.value)}>
             <option value="manual">Manual allocation</option>
             <option value="automated">Automated systems</option>
-            {asset === 'stocks' && <option value="scanner">Legacy scanner</option>}
+            {asset === 'stocks' && <option value="scanner">Scanner</option>}
           </select>
         </label>
         {(['symbol', 'account', 'owner', 'status', 'kind'] as const).map((key) => (

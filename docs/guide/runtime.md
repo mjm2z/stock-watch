@@ -125,3 +125,16 @@ exit management must continue through policy/data outages.
 Protected setup still requires the manual paper key/secret, separate browser and
 Autobot service tokens, and allowed Telegram user/chat IDs. Do not paste secrets
 into chat. Confirm account setup and any test trade through their own exact drafts.
+
+## UI release after storage maintenance
+
+The October 1 UI release must follow successful storage release `fb6c33a`. Its
+installer rejects a pending migration 023 before stopping any services. Do not
+replace the already-staged storage installer. Migration 024 is an additive signal
+index and still requires the reviewed installer's verified recovery process.
+
+Web build/dev/test scripts compile the read-only Signals module into `.signal-worker/`.
+The release manifest includes that directory. The web process runs a bounded pair
+of Node worker threads for uncached Signals reads; these are query workers, not
+additional execution owners. They never submit orders or run migrations. Cached
+results live only in memory; a web restart discards them safely.

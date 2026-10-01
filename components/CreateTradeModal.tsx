@@ -47,9 +47,7 @@ export function CreateTradeModal({
   }, [initialTicker, initialPrice])
 
   // Calculate shares
-  const shares = entryPrice && investment
-    ? parseFloat(investment) / parseFloat(entryPrice)
-    : 0
+  const shares = entryPrice && investment ? parseFloat(investment) / parseFloat(entryPrice) : 0
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -115,20 +113,14 @@ export function CreateTradeModal({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
       {/* Backdrop */}
-      <div
-        className="absolute inset-0 bg-background/80 backdrop-blur-sm"
-        onClick={onClose}
-      />
+      <div className="absolute inset-0 bg-background/80 backdrop-blur-sm" onClick={onClose} />
 
       {/* Modal */}
       <div className="relative bg-card border rounded-lg shadow-lg w-full max-w-md mx-4 max-h-[90vh] overflow-y-auto">
         {/* Header */}
         <div className="flex items-center justify-between p-4 border-b">
           <h2 className="text-lg font-semibold">Create Trade</h2>
-          <button
-            onClick={onClose}
-            className="p-1 hover:bg-muted rounded-md"
-          >
+          <button onClick={onClose} className="p-1 hover:bg-muted rounded-md">
             <X className="h-5 w-5" />
           </button>
         </div>
@@ -145,7 +137,7 @@ export function CreateTradeModal({
                 className={cn(
                   'px-4 py-3 rounded-md border-2 transition-colors',
                   tradeType === 'paper'
-                    ? 'border-blue-500 bg-blue-500/10 text-blue-600'
+                    ? 'border-primary bg-primary/10 text-primary'
                     : 'border-muted hover:border-muted-foreground/50'
                 )}
               >
@@ -231,9 +223,7 @@ export function CreateTradeModal({
               />
             </div>
             {shares > 0 && (
-              <p className="text-xs text-muted-foreground mt-1">
-                ≈ {shares.toFixed(4)} shares
-              </p>
+              <p className="text-xs text-muted-foreground mt-1">≈ {shares.toFixed(4)} shares</p>
             )}
           </div>
 
@@ -278,7 +268,9 @@ export function CreateTradeModal({
             </div>
             {targetPrice && entryPrice && (
               <p className="text-xs text-muted-foreground mt-1">
-                Target gain: {formatCurrency((parseFloat(targetPrice) - parseFloat(entryPrice)) * shares)} ({(((parseFloat(targetPrice) / parseFloat(entryPrice)) - 1) * 100).toFixed(1)}%)
+                Target gain:{' '}
+                {formatCurrency((parseFloat(targetPrice) - parseFloat(entryPrice)) * shares)} (
+                {((parseFloat(targetPrice) / parseFloat(entryPrice) - 1) * 100).toFixed(1)}%)
               </p>
             )}
           </div>
@@ -299,9 +291,7 @@ export function CreateTradeModal({
           </div>
 
           {/* Error */}
-          {error && (
-            <p className="text-sm text-destructive">{error}</p>
-          )}
+          {error && <p className="text-sm text-destructive">{error}</p>}
 
           {/* Actions */}
           <div className="flex gap-3 pt-2">
@@ -318,7 +308,7 @@ export function CreateTradeModal({
               className={cn(
                 'flex-1 px-4 py-2 rounded-md text-white transition-colors',
                 tradeType === 'paper'
-                  ? 'bg-blue-500 hover:bg-blue-600'
+                  ? 'bg-primary hover:bg-primary/90'
                   : 'bg-green-500 hover:bg-green-600',
                 isSubmitting && 'opacity-50 cursor-not-allowed'
               )}

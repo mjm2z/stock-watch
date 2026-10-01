@@ -157,6 +157,10 @@ export function readDashboardSignals(filters: SignalFilters = {}): DashboardSign
   return withDatabase((database) => readSignals(database, filters))
 }
 
+const signalOptions = new Map<
+  string,
+  { expires: number; strategies: string[]; reasons: string[] }
+>()
 export function readSignalSummary(filters: SignalFilters = {}) {
   return withDatabase((database) => {
     const { where, values } = signalWhere(filters)
@@ -166,19 +170,33 @@ export function readSignalSummary(filters: SignalFilters = {}) {
       FROM signals JOIN instruments ON instruments.id=signals.instrument_id ${where}`
       )
       .get(...values) as Row
-    const strategies = database
-      .prepare('SELECT DISTINCT strategy_version_id AS id FROM signals ORDER BY id')
-      .all() as Row[]
-    const reasons = database
-      .prepare(
-        'SELECT DISTINCT value AS reason FROM signals, json_each(signals.reasons_json) ORDER BY reason'
-      )
-      .all() as Row[]
+    const optionKey =
+      (process.env.STOCK_WATCH_DATABASE_PATH || '') + ':' + (filters.scanRunId || 'all')
+    let options = signalOptions.get(optionKey)
+    if (!options || options.expires < Date.now()) {
+      const scope = filters.scanRunId ? 'WHERE signals.scan_run_id=?' : ''
+      const args = filters.scanRunId ? [filters.scanRunId] : []
+      const strategies = database
+        .prepare(`SELECT DISTINCT strategy_version_id AS id FROM signals ${scope} ORDER BY id`)
+        .all(...args) as Row[]
+      const reasons = database
+        .prepare(
+          `SELECT DISTINCT value AS reason FROM signals, json_each(signals.reasons_json) ${scope} ORDER BY reason`
+        )
+        .all(...args) as Row[]
+      options = {
+        expires: Date.now() + 15000,
+        strategies: strategies.map((row) => String(row.id)),
+        reasons: reasons.map((row) => String(row.reason)),
+      }
+      signalOptions.set(optionKey, options)
+      if (signalOptions.size > 32) signalOptions.delete(signalOptions.keys().next().value!)
+    }
     return {
       total: Number(counts.total),
       companies: Number(counts.companies),
-      strategies: strategies.map((row) => String(row.id)),
-      reasons: reasons.map((row) => String(row.reason)),
+      strategies: options.strategies,
+      reasons: options.reasons,
       generatedAt: new Date().toISOString(),
       scanRunId: filters.scanRunId ?? null,
     }
@@ -421,7 +439,12 @@ function readSignals(database: DatabaseSync, filters: SignalFilters): DashboardS
   )
   const rows = database
     .prepare(
-      `SELECT signals.id, instruments.symbol, instruments.name,
+      `WITH selected AS MATERIALIZED (
+         SELECT signals.* FROM signals JOIN instruments ON instruments.id=signals.instrument_id
+         ${where}
+           ORDER BY signals.as_of DESC, signals.opportunity_score DESC, signals.horizon_trading_days, signals.id
+         LIMIT ? OFFSET ?
+       ) SELECT signals.id, instruments.symbol, instruments.name,
               signals.horizon_trading_days, signals.as_of,
               signals.opportunity_score, signals.data_completeness,
               signals.risk_level, signals.decision, signals.explanation,
@@ -439,7 +462,7 @@ function readSignals(database: DatabaseSync, filters: SignalFilters): DashboardS
                  AND bars.timeframe = '1Day' AND bars.adjustment = 'all'
                  AND bars.provider = 'alpaca'
                ORDER BY bars.timestamp DESC LIMIT 1) AS current_price
-       FROM signals
+       FROM selected AS signals
        JOIN instruments ON instruments.id = signals.instrument_id
        LEFT JOIN paper_orders AS orders ON orders.signal_id = signals.id
        LEFT JOIN paper_trade_lots AS lots ON lots.signal_id = signals.id
@@ -447,10 +470,9 @@ function readSignals(database: DatabaseSync, filters: SignalFilters): DashboardS
           ON outcomes.signal_id = signals.id
          AND outcomes.horizon_trading_days = signals.horizon_trading_days
        LEFT JOIN signal_evaluations AS evaluations ON evaluations.signal_id=signals.id
-       ${where}
        ORDER BY signals.as_of DESC, signals.opportunity_score DESC,
                 signals.horizon_trading_days, signals.id
-       LIMIT ? OFFSET ?`
+       `
     )
     .all(...values) as Row[]
   const signalIds = rows.map((row) => String(row.id))

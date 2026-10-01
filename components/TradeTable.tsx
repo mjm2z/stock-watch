@@ -12,11 +12,7 @@ import {
   ChevronUp,
   MoreHorizontal,
 } from 'lucide-react'
-import {
-  paperTradesAtom,
-  updatePaperTradeAtom,
-  closePaperTradeAtom,
-} from '@/lib/atoms'
+import { paperTradesAtom, updatePaperTradeAtom, closePaperTradeAtom } from '@/lib/atoms'
 import { cn, formatCurrency, formatPercent } from '@/lib/utils'
 import type { PaperTrade } from '@/types'
 
@@ -41,7 +37,7 @@ export function TradeTable() {
   const [tradeToClose, setTradeToClose] = useState<string | null>(null)
 
   // Filter trades
-  const filteredTrades = trades.filter(trade => {
+  const filteredTrades = trades.filter((trade) => {
     if (typeFilter !== 'all' && trade.type !== typeFilter) return false
     if (statusFilter !== 'all' && trade.status !== statusFilter) return false
     return true
@@ -49,7 +45,7 @@ export function TradeTable() {
 
   // Update prices for active trades
   const updatePrices = useCallback(async () => {
-    const activeTrades = trades.filter(t => t.status === 'active')
+    const activeTrades = trades.filter((t) => t.status === 'active')
     if (activeTrades.length === 0) return
 
     setIsUpdatingPrices(true)
@@ -57,7 +53,7 @@ export function TradeTable() {
       const response = await fetch('/api/watchlist/prices', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ tickers: activeTrades.map(t => t.ticker) }),
+        body: JSON.stringify({ tickers: activeTrades.map((t) => t.ticker) }),
       })
 
       if (response.ok) {
@@ -93,7 +89,7 @@ export function TradeTable() {
 
   // Handle close trade
   const handleCloseTrade = async (tradeId: string) => {
-    const trade = trades.find(t => t.id === tradeId)
+    const trade = trades.find((t) => t.id === tradeId)
     if (!trade) return
 
     // Use current price to close
@@ -127,15 +123,13 @@ export function TradeTable() {
         <div className="flex items-center gap-2">
           {/* Type filter */}
           <div className="flex rounded-md border">
-            {(['all', 'paper', 'real'] as FilterType[]).map(type => (
+            {(['all', 'paper', 'real'] as FilterType[]).map((type) => (
               <button
                 key={type}
                 onClick={() => setTypeFilter(type)}
                 className={cn(
                   'px-3 py-1.5 text-sm capitalize',
-                  typeFilter === type
-                    ? 'bg-primary text-primary-foreground'
-                    : 'hover:bg-muted'
+                  typeFilter === type ? 'bg-primary text-primary-foreground' : 'hover:bg-muted'
                 )}
               >
                 {type}
@@ -145,15 +139,13 @@ export function TradeTable() {
 
           {/* Status filter */}
           <div className="flex rounded-md border">
-            {(['all', 'active', 'closed'] as StatusFilter[]).map(status => (
+            {(['all', 'active', 'closed'] as StatusFilter[]).map((status) => (
               <button
                 key={status}
                 onClick={() => setStatusFilter(status)}
                 className={cn(
                   'px-3 py-1.5 text-sm capitalize',
-                  statusFilter === status
-                    ? 'bg-primary text-primary-foreground'
-                    : 'hover:bg-muted'
+                  statusFilter === status ? 'bg-primary text-primary-foreground' : 'hover:bg-muted'
                 )}
               >
                 {status}
@@ -187,7 +179,7 @@ export function TradeTable() {
             </tr>
           </thead>
           <tbody>
-            {filteredTrades.map(trade => {
+            {filteredTrades.map((trade) => {
               const isPositive = trade.profitLoss >= 0
               const isExpanded = expandedTrade === trade.id
 
@@ -211,17 +203,17 @@ export function TradeTable() {
                         {trade.shares.toFixed(2)} shares
                       </p>
                     </td>
-                    <td className="p-3 text-right">
-                      {formatCurrency(trade.entryPrice)}
-                    </td>
+                    <td className="p-3 text-right">{formatCurrency(trade.entryPrice)}</td>
                     <td className="p-3 text-right font-medium">
                       {formatCurrency(trade.currentPrice)}
                     </td>
                     <td className="p-3 text-right">
-                      <div className={cn(
-                        'inline-flex items-center gap-1',
-                        isPositive ? 'text-gain' : 'text-loss'
-                      )}>
+                      <div
+                        className={cn(
+                          'inline-flex items-center gap-1',
+                          isPositive ? 'text-gain' : 'text-loss'
+                        )}
+                      >
                         {isPositive ? (
                           <TrendingUp className="h-4 w-4" />
                         ) : (
@@ -229,10 +221,12 @@ export function TradeTable() {
                         )}
                         <div>
                           <div className="font-medium">
-                            {isPositive ? '+' : ''}{formatCurrency(trade.profitLoss)}
+                            {isPositive ? '+' : ''}
+                            {formatCurrency(trade.profitLoss)}
                           </div>
                           <div className="text-xs">
-                            ({isPositive ? '+' : ''}{formatPercent(trade.profitLossPct)})
+                            ({isPositive ? '+' : ''}
+                            {formatPercent(trade.profitLossPct)})
                           </div>
                         </div>
                       </div>
@@ -241,12 +235,14 @@ export function TradeTable() {
                       {daysBetween(trade.entryDate)}d
                     </td>
                     <td className="p-3 text-center">
-                      <span className={cn(
-                        'inline-block px-2 py-0.5 rounded-full text-xs font-medium',
-                        trade.type === 'paper'
-                          ? 'bg-blue-500/10 text-blue-600'
-                          : 'bg-green-500/10 text-green-600'
-                      )}>
+                      <span
+                        className={cn(
+                          'inline-block px-2 py-0.5 rounded-full text-xs font-medium',
+                          trade.type === 'paper'
+                            ? 'bg-primary/10 text-primary'
+                            : 'bg-green-500/10 text-green-600'
+                        )}
+                      >
                         {trade.type}
                       </span>
                     </td>
@@ -264,16 +260,18 @@ export function TradeTable() {
                         </button>
                         {trade.status === 'active' && (
                           <button
-                            onClick={() => setTradeToClose(
-                              tradeToClose === trade.id ? null : trade.id
-                            )}
+                            onClick={() =>
+                              setTradeToClose(tradeToClose === trade.id ? null : trade.id)
+                            }
                             className={cn(
                               'p-2 rounded-md transition-colors',
                               tradeToClose === trade.id
                                 ? 'bg-destructive text-destructive-foreground'
                                 : 'hover:bg-muted'
                             )}
-                            title={tradeToClose === trade.id ? 'Click again to confirm' : 'Close trade'}
+                            title={
+                              tradeToClose === trade.id ? 'Click again to confirm' : 'Close trade'
+                            }
                           >
                             <X className="h-4 w-4" />
                           </button>

@@ -245,7 +245,7 @@ def main():
         raise SystemExit('Unexpected release staging directory')
     manifest = json.loads((source / 'reviewed-release.json').read_text())
     verify_files(source, manifest)
-    for required in ('.next/BUILD_ID', 'package-lock.json', 'worker/migrations/020_correctness.sql'):
+    for required in ('.next/BUILD_ID', 'package-lock.json', 'worker/migrations/020_correctness.sql', '.signal-worker/lib/worker-dashboard.js'):
         if required not in manifest['files']:
             raise RuntimeError('Incomplete reviewed release: ' + required)
     verify_environment_files(source, manifest)
@@ -267,6 +267,8 @@ def main():
     runtime = Path('/opt/stock-watch')
     database = Path('/var/lib/stock-watch/stock-watch.db')
     plan = deployment_plan(source, runtime, database, args.full_backup or args.compact_database)
+    if '023_company_fact_storage' in plan['pending_migrations']:
+        raise SystemExit('Complete and verify staged storage release fb6c33a before installing this UI release; no services changed')
     print('Deployment plan: ' + json.dumps(plan), flush=True)
     stamp = datetime.now(ZoneInfo('UTC')).strftime('%Y%m%dT%H%M%SZ')
     recovery = Path('/var/backups/stock-watch-releases') / stamp

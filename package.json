@@ -19,7 +19,11 @@
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage",
     "type-check": "tsc --noEmit",
-    "test:feed": "node --test tests/services/*.test.mjs"
+    "test:feed": "node --test tests/services/*.test.mjs",
+    "build:signal-worker": "tsc -p tsconfig.signal-worker.json",
+    "predev": "npm run build:signal-worker",
+    "prebuild": "npm run build:signal-worker",
+    "pretest": "npm run build:signal-worker"
   },
   "repository": {
     "type": "git",

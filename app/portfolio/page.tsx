@@ -52,7 +52,7 @@ export default function PortfolioPage() {
         </section>
         <section>
           <h2 id="scanner" className="mb-4 text-xl font-semibold">
-            Legacy scanner lots
+            Scanner paper trades
           </h2>
           <p className="mb-4 text-sm text-muted-foreground">
             Scheduled exits target five minutes before the horizon’s market close when the
@@ -68,11 +68,11 @@ export default function PortfolioPage() {
           </div>
         </details>
         <details className="space-y-5 border-t pt-8">
-          <summary className="font-semibold">Legacy manual sandbox · This browser only</summary>
+          <summary className="font-semibold">Browser simulator · This device only</summary>
           <div>
             <h2 className="text-xl font-semibold">Manual sandbox</h2>
             <p className="text-sm text-muted-foreground">
-              Legacy browser-local trades, kept separate from automated results.
+              Browser-local simulated trades, kept separate from automated results.
             </p>
           </div>
           <PortfolioMetrics />
@@ -90,7 +90,7 @@ export default function PortfolioPage() {
           />
           <DatabaseUnavailable reason={error.message} />
           <details className="space-y-5 border-t pt-8">
-            <summary className="font-semibold">Legacy manual sandbox · This browser only</summary>
+            <summary className="font-semibold">Browser simulator · This device only</summary>
             <div>
               <h2 className="text-xl font-semibold">Manual sandbox</h2>
               <p className="text-sm text-muted-foreground">

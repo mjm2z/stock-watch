@@ -72,10 +72,6 @@ export async function GET(request: NextRequest, context: RouteContext) {
       ? await getAlpacaHistory(ticker, range, adjustment, options)
       : await yahooHistory(ticker.toUpperCase(), range as '1D' | '1W' | '1M' | '3M' | '1Y' | '5Y')
 
-    if (!prices || prices.length === 0) {
-      return NextResponse.json({ error: `No historical data found for ${ticker}` }, { status: 404 })
-    }
-
     const days = (
       {
         '1D': 4,
@@ -95,7 +91,10 @@ export async function GET(request: NextRequest, context: RouteContext) {
       meta: {
         requestedStart,
         requestedEnd: options.end || new Date().toISOString(),
-        partial: Date.parse(prices[0].date) - Date.parse(requestedStart) > 7 * 86400000,
+        partial: Boolean(
+          prices.length && Date.parse(prices[0].date) - Date.parse(requestedStart) > 7 * 86400000
+        ),
+        coverageStatus: prices.length ? 'available' : 'empty',
         ticker: ticker.toUpperCase(),
         range,
         count: prices.length,

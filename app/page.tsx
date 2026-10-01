@@ -17,8 +17,9 @@ export default function Home() {
   const overview = readDashboardOverview()
 
   return (
-    <main className="container mx-auto space-y-8 p-4 sm:p-8">
+    <main className="container mx-auto space-y-6 p-4 sm:p-8">
       <PageHeader
+        compact
         title="Stocks overview"
         description="Track stocks, compare market performance, and monitor your paper accounts."
       />

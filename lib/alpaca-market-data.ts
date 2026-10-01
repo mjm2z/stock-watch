@@ -1,5 +1,8 @@
 // Server-side, read-only market data. Broker order endpoints are never used here.
 import { serverCache } from '@/lib/cache'
+import { BoundedCache } from './bounded-cache'
+const historyCache = new BoundedCache<PriceData[]>(64 * 1024 * 1024)
+const historyRequests = new Map<string, Promise<PriceData[]>>()
 import type { Quote, PriceData } from '@/types'
 
 interface Bar {
@@ -93,7 +96,7 @@ export async function getAlpacaQuotes(tickers: string[]): Promise<Quote[]> {
   return quotes
 }
 
-export async function getAlpacaHistory(
+async function fetchAlpacaHistory(
   ticker: string,
   range: string,
   adjustment: 'raw' | 'all' = 'all',
@@ -130,7 +133,7 @@ export async function getAlpacaHistory(
     throw new Error('Custom history requires both dates')
   const tickerSymbol = symbol(ticker)
   const key = `alpaca:iex:history:${tickerSymbol}:${range}:${adjustment}:${options.start || ''}:${options.end || ''}:${timeframe}`
-  const cached = serverCache.get<PriceData[]>(key)
+  const cached = historyCache.get(key)
   if (cached) return cached
   const params: Record<string, string> = {
     timeframe,
@@ -170,6 +173,31 @@ export async function getAlpacaHistory(
       close: bar.c,
       volume: bar.v,
     }))
-  if (prices.length) serverCache.set(key, prices, 60000)
+  if (prices.length) historyCache.set(key, prices, 60000)
   return prices
+}
+
+export function getAlpacaHistory(
+  ticker: string,
+  range: string,
+  adjustment: 'raw' | 'all' = 'all',
+  options: { start?: string; end?: string; timeframe?: string } = {}
+): Promise<PriceData[]> {
+  const key = JSON.stringify([
+    ticker.toUpperCase(),
+    range,
+    adjustment,
+    options.start,
+    options.end,
+    options.timeframe,
+  ])
+  const active = historyRequests.get(key)
+  if (active) return active
+  if (historyRequests.size >= 10)
+    return Promise.reject(new Error('History requests are busy; retry shortly'))
+  const result = fetchAlpacaHistory(ticker, range, adjustment, options).finally(() =>
+    historyRequests.delete(key)
+  )
+  historyRequests.set(key, result)
+  return result
 }

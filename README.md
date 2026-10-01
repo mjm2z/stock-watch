@@ -1,36 +1,24 @@
 # StockWatch
 
-Overview layout release **`22b69c9`** is installed on a1347-m as of September 30,
-2026, **23:27:21 America/New_York**. The reviewed installer completed a code-only
-update with no pending migrations; existing databases were retained. Recovery and
-prior-runtime paths are recorded in the [release report](docs/next-phase-release.md).
+As verified on **October 1, 2026**, production on a1347-m still runs **`22b69c9`**.
+The storage release **`fb6c33a`** is staged but **not installed**: its attempted
+installation stopped before changing services because US trading hours were open.
+The green-theme/chart-navigation release described below is implemented in source
+and under release verification; it is **not yet deployed**. See the
+[UI release report](docs/ui-polish-2026-10-01.md) for verification and rollout status.
 
-Post-deployment desktop/mobile checks passed for Stocks and Crypto: no JavaScript
-errors or horizontal overflow, one chart search, separate automated/manual stock
-valuations, and the versioned green arrow icon matching the favicon artwork.
-The compact Coinbase badge displayed Live at a stable height. Feed freshness,
-execution and notification polling health passed. The September 30 close scan
-succeeded at 16:16:01 ET, with execution readiness reporting ready and no issues.
-Sustained performance under disk pressure remains unproven.
+Completed cleanup reclaimed about **201 GiB** from old builds, abandoned backups
+and redundant recovery databases. A subsequent host check showed approximately
+272 GiB free; available space changes with normal activity. The live database has
+not yet been deduplicated or compacted. Both recent verified recovery copies were
+preserved. All four core StockWatch services were active at the last service check.
 
-Storage cleanup has reduced host disk usage from approximately **86% to 49%**,
-with **279 GiB available** at the latest check. Core StockWatch services remain
-active. The next storage release adds SEC document deduplication, offline
-compaction and automatic retention; **these code changes are not installed yet**.
-See [storage maintenance](docs/guide/storage.md#storage-maintenance) for the
-retention policy, migration cost, progress monitoring and rollback requirements.
-
-Manual account credentials and combined-account setup are confirmed. End-to-end
-paper order/fill and Telegram trade-notification delivery tests remain outstanding.
-
-HomeOps backup safeguards and the approved JobWatch lifecycle-write fix are also
-installed. See the [release report](docs/next-phase-release.md) for exact revisions,
-verification, rollback paths and remaining work. HomeOps now records separate
-feed, execution and notification endpoint checks. The independent watchdog
-reported HomeOps reachable with zero failures at 14:12 America/New_York.
-No installer polling is needed.
-The [runtime guide](docs/guide/runtime.md#monitoring-a-quiet-installer) explains
-monitoring future installations without an active Codex session.
+Manual account credentials, Telegram authorization and combined-account setup are
+confirmed. End-to-end paper order/fill and Telegram trade-notification delivery
+tests remain outstanding; no UI verification implicitly authorizes a test trade.
+Historical deployment evidence, including HomeOps and JobWatch changes, remains in
+the [dated release report](docs/next-phase-release.md). Prior healthy checks are
+observations at their recorded times, not a claim of continuous current health.
 
 StockWatch is a local research and **paper trading** application for US stocks,
 ETFs and BTC/USD. It combines instrument charts, immutable rule-based systems,
@@ -46,18 +34,16 @@ owns trading validation, reservations, order intent and accounting.
 
 ## Source, verification and installation are different
 
-The next phase adds a guided paper ticket, a Stocks instrument chart, scoped
-chart inspection, prospective activity history, research-only draft previews,
-preregistered experiments, and a favicon generated from the app's brand icon.
-These capabilities require the next-phase code and additive migration **022**.
-A successful build or a screenshot does not establish an installed release.
+The installed application includes the manual paper ticket, instrument charts,
+system research and backtesting, activity records, and matching app/favicon artwork.
+Migration **022** is installed. Storage migration **023** and Signals navigation
+index **024** are pending deployment. A build, fixture test or screenshot establishes
+source behavior, not installation or broker connectivity.
 
-See the [next-phase release report](docs/next-phase-release.md) for the exact
-verified revision, test results, staged/installed status and operator steps.
-The [code-backed assessment](docs/next-phase-audit.md) records the baseline and
-reachability of each change. Older rollout snapshots are retained in the
-[archived README](docs/readme-history-before-next-phase.md); they are not current
-instructions. Never install an obsolete stage merely to match an old document.
+Current setup instructions are here and in the linked guides. Dated release reports
+retain historical evidence; the [archived README](docs/readme-history-before-next-phase.md)
+is not a current deployment instruction. Verify the installed receipt and health
+before marking a staged capability operational.
 
 The operator created one dedicated Alpaca paper account with **$1,000,000
 simulated cash**. The provisioning helper verified its identity differs from both
@@ -76,11 +62,11 @@ asset where the view supports it.
 | View | What it answers |
 | --- | --- |
 | Overview | Instrument history, performance scope, current sources and operating status |
+| Paper trading | Manual orders and instructions; automated portfolios; scanner paper trades |
 | Systems | Edit rules, inspect a draft, publish an immutable version and inspect actual authority |
 | Backtesting | Historical runs, research snapshots, experiment plans, comparisons and reviews |
-| Paper trading | Manual ticket and durable instructions; separate links to automated portfolios and legacy scanner lots |
 | Activity | What changed, when, for which account/system, and the retained event evidence |
-| Signals / Research | Legacy scanner output and contextual research, separate from execution authority |
+| Signals / Research | Scanner output and contextual research, separate from execution authority |
 | Operations | Data capabilities, jobs, reconciliation, feed/owner/notification health and blockers |
 
 An operator session is required for mutations. Reading charts or changing layer
@@ -149,36 +135,87 @@ realized P&L and funding-matched allocation benchmarks remain limitations.
 
 ## Charts and live BTC
 
-The Stocks Overview opens with SPY. Enter another ticker, retain a small local
-watchlist, choose a range or custom UTC interval, change resolution, and switch
-between candlesticks/line and volume. Up to five other symbols can be compared
-on a separate normalized price-return chart using common observed timestamps.
-Comparison is not a strategy benchmark and does not include execution costs.
-Chart history is bounded to 6,000 bars; shorten the interval or increase resolution
-if the bound is exceeded.
+The Stocks overview starts with a searchable chart. Search by company name or ticker;
+select a result (or submit an exact matching ticker) to add it. Up to **five symbols
+including SPY** can be selected. The list above the chart is also the color legend:
+spinners identify individual history requests and the × buttons remove symbols.
+Selections are saved in this browser, independently of the research watchlist.
 
-Choose **Raw · broker levels** to inspect current orders and positions against
-compatible unadjusted stock history. Adjusted analytical mode disables raw broker
-overlays. Raw/custom-resolution stock history requires configured Alpaca data;
-Yahoo fallback is labelled and cannot masquerade as raw Alpaca evidence.
+A single stock supports candles, hollow candles, lines, and OHLC bars. Adding another
+stock switches to colored lines and initially selects percentage comparison; the
+**$ / %** control switches between actual adjusted prices and percentage change.
+Explicit scale choices are retained while the page is open. Percentage comparisons
+start at the first shared observed timestamp; the baseline stays fixed while loading
+older data within the navigation session. Missing observations are not invented.
+Removing stocks leaves the line style selected. Volume is hidden when entering a
+multi-stock comparison; Show Volume exposes separately labelled volume panes.
 
-Each chart has independent visibility controls for orders, positions, protections,
-system inspection, recorded activity and simulated previews. Choose Manual,
-Automated or legacy scanner ownership explicitly. Current price lines disclose
-source, owner, timestamp and validity limits; they do not assert that an order
-existed throughout the historical viewport. Pending market orders have no fixed
-execution-price line. Recorded event markers cluster by visible bar while the
-inspector retains exact timestamps. Missing historical system indicators remain
-unavailable. A selected research preview can show simulated rule levels and fills
-with a persistent PREVIEW label; it is not a recorded live decision.
+Stock ranges include 6M, 5Y, 10Y and 30Y. These are requested windows, not promises of
+provider coverage. Only returned bars are plotted; partial-history notices identify
+limited coverage. Daily requests are bounded to 12,000 bars and finer resolutions to
+6,000. The overview requires verified adjusted Alpaca history; it will not relabel
+provider-defined fallback prices as adjusted. Custom dates open a floating calendar
+panel. Both selected dates are included; the API receives UTC boundaries with an
+exclusive end, capped at now for today. Apply commits the range; Cancel leaves it alone.
 
-Above Bitcoin history, **Live Price** receives Coinbase Advanced Trade `ticker`
-and `heartbeats` via the separate collector and StockWatch SSE proxy. Each
-changed received price is published immediately, without application polling,
-debouncing or intentional price-display throttling. Multiple browser consumers
-share one EventSource. A short timer only checks freshness. The last observed
-price remains visible when stale or reconnecting. Numbers and card dimensions
-remain stable and screen readers are not notified on every tick.
+Overview charts omit order ownership, simulated overlays, and the detailed data table.
+Their removal does not cancel orders, alter systems, or delete evidence. Other trading
+and research workspaces remain available for those records. Raw broker price levels
+are not drawn against adjusted stock prices. Chart controls use the same styling in
+Stocks and Crypto; dropdown arrows have consistent inset spacing throughout the app.
+
+Market prices appear immediately below the Stocks chart. Execution monitoring and
+paper performance share the next row. Performance keeps **Automated stocks** and the
+**Manual stocks allocation** separate: equity, return, observed drawdown and as-of time.
+The manual row uses its allocation valuation, never the combined broker account's
+$1,000,000 balance. These summaries refresh every minute. Scanner fill-cohort cards and
+highest-ranked signals are hidden on Overview; historical calculations and records are
+retained. Research coverage sits beside Recent scans on wide screens and stacks on mobile.
+
+The Crypto header contains a compact **BTC/USD** Coinbase badge. Its green Live status
+requires a fresh feed; disconnects retain the last price with Stale/Reconnecting status.
+It still consumes the event stream without adding display polling or throttling.
+Historical candles remain separate Alpaca data. Source details are available on the
+badge tooltip/accessibility label. The sidebar uses the same green arrow artwork as the
+favicon with a versioned URL so a cached older icon cannot survive a new page load.
+
+The selected-stock legend grows horizontally in a fixed-height row (scrollable on
+narrow screens), so adding tickers does not push the chart down. Stock resolution
+is chosen automatically from the range; the style selector and Reset view share
+one toolbar row. Research coverage is always expanded, with an external heading
+aligned with Recent scans. The compact Bitcoin badge places BTC/USD and feed status
+on its top row and the larger, left-aligned price immediately below.
+
+### Expanding chart history
+
+Pan or zoom beyond loaded history to request older/newer adjacent intervals after
+200ms of interaction quiet. The chart retains its prices and viewport while a small
+corner spinner says **Loading history…**. Duplicate requests share work; abandoned
+requests are canceled. Different resolutions replace the window instead of mixing
+candles, and larger intervals automatically use coarser bars. Overview navigation
+shows **Custom view**; Reset view restores the selected preset. Explicit custom
+calendar intervals stay bounded until another range is selected. Empty intervals
+stop repeat requests and show a coverage notice; failures provide Retry.
+
+These history requests do not throttle the Coinbase Live badge. Coinbase Advanced
+Trade `ticker` and `heartbeats` flow through the separate collector and SSE proxy;
+each distinct received price is published without application display debounce.
+Screen readers are not interrupted on every tick.
+
+Stocks display history is cached in memory: 64 MiB server-side and a shared 16 MiB,
+32-entry browser LRU. Crypto response payloads are disposable database cache entries,
+retained for at most two days with a 64 MiB logical payload cap. Expired/oversized
+entries are evicted during reads/writes. Raw chart bars are much smaller than SEC
+CompanyFacts documents; 6,000 JSON bars at 100–200 bytes each are approximately
+0.6–1.2 MB before overhead. This is an illustration, not a production measurement.
+Cache deletion frees reusable SQLite pages; it does not itself shrink the file.
+Research datasets, execution observations and audit evidence are outside this policy.
+
+The updated interface uses restrained green actions, selections and focus rings in
+both themes, with neutral backgrounds. Profit/loss and warning colors keep their
+meaning; comparison series retain distinct colors. Crypto Overview omits the system
+research teaser and setup promotion; those workflows remain in Systems/Backtesting
+and Paper trading. Network conditions is a compact three-metric research card.
 
 Coinbase observations are venue-specific. **Alpaca remains authoritative for
 executable quotes, orders, balances, fills and fees.** Coinbase ticks are not
@@ -249,6 +286,25 @@ investment evidence**, with a blocked real-data plan. It never creates executabl
 versions or enrollments. ATR and relative-strength hypotheses are inventoried in
 the research guide; this release adds no paid data or broad optimizer.
 
+## Signals and scanner records
+
+Research coverage links open the Signal ledger with the exact scan and rejection
+reason. A loading shell appears immediately. Database reads execute in a bounded
+two-worker pool, identical requests share work, and results use an 8 MiB/64-entry,
+15-second cache. The page selects signal IDs before enriching the 50-row page;
+scan-scoped reason options avoid unrelated ledger scans. The new scan/rank index
+requires migration 024. Cold reads have a 15-second deadline and surface unavailable
+states rather than blocking web health checks. Local fixture timings are recorded
+in the release report; production cold latency is not yet measured.
+
+**Scanner paper trades** are positions created by the earlier scheduled stock
+scanner, with their own attribution and exit policies. They remain managed and
+are not obsolete just because newer Systems workspaces exist. **Browser simulator ·
+This device only** is a separate local sandbox, not the configured Alpaca account.
+Older evaluations retain explicit methodology/freshness warnings. Fill-cohort
+returns exclude idle cash and must not be presented as whole-account performance.
+No records, scanner services or existing exits were removed by this UI release.
+
 ## Activity, operations and recovery
 
 Activity records future instruction/order state transitions with stable IDs,
@@ -302,11 +358,20 @@ The SVG, browser favicon and app brand must be reviewed together.
 Deployment uses `deploy/stage-reviewed-release.sh` and the reviewed release
 installer. Commit tested source first. Stage, build the wheel, verify the manifest
 and run the read-only installer check before requesting root installation.
-Back up before migration 022, preserve artifact stores and manual ledgers, drain
+Back up before pending migrations, preserve artifact stores and manual ledgers, drain
 the previous owner and reconcile outstanding orders during cutover. Never run a
 second installer while a healthy backup/migration owns the release. Rolling back
 code must not reset accounts, delete evidence, reactivate paused entries or start
-a competing owner. See the release report for concrete commands and status.
+a competing owner. Complete storage maintenance and verify its receipt/health before
+installing this UI release. The installer refuses weekdays 09:30–16:00 Eastern.
+Storage migration 023 needs a full verified backup and offline compaction and can
+take hours. Older code requires its matching pre-migration database for rollback.
+See [storage maintenance](docs/guide/storage.md#storage-maintenance).
+
+`npm run dev`, `npm test` and `npm run build` compile the Signals read worker into
+`.signal-worker/`. Include that generated directory in reviewed release artifacts;
+do not start production from a source-only archive. It reads the configured
+`STOCK_WATCH_DATABASE_PATH` without write access or broker requests.
 
 ## Technical and operational guides
 
@@ -321,55 +386,3 @@ a competing owner. See the release report for concrete commands and status.
 - [Existing live-paper operations and Telegram command reference](docs/live-paper-operations.md)
 - [Correctness audit](docs/correctness-release-audit.md) and [stock evidence readiness](docs/stock-evidence-readiness.md)
 - [Historical architecture and development notes](docs/readme-history-before-next-phase.md)
-
-### Overview charts and compact monitoring
-
-The Stocks overview starts with a searchable chart. Search by company name or ticker;
-select a result (or submit an exact matching ticker) to add it. Up to **five symbols
-including SPY** can be selected. The list above the chart is also the color legend:
-spinners identify individual history requests and the × buttons remove symbols.
-Selections are saved in this browser, independently of the research watchlist.
-
-A single stock supports candles, hollow candles, lines, and OHLC bars. Adding another
-stock switches to colored lines and initially selects percentage comparison; the
-**$ / %** control switches between actual adjusted prices and percentage change.
-Explicit scale choices are retained while the page is open. Percentage comparisons
-start at the first shared observed timestamp, without filling missing observations.
-Removing stocks leaves the line style selected. Volume is hidden when entering a
-multi-stock comparison; Show Volume exposes separately labelled volume panes.
-
-Stock ranges include 6M, 5Y, 10Y and 30Y. These are requested windows, not promises of
-provider coverage. Only returned bars are plotted; partial-history notices identify
-limited coverage. Daily requests are bounded to 12,000 bars and finer resolutions to
-6,000. The overview requires verified adjusted Alpaca history; it will not relabel
-provider-defined fallback prices as adjusted. Custom dates open a floating calendar
-panel. Both selected dates are included; the API receives UTC boundaries with an
-exclusive end, capped at now for today. Apply commits the range; Cancel leaves it alone.
-
-Overview charts omit order ownership, simulated overlays, and the detailed data table.
-Their removal does not cancel orders, alter systems, or delete evidence. Other trading
-and research workspaces remain available for those records. Raw broker price levels
-are not drawn against adjusted stock prices. Chart controls use the same styling in
-Stocks and Crypto; dropdown arrows have consistent inset spacing throughout the app.
-
-Market prices appear immediately below the Stocks chart. Execution monitoring and
-paper performance share the next row. Performance keeps **Automated stocks** and the
-**Manual stocks allocation** separate: equity, return, observed drawdown and as-of time.
-The manual row uses its allocation valuation, never the combined broker account's
-$1,000,000 balance. These summaries refresh every minute. Legacy fill-cohort cards and
-highest-ranked signals are hidden on Overview; historical calculations and records are
-retained. Research coverage sits beside Recent scans on wide screens and stacks on mobile.
-
-The Crypto header contains a compact **BTC/USD** Coinbase badge. Its green Live status
-requires a fresh feed; disconnects retain the last price with Stale/Reconnecting status.
-It still consumes the event stream without adding display polling or throttling.
-Historical candles remain separate Alpaca data. Source details are available on the
-badge tooltip/accessibility label. The sidebar uses the same green arrow artwork as the
-favicon with a versioned URL so a cached older icon cannot survive a new page load.
-
-The selected-stock legend grows horizontally in a fixed-height row (scrollable on
-narrow screens), so adding tickers does not push the chart down. Stock resolution
-is chosen automatically from the range; the style selector and Reset view share
-one toolbar row. Research coverage is always expanded, with an external heading
-aligned with Recent scans. The compact Bitcoin badge places BTC/USD and feed status
-on its top row and the larger, left-aligned price immediately below.

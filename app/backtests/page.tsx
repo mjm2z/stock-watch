@@ -10,7 +10,10 @@ export default function BacktestsPage() {
     const backtests = readDashboardBacktests()
     return (
       <main className="container mx-auto space-y-6 p-4 sm:p-8">
-        <PageHeader title="Backtest experiments" description="Chronological walk-forward results and reproducibility metadata." />
+        <PageHeader
+          title="Backtest experiments"
+          description="Chronological walk-forward results and reproducibility metadata."
+        />
         {backtests.length ? (
           <div className="grid gap-5 lg:grid-cols-2">
             {backtests.map((run) => {
@@ -53,8 +56,8 @@ export default function BacktestsPage() {
                   </div>
                   {run.metrics.evaluation_version !== 'mature-validation-labels-v2' && (
                     <p className="mt-4 rounded-lg border border-amber-500/30 p-3 text-sm">
-                      Legacy evaluation: validation outcomes could cross into the test period. Rerun
-                      with the corrected evaluator before relying on these results.
+                      Earlier evaluation method: validation outcomes could cross into the test
+                      period. Rerun with the corrected evaluator before relying on these results.
                     </p>
                   )}
                   <p className="mt-3 text-xs text-muted-foreground">

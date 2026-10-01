@@ -1,18 +1,15 @@
 import { PageHeader } from '@/components/PageHeader'
 import Link from 'next/link'
+import { Suspense } from 'react'
+import { readSignalsAsync } from '@/lib/signal-reader'
 import { DatabaseUnavailable } from '@/components/dashboard/DatabaseUnavailable'
 import { SignalTable } from '@/components/dashboard/SignalTable'
-import {
-  readDashboardSignals,
-  readSignalSummary,
-  WorkerDatabaseUnavailable,
-  type SignalFilters,
-} from '@/lib/worker-dashboard'
+import { WorkerDatabaseUnavailable, type SignalFilters } from '@/lib/worker-dashboard'
 import { decisionReason } from '@/lib/decision-language'
 import { easternDayBoundary } from '@/lib/dashboard-presentation'
 export const dynamic = 'force-dynamic'
 type Params = Record<string, string | undefined>
-export default async function SignalsPage({ searchParams }: { searchParams: Promise<Params> }) {
+async function SignalResults({ searchParams }: { searchParams: Promise<Params> }) {
   const p = await searchParams
   const number = (key: string) =>
     p[key] && Number.isFinite(Number(p[key])) ? Number(p[key]) : undefined
@@ -41,8 +38,9 @@ export default async function SignalsPage({ searchParams }: { searchParams: Prom
     } catch {
       validation = 'Enter valid calendar dates.'
     }
-    const summary = validation ? null : readSignalSummary(filters)
-    const signals = validation ? [] : readDashboardSignals(filters)
+    const result = validation ? null : await readSignalsAsync(filters)
+    const summary = result?.summary
+    const signals = result?.signals || []
     const query = new URLSearchParams(
       Object.entries(p).filter(([, v]) => Boolean(v)) as [string, string][]
     )
@@ -55,9 +53,11 @@ export default async function SignalsPage({ searchParams }: { searchParams: Prom
     const field =
       'mt-1 block min-h-11 w-full min-w-0 rounded-md border bg-background px-3 py-2 text-sm'
     return (
-      <main className="container mx-auto space-y-6 p-4 sm:p-8">
-        <PageHeader title="Signal ledger" description="Ranked opportunities and their execution history. Modeled outcomes are separate from actual paper fills." />
-        <p className="sw-muted">Scores are ranks, not confidence percentages. Four horizons for one company are four observations, not independent forecasts.</p>
+      <div className="space-y-6">
+        <p className="sw-muted">
+          Scores are ranks, not confidence percentages. Four horizons for one company are four
+          observations, not independent forecasts.
+        </p>
         <form className="rounded-xl border bg-card p-4">
           <input type="hidden" name="timezone" value={timezone} />
           {p.scanRunId && <input type="hidden" name="scanRunId" value={p.scanRunId} />}
@@ -198,17 +198,39 @@ export default async function SignalsPage({ searchParams }: { searchParams: Prom
             </a>
           )}
         </nav>
-      </main>
+      </div>
     )
   } catch (error) {
     if (error instanceof WorkerDatabaseUnavailable)
       return (
-        <main className="container mx-auto p-4 sm:p-8">
+        <div>
           <DatabaseUnavailable reason={error.message} />
-        </main>
+        </div>
       )
     throw error
   }
 }
 
 export const metadata = { title: 'Signals' }
+
+export default async function SignalsPage({ searchParams }: { searchParams: Promise<Params> }) {
+  const params = await searchParams
+  return (
+    <main className="container mx-auto space-y-6 p-4 sm:p-8">
+      <PageHeader
+        title="Signal ledger"
+        description="Ranked opportunities and their execution history. Modeled outcomes are separate from actual paper fills."
+      />
+      <Suspense
+        key={JSON.stringify(params)}
+        fallback={
+          <div role="status" className="sw-panel min-h-40 motion-safe:animate-pulse">
+            Loading filtered signals…
+          </div>
+        }
+      >
+        <SignalResults searchParams={Promise.resolve(params)} />
+      </Suspense>
+    </main>
+  )
+}

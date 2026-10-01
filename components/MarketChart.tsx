@@ -1,4 +1,7 @@
 'use client'
+import { LoaderCircle } from 'lucide-react'
+import { useChartHistory } from './useChartHistory'
+import type { HistoryWindow } from '@/lib/chart-window'
 import { useEffect, useRef, useState } from 'react'
 import { groupChartEvents, type ChartEvent } from '@/lib/chart-events'
 import { ChartControls, type ChartStyle } from './ChartControls'
@@ -11,19 +14,6 @@ export type ChartBar = {
   low: number
   close: number
   volume: number
-}
-type HistoryResponse = {
-  bars: ChartBar[]
-  status: string
-  observedAt?: string
-  coverageStart?: string
-  coverageEnd?: string
-  resolution?: string
-  error?: string
-  gaps?: number
-  partial?: boolean
-  refreshing?: boolean
-  stale?: boolean
 }
 const NO_EVENTS: ChartEvent[] = []
 const NO_LEVELS: ChartLevel[] = []
@@ -45,8 +35,12 @@ export function InteractiveChart({
   volumeOnly = false,
   resetToken = 0,
   externalReset = false,
+  onVisibleRange,
+  onReset,
 }: {
   bars: ChartBar[]
+  onVisibleRange?: (range: HistoryWindow) => void
+  onReset?: () => void
   style?: ChartStyle
   color?: string
   showDataTable?: boolean
@@ -63,6 +57,8 @@ export function InteractiveChart({
   onEvent?: (events: ChartEvent[]) => void
   comparisons?: { name: string; bars: ChartBar[]; color?: string }[]
 }) {
+  const rangeCallback = useRef(onVisibleRange)
+  rangeCallback.current = onVisibleRange
   const chartStyle = style || (candles ? 'candles' : 'line')
   const ohlc = chartStyle !== 'line'
   const [tablePage, setTablePage] = useState(0)
@@ -70,6 +66,7 @@ export function InteractiveChart({
   const priceLines = useRef<IPriceLine[]>([])
   const [chartGeneration, setChartGeneration] = useState(0)
   const viewport = useRef<IRange<Time> | null>(null)
+  const requestedViewport = useRef<IRange<Time> | null>(null)
   const container = useRef<HTMLDivElement>(null),
     chart = useRef<IChartApi>(),
     [hover, setHover] = useState<ChartBar | null>(null),
@@ -134,7 +131,7 @@ export function InteractiveChart({
               wickDownColor: '#ee909b',
             })
           : c.addSeries(LineSeries, {
-              color: color || (dark ? '#a8bcff' : '#5068d4'),
+              color: color || (dark ? '#8bd0b1' : '#20815b'),
               lineWidth: 2,
             })
         primary.current = series
@@ -193,12 +190,43 @@ export function InteractiveChart({
         )
         if (viewport.current) c.timeScale().setVisibleRange(viewport.current)
         else c.timeScale().fitContent()
+        let interaction = false
+        let rangeTimer: ReturnType<typeof setTimeout>
+        const touch = () => {
+          interaction = true
+        }
+        const element = container.current!
+        element.addEventListener('wheel', touch, { passive: true, capture: true })
+        element.addEventListener('pointerdown', touch, { passive: true, capture: true })
+        const changed = (logical: { from: number; to: number } | null) => {
+          if (!logical || !interaction || sorted.length < 2) return
+          clearTimeout(rangeTimer)
+          rangeTimer = setTimeout(() => {
+            const step = Math.max(1, sorted[1][0] - sorted[0][0])
+            const at = (index: number) =>
+              index < 0
+                ? sorted[0][0] + index * step
+                : index > sorted.length - 1
+                  ? sorted[sorted.length - 1][0] + (index - sorted.length + 1) * step
+                  : sorted[Math.floor(index)][0]
+            requestedViewport.current = {
+              from: Math.floor(at(logical.from)) as Time,
+              to: Math.ceil(at(logical.to)) as Time,
+            }
+            rangeCallback.current?.({ start: at(logical.from) * 1000, end: at(logical.to) * 1000 })
+          }, 200)
+        }
+        c.timeScale().subscribeVisibleLogicalRangeChange(changed)
         const resize = new ResizeObserver(() => {
           if (container.current) c.applyOptions({ width: container.current.clientWidth })
         })
         resize.observe(container.current)
         dispose = () => {
-          viewport.current = c.timeScale().getVisibleRange()
+          viewport.current = requestedViewport.current || c.timeScale().getVisibleRange()
+          clearTimeout(rangeTimer)
+          element.removeEventListener('wheel', touch, true)
+          element.removeEventListener('pointerdown', touch, true)
+          c.timeScale().unsubscribeVisibleLogicalRangeChange(changed)
           resize.disconnect()
           primary.current = null
           priceLines.current = []
@@ -213,6 +241,8 @@ export function InteractiveChart({
     }
   }, [bars, chartStyle, ohlc, volume, theme, height, percent, comparisons, color, volumeOnly])
   useEffect(() => {
+    viewport.current = null
+    requestedViewport.current = null
     chart.current?.timeScale().fitContent()
   }, [resetToken])
   useEffect(() => {
@@ -284,7 +314,14 @@ export function InteractiveChart({
                 : 'Hover or touch the chart to inspect a point'}
           </div>
           {!externalReset && (
-            <button className="sw-button" onClick={() => chart.current?.timeScale().fitContent()}>
+            <button
+              className="sw-button"
+              onClick={() => {
+                onReset?.()
+                viewport.current = null
+                chart.current?.timeScale().fitContent()
+              }}
+            >
               Reset view
             </button>
           )}
@@ -354,47 +391,12 @@ export function InteractiveChart({
 }
 export function CryptoMarketChart() {
   const [range, setRange] = useState('1M'),
-    [dates, setDates] = useState({ start: '', end: '' }),
     [custom, setCustom] = useState({ start: '', end: '' }),
     [style, setStyle] = useState<ChartStyle>('line'),
     [volume, setVolume] = useState(false)
-  const cache = useRef(new Map<string, HistoryResponse>())
-  const [data, setData] = useState<HistoryResponse>({ bars: [], status: 'loading' }),
-    [error, setError] = useState('')
-  useEffect(() => {
-    if (range === 'custom' && (!custom.start || !custom.end)) return
-    let active = true
-    const abort = new AbortController()
-    const query = new URLSearchParams({ range, ...(range === 'custom' ? custom : {}) }).toString()
-    let timer: ReturnType<typeof setTimeout>
-    let pending = true
-    async function load() {
-      try {
-        const r = await fetch('/api/crypto/market/history?' + query, { signal: abort.signal })
-        const d = await r.json()
-        if (!r.ok) throw Error(d.error)
-        if (active) {
-          pending = d.refreshing || !['ready', 'failed', 'canceled'].includes(d.status)
-          if (d.bars?.length) cache.current.set(query, d)
-          setData((old) => (d.status === 'ready' ? d : { ...d, bars: old.bars }))
-          setError(d.error || '')
-        }
-      } catch (e) {
-        if (active && !abort.signal.aborted)
-          setError(e instanceof Error ? e.message : 'Chart unavailable')
-      } finally {
-        if (active) timer = setTimeout(load, pending ? 2000 : 60000)
-      }
-    }
-    setData(cache.current.get(query) || { status: 'loading', bars: [] })
-    setError('')
-    void load()
-    return () => {
-      active = false
-      abort.abort()
-      clearTimeout(timer)
-    }
-  }, [range, custom])
+  const history = useChartHistory('bitcoin', ['BTC/USD'], range, custom)
+  const data = history.data['BTC/USD'] || { bars: [], loading: true }
+  const error = data.error
   const first = data.bars[0],
     last = data.bars.at(-1),
     change = first && last ? (last.close / first.close - 1) * 100 : null
@@ -446,27 +448,43 @@ export function CryptoMarketChart() {
       )}
       {error && (
         <p role="alert" className="sw-notice sw-error mb-4">
-          {error}
+          {error}{' '}
+          <button className="underline" onClick={history.retry}>
+            Retry
+          </button>
         </p>
       )}
-      {data.bars.length ? (
-        <InteractiveChart
-          key={range + custom.start + custom.end}
-          bars={data.bars}
-          style={style}
-          volume={volume}
-          label="BTC/USD"
-          showDataTable={false}
-        />
-      ) : (
-        <div className="sw-empty" style={{ minHeight: 420 }}>
-          {data.status === 'ready'
-            ? 'No historical prices cover this interval.'
-            : data.status === 'failed' || data.status === 'canceled'
-              ? 'History collection did not complete. Try another range or check Crypto operations.'
-              : 'Collecting this range for the first time… Previously viewed ranges stay cached.'}
-        </div>
-      )}
+      <div className="relative">
+        {(history.loading || history.notice || history.customView) && (
+          <div className="sw-chart-status" role="status">
+            {history.loading && (
+              <LoaderCircle size={14} className="animate-spin motion-reduce:animate-none" />
+            )}
+            {history.loading ? 'Loading history…' : history.notice || 'Custom view'}
+          </div>
+        )}
+        {data.bars.length ? (
+          <InteractiveChart
+            key={range + custom.start + custom.end + history.resetToken}
+            bars={data.bars}
+            style={style}
+            volume={volume}
+            label="BTC/USD"
+            onVisibleRange={history.onVisibleRange}
+            onReset={history.reset}
+            resetToken={history.resetToken}
+            showDataTable={false}
+          />
+        ) : (
+          <div className="sw-empty" style={{ minHeight: 420 }}>
+            {data.status === 'ready'
+              ? 'No historical prices cover this interval.'
+              : data.status === 'failed' || data.status === 'canceled'
+                ? 'History collection did not complete. Try another range or check Crypto operations.'
+                : 'Collecting this range for the first time… Previously viewed ranges stay cached.'}
+          </div>
+        )}
+      </div>
     </section>
   )
 }

@@ -1,3 +1,4 @@
+import { readSignalsAsync } from '@/lib/signal-reader'
 import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -100,6 +101,25 @@ describe('worker dashboard database', () => {
       liquidityOnly: 0,
     })
     db.close()
+  })
+
+  test('background signal reader preserves filters, coalesces requests, caches results and leaves timers responsive', async () => {
+    createFixtureDatabase(databasePath)
+    process.env.STOCK_WATCH_DATABASE_PATH = databasePath
+    const filters = { scanRunId: 'scan-1', decision: 'qualified', limit: 1 }
+    let responsive = false
+    const timer = setTimeout(() => {
+      responsive = true
+    }, 0)
+    const first = readSignalsAsync(filters)
+    expect(readSignalsAsync(filters)).toBe(first)
+    const result = await first
+    clearTimeout(timer)
+    expect(responsive).toBe(true)
+    expect(result.signals).toEqual(readDashboardSignals(filters))
+    expect(result.summary).toEqual(expect.objectContaining({ total: 1, scanRunId: 'scan-1' }))
+    expect(await readSignalsAsync(filters)).toBe(result)
+    expect((await readSignalsAsync({ scanRunId: 'missing' })).signals).toEqual([])
   })
 
   test('reads ranked signals and factor contributions from SQLite', () => {

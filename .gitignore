@@ -50,3 +50,6 @@ __pycache__/
 
 # Vercel
 .vercel
+
+# Compiled background read worker (built before dev/build)
+.signal-worker/

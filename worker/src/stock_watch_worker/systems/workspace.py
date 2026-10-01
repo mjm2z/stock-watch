@@ -34,7 +34,7 @@ def chart(payload,transport=None):
     bars=sorted(by_time.values(),key=lambda row:instant(row['at']))
     from .timeframes import advance
     gaps=sum(instant(b['at'])>advance(instant(a['at']),payload['frame']) for a,b in zip(bars,bars[1:]))
-    return {'gaps':gaps,'bars':bars,'provider':'Alpaca US','resolution':payload['frame'],'requestedStart':payload['start'],'requestedEnd':payload['end'],
+    return {'coverageStatus':'available' if bars else 'empty','gaps':gaps,'bars':bars,'provider':'Alpaca US','resolution':payload['frame'],'requestedStart':payload['start'],'requestedEnd':payload['end'],
             'coverageStart':bars[0]['at'] if bars else None,'coverageEnd':bars[-1]['at'] if bars else None,
             'observedAt':now_iso(),'partial':partial,'note':'Display history only; not forward-observed execution evidence'}
 
@@ -53,6 +53,9 @@ def execute(db,job,database):
         with db:
             db.execute('INSERT OR REPLACE INTO crypto_chart_cache VALUES (?,?,?)',(body['key'],canonical(result),now_iso()))
             db.execute("DELETE FROM crypto_chart_cache WHERE datetime(updated_at)<datetime('now','-2 days')")
+            db.execute("""DELETE FROM crypto_chart_cache WHERE key IN (
+                SELECT key FROM (SELECT key, SUM(length(CAST(payload_json AS BLOB))) OVER
+                (ORDER BY updated_at DESC,key) AS bytes FROM crypto_chart_cache) WHERE bytes>67108864)""")
             db.execute("DELETE FROM workspace_jobs WHERE kind='chart' AND status IN ('succeeded','failed') AND datetime(created_at)<datetime('now','-2 days')")
         return {'points':len(result['bars'])}
     if kind=='publish':

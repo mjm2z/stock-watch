@@ -2,7 +2,8 @@
 import Link from 'next/link'
 import { usePathname, useSearchParams } from 'next/navigation'
 import {
-  Activity,
+  ListOrdered,
+  Radar,
   BriefcaseBusiness,
   FlaskConical,
   LayoutDashboard,
@@ -18,11 +19,11 @@ import { useEffect, useRef, useState } from 'react'
 import { OperatorControls } from './OperatorSession'
 const sections = [
   ['overview', 'Overview', LayoutDashboard],
+  ['paper', 'Paper trading', BriefcaseBusiness],
   ['systems', 'Systems', FlaskConical],
   ['backtesting', 'Backtesting', ChartNoAxesCombined],
-  ['paper', 'Paper trading', BriefcaseBusiness],
-  ['activity', 'Activity', Activity],
-  ['signals', 'Signals', Activity],
+  ['activity', 'Activity', ListOrdered],
+  ['signals', 'Signals', Radar],
   ['research', 'Research', Search],
   ['operations', 'Operations', ServerCog],
 ] as const

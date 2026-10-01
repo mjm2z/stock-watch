@@ -27,7 +27,7 @@ export function PaperWorkspaceTabs({
       </Link>
       {asset === 'stocks' && (
         <Link className="sw-button" href="/portfolio#scanner">
-          Legacy scanner lots
+          Scanner paper trades
         </Link>
       )}
     </nav>
