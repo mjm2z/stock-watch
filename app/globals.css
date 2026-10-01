@@ -793,10 +793,10 @@ select:disabled {
   white-space: nowrap;
 }
 .sw-live-status {
-  color: #36a877;
+  color: hsl(var(--gain));
 }
 .sw-stale-status {
-  color: #c9973a;
+  color: #885b11;
 }
 .sw-compact-performance h2 {
   font-size: 16px;
@@ -887,4 +887,14 @@ select:disabled {
   .sw-overview-header .sw-live-badge p {
     font-size: 26px;
   }
+}
+
+:root.dark .sw-stale-status {
+  color: #e6b879;
+}
+.sw-range-buttons button[aria-pressed='true'],
+.sw-segmented [aria-checked='true'],
+.sw-chart-text-button[aria-pressed='true'] {
+  background: hsl(var(--primary) / 0.1);
+  color: hsl(var(--primary));
 }
