@@ -1,12 +1,13 @@
 # StockWatch
 
-As verified on **October 1, 2026 at 22:42 Eastern**, production on a1347-m runs
-green-theme/chart-navigation release **`8f8c26a`**, installed at 22:40 Eastern.
+As verified on **October 1, 2026 at 23:03 Eastern**, production on a1347-m runs
+chart-control refinement **`7563c75`**, installed at 23:03 Eastern as a code-only
+release. It follows green-theme/chart-navigation release `8f8c26a`.
 Storage release `fb6c33a` completed at 21:12 Eastern; migration 023 and offline
 compaction completed, and automatic storage retention is enabled. The UI release
 applied migration 024, passed its installer checks, and serves the LAN overview
 with HTTP 200. Its reviewed stage is
-`/home/mjm2z/stock-watch-releases/8f8c26ae62b4`. See the
+`/home/mjm2z/stock-watch-releases/7563c751b286`. See the
 [UI release report](docs/ui-polish-2026-10-01.md) for verification and rollout status.
 
 Completed cleanup reclaimed about **201 GiB** from old builds, abandoned backups
@@ -155,8 +156,8 @@ older data within the navigation session. Missing observations are not invented.
 Removing stocks leaves the line style selected. Volume is hidden when entering a
 multi-stock comparison; Show volume exposes separately labelled volume panes.
 
-The next chart-control refinement (`7563c75`) passed local/browser and Linux
-staging verification; it is not yet deployed. Its reviewed stage is
+The installed chart-control refinement (`7563c75`) passed local/browser and Linux
+staging verification. Its reviewed stage is
 `/home/mjm2z/stock-watch-releases/7563c751b286`:
 Show volume / Hide volume use plain green text in either state; Crypto places its
 style selector and Reset view below the ranges, matching Stocks. History feedback

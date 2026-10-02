@@ -66,7 +66,7 @@ have no animated movement.
 sizes and the 180px Apple PNG using librsvg. Browser icon metadata follows Next's
 file convention; the in-app brand uses `/icon.svg`.
 
-## Chart-control refinement (source; deployment pending)
+## Chart-control refinement (installed October 1 at 23:03 Eastern)
 
 Both overview charts use green text-only Show volume / Hide volume controls.
 Crypto places chart style and Reset view together below the range row. Error and
@@ -97,7 +97,11 @@ browser checks, not end-to-end broker or production-provider verification.
 
 Linux staging passed its type/lint checks, JavaScript/feed/worker/deployment suites,
 production build, wheel build and manifest/preflight verification. The reviewed
-stage is `/home/mjm2z/stock-watch-releases/7563c751b286`. It is ready for the root
-installer; production remains `8f8c26a` until that installer completes. No database
-migration is included. The documentation commit after staging does not alter the
+stage is `/home/mjm2z/stock-watch-releases/7563c751b286`. The installer completed
+at 23:03:11 Eastern and its receipt confirms the exact revision above. This was
+a code-only deployment: no database migration or full database backup was needed.
+All four core services are active; feed, execution and notification health passed.
+The existing general-health scanner warnings remain; broker reconciliation is
+matched. Recovery metadata is retained at
+`/var/backups/stock-watch-releases/20261002T030251Z`. The documentation commit after staging does not alter the
 reviewed application artifacts.
