@@ -42,6 +42,14 @@ export default async function RootLayout({ children }: { children: React.ReactNo
                 Paper trading · Stocks: Eastern time · Crypto: UTC · Saved results refresh every
                 minute
               </span>
+              <a
+                href="https://www.tradingview.com/"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-xs text-muted-foreground hover:underline"
+              >
+                Charts by TradingView
+              </a>
               <DashboardRefresh />
             </footer>
           </div>

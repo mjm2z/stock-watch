@@ -68,7 +68,7 @@ export function ChartControls({
       <div className="flex flex-wrap items-center gap-3">
         {!hideStyle && <ChartStyleSelect style={style} onStyle={onStyle} multiple={multiple} />}
         <button className="sw-chart-text-button" aria-pressed={volume} onClick={onVolume}>
-          {volume ? 'Hide Volume' : 'Show Volume'}
+          {volume ? 'Hide volume' : 'Show volume'}
         </button>
       </div>
       <dialog

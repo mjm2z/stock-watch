@@ -189,20 +189,40 @@ export function StockMarketChart() {
           ))}
         </div>
       </div>
-      {symbols.map((s) =>
-        data[s]?.error ? (
-          <p role="alert" key={s} className="sw-notice">
-            {s}: {data[s].error}{' '}
-            <button className="underline" onClick={history.retry}>
-              Retry
-            </button>
-          </p>
-        ) : data[s]?.partial ? (
-          <p key={s} className="text-xs text-muted-foreground">
-            {s}: Partial history · available from {data[s].bars[0]?.at.slice(0, 10)}
-          </p>
-        ) : null
-      )}
+      <div className="sw-chart-feedback">
+        {symbols.some((s) => data[s]?.error || data[s]?.partial) && (
+          <div role={symbols.some((s) => data[s]?.error) ? 'alert' : 'status'}>
+            <span
+              title={symbols
+                .map((s) =>
+                  data[s]?.error
+                    ? `${s}: ${data[s].error}`
+                    : data[s]?.partial
+                      ? `${s}: Partial history`
+                      : ''
+                )
+                .filter(Boolean)
+                .join(' · ')}
+            >
+              {symbols
+                .map((s) =>
+                  data[s]?.error
+                    ? `${s}: ${data[s].error}`
+                    : data[s]?.partial
+                      ? `${s}: Partial history`
+                      : ''
+                )
+                .filter(Boolean)
+                .join(' · ')}
+            </span>
+            {symbols.some((s) => data[s]?.error) && (
+              <button className="underline" onClick={history.retry}>
+                Retry
+              </button>
+            )}
+          </div>
+        )}
+      </div>
       <div className="relative">
         {(history.loading || history.notice || history.customView) && (
           <div className="sw-chart-status" role="status">

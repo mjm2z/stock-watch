@@ -63,3 +63,49 @@ test('explicit custom interval does not expand and unmount aborts an outstanding
   unmount()
   expect(signal.aborted).toBe(true)
 })
+
+test('interrupted Bitcoin history gets one recovery attempt, then requires manual retry', async () => {
+  jest.useFakeTimers()
+  global.fetch = jest.fn().mockResolvedValue({
+    ok: true,
+    json: async () => ({ status: 'failed', error: 'Worker interrupted; retry explicitly' }),
+  })
+  const { result, unmount } = renderHook(() =>
+    useChartHistory('bitcoin', ['BTC/USD'], '1M', { start: '', end: '' })
+  )
+  await act(async () => {
+    await Promise.resolve()
+  })
+  expect(result.current.loading).toBe(true)
+  await act(async () => {
+    jest.advanceTimersByTime(2000)
+  })
+  expect(global.fetch).toHaveBeenCalledTimes(2)
+  expect((global.fetch as jest.Mock).mock.calls[1][0]).toContain('retry=1')
+  expect(result.current.data['BTC/USD'].error).toMatch(/Worker interrupted/)
+  await act(async () => {
+    jest.advanceTimersByTime(120000)
+  })
+  expect(global.fetch).toHaveBeenCalledTimes(2)
+  unmount()
+  jest.useRealTimers()
+})
+
+test('minute refresh does not abandon a pending Bitcoin history window', async () => {
+  jest.useFakeTimers()
+  global.fetch = jest.fn().mockResolvedValue({ ok: true, json: async () => ({ status: 'queued' }) })
+  const { unmount } = renderHook(() =>
+    useChartHistory('bitcoin', ['BTC/USD'], '1M', { start: '', end: '' })
+  )
+  await act(async () => {
+    await Promise.resolve()
+  })
+  const url = (global.fetch as jest.Mock).mock.calls[0][0]
+  jest.spyOn(Date, 'now').mockReturnValue(now + 60000)
+  await act(async () => {
+    jest.advanceTimersByTime(60000)
+  })
+  expect((global.fetch as jest.Mock).mock.calls.every(([next]) => next === url)).toBe(true)
+  unmount()
+  jest.useRealTimers()
+})

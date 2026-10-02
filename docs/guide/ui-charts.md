@@ -65,3 +65,23 @@ have no animated movement.
 `app/icon.svg` is the single brand source. `deploy/generate-icons.py` renders ICO
 sizes and the 180px Apple PNG using librsvg. Browser icon metadata follows Next's
 file convention; the in-app brand uses `/icon.svg`.
+
+## Chart-control refinement (source; deployment pending)
+
+Both overview charts use green text-only Show volume / Hide volume controls.
+Crypto places chart style and Reset view together below the range row. Error and
+partial-history feedback occupy a reserved, fixed-height right-aligned row. Long
+messages truncate visually with their full text available on hover and to assistive
+technology; Retry stays visible. The chart does not move when a message appears.
+
+Minute refresh does not replace an in-progress history window or repeatedly retry
+an error. The browser retries the specific interrupted-worker Bitcoin history
+failure once after two seconds, then exposes Retry if it fails again. This only
+requeues display history; it cannot replay orders, research jobs or trading actions.
+Already loaded bars are retained. The interruption message means a prior chart
+worker left an unfinished job; it alone does not establish why that worker stopped.
+Other failures remain visible for explicit retry. Hidden tabs skip minute refresh.
+
+The repeated chart-level TradingView text is removed. A single visible attribution
+link remains in the application footer, following the library's attribution guidance:
+https://tradingview.github.io/lightweight-charts/docs/5.1/api/interfaces/LayoutOptions

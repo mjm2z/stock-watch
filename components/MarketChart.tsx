@@ -4,7 +4,7 @@ import { useChartHistory } from './useChartHistory'
 import type { HistoryWindow } from '@/lib/chart-window'
 import { useEffect, useRef, useState } from 'react'
 import { groupChartEvents, type ChartEvent } from '@/lib/chart-events'
-import { ChartControls, type ChartStyle } from './ChartControls'
+import { ChartControls, ChartStyleSelect, type ChartStyle } from './ChartControls'
 import type { ChartLevel } from '@/lib/inspection-store'
 import type { Time, IChartApi, IRange, ISeriesApi, IPriceLine } from 'lightweight-charts'
 export type ChartBar = {
@@ -333,11 +333,6 @@ export function InteractiveChart({
         aria-label={`${label} interactive chart${showDataTable ? '. Data table available below.' : ''}`}
         style={{ height }}
       />
-      <p className="mt-2 text-right text-xs text-muted-foreground">
-        <a href="https://www.tradingview.com/" target="_blank" rel="noopener noreferrer">
-          Charts by TradingView
-        </a>
-      </p>
       {showDataTable && (
         <details className="mt-4 text-xs text-muted-foreground">
           <summary>Accessible chart data ({bars.length.toLocaleString()} observations)</summary>
@@ -432,28 +427,36 @@ export function CryptoMarketChart() {
         onStyle={setStyle}
         volume={volume}
         onVolume={() => setVolume(!volume)}
+        hideStyle
       />
-      {data.gaps || data.partial ? (
-        <p className="sw-notice mb-3">
-          {data.partial ? 'Partial provider response. ' : ''}
-          {data.gaps ? `${data.gaps} gaps in this history. ` : ''}Only supplied prices are plotted;
-          displayed-period change may cover less than the requested window.
-        </p>
-      ) : null}
-      {data.stale && (
-        <p className="sw-muted mb-3" role="status">
-          Showing previously collected history
-          {data.refreshing ? ' · Refreshing in the background…' : ' · Refresh unavailable.'}
-        </p>
-      )}
-      {error && (
-        <p role="alert" className="sw-notice sw-error mb-4">
-          {error}{' '}
-          <button className="underline" onClick={history.retry}>
-            Retry
-          </button>
-        </p>
-      )}
+      <div className="flex items-center gap-2 mb-4">
+        <ChartStyleSelect style={style} onStyle={setStyle} />
+        <button className="sw-button" onClick={history.reset}>
+          Reset view
+        </button>
+      </div>
+      <div className="sw-chart-feedback">
+        {(error || data.stale || data.gaps || data.partial) && (
+          <div role={error ? 'alert' : 'status'}>
+            <span
+              title={
+                error ||
+                'Only supplied prices are plotted; displayed-period change may cover less than the requested window.'
+              }
+            >
+              {error ||
+                (data.stale
+                  ? 'Showing previously collected history'
+                  : 'Partial history · some prices unavailable')}
+            </span>
+            {error && (
+              <button className="underline" onClick={history.retry}>
+                Retry
+              </button>
+            )}
+          </div>
+        )}
+      </div>
       <div className="relative">
         {(history.loading || history.notice || history.customView) && (
           <div className="sw-chart-status" role="status">
@@ -472,6 +475,7 @@ export function CryptoMarketChart() {
             label="BTC/USD"
             onVisibleRange={history.onVisibleRange}
             onReset={history.reset}
+            externalReset
             resetToken={history.resetToken}
             showDataTable={false}
           />

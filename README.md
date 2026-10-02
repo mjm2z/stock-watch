@@ -153,7 +153,15 @@ Explicit scale choices are retained while the page is open. Percentage compariso
 start at the first shared observed timestamp; the baseline stays fixed while loading
 older data within the navigation session. Missing observations are not invented.
 Removing stocks leaves the line style selected. Volume is hidden when entering a
-multi-stock comparison; Show Volume exposes separately labelled volume panes.
+multi-stock comparison; Show volume exposes separately labelled volume panes.
+
+The next chart-control refinement is implemented in source, not yet deployed:
+Show volume / Hide volume use plain green text in either state; Crypto places its
+style selector and Reset view below the ranges, matching Stocks. History feedback
+uses a fixed-height right-aligned area so errors do not move the plot. A pending or
+failed request pauses minute-window refresh; interrupted Bitcoin collection gets
+one automatic retry before requiring Retry. Existing bars stay visible. TradingView
+attribution moves from individual charts to a single app-footer link.
 
 Stock ranges include 6M, 5Y, 10Y and 30Y. These are requested windows, not promises of
 provider coverage. Only returned bars are plotted; partial-history notices identify

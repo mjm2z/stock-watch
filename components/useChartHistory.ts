@@ -92,8 +92,11 @@ export function useChartHistory(
   custom: { start: string; end: string }
 ) {
   const [clock, setClock] = useState(Date.now())
+  const refreshBlocked = useRef(false)
   useEffect(() => {
-    const timer = setInterval(() => setClock(Date.now()), 60000)
+    const timer = setInterval(() => {
+      if (!refreshBlocked.current && !document.hidden) setClock(Date.now())
+    }, 60000)
     return () => clearInterval(timer)
   }, [])
   const identity = JSON.stringify([asset, symbols, range, custom])
@@ -145,6 +148,8 @@ export function useChartHistory(
       )
     )
     let retried = false
+    let recoveryAttempted = false
+    let recoverInterrupted = false
     async function load() {
       const entries = await Promise.all(
         symbols.map(async (symbol) => {
@@ -156,7 +161,8 @@ export function useChartHistory(
               timeframe: resolution,
               adjustment: 'all',
             })
-            if (asset === 'bitcoin' && retry > 0 && !retried) query.set('retry', '1')
+            if (asset === 'bitcoin' && ((retry > 0 && !retried) || recoverInterrupted))
+              query.set('retry', '1')
             const url =
               asset === 'stocks'
                 ? `/api/stock/${encodeURIComponent(symbol)}/history?${query}`
@@ -188,6 +194,18 @@ export function useChartHistory(
       retried = true
       if (canceled) return
       const result = Object.fromEntries(entries)
+      const interrupted =
+        asset === 'bitcoin' &&
+        !recoveryAttempted &&
+        entries.some(([, v]) => v.error === 'Worker interrupted; retry explicitly')
+      if (interrupted) {
+        recoveryAttempted = true
+        recoverInterrupted = true
+        setNotice('Reconnecting history…')
+        timer = setTimeout(load, 2000)
+        return
+      }
+      recoverInterrupted = false
       const waiting = entries.some(([, v]) => v.loading)
       setData((previous) =>
         Object.fromEntries(
@@ -223,6 +241,7 @@ export function useChartHistory(
     }
   }, [identity, window.start, window.end, resolution, retry]) // eslint-disable-line react-hooks/exhaustive-deps
   const loading = Object.values(data).some((v) => v.loading)
+  refreshBlocked.current = loading || Object.values(data).some((v) => Boolean(v.error))
   const onVisibleRange = useCallback(
     (visible: HistoryWindow) => {
       setNavigated(identity)
