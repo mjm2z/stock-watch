@@ -85,3 +85,19 @@ Other failures remain visible for explicit retry. Hidden tabs skip minute refres
 The repeated chart-level TradingView text is removed. A single visible attribution
 link remains in the application footer, following the library's attribution guidance:
 https://tradingview.github.io/lightweight-charts/docs/5.1/api/interfaces/LayoutOptions
+
+Verification for revision `7563c751b2867a46ffc151c2d8b4adc8adaed68a`:
+local type checking, production build and all 109 JavaScript tests passed. Browser
+fixtures at 1440px and 390px in light/dark themes confirmed transparent volume
+buttons with identical green text in both states, style/reset below ranges, no
+horizontal overflow or JavaScript errors, one footer attribution link, and zero
+plot movement when interrupted-history errors appear. Mobile hover summaries
+stay on one line to prevent a separate wrapping-induced shift. These are isolated
+browser checks, not end-to-end broker or production-provider verification.
+
+Linux staging passed its type/lint checks, JavaScript/feed/worker/deployment suites,
+production build, wheel build and manifest/preflight verification. The reviewed
+stage is `/home/mjm2z/stock-watch-releases/7563c751b286`. It is ready for the root
+installer; production remains `8f8c26a` until that installer completes. No database
+migration is included. The documentation commit after staging does not alter the
+reviewed application artifacts.
