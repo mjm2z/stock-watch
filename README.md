@@ -1,10 +1,11 @@
 # StockWatch
 
-As verified on **October 1, 2026 at 22:12 Eastern**, production on a1347-m runs
-storage release **`fb6c33a`**, successfully installed at 21:12 Eastern. Migration
-023 and offline compaction completed; automatic storage retention is enabled.
-The green-theme/chart-navigation release **`8f8c26a`** passed local and Linux
-staging verification; it is **not yet deployed**. Its reviewed stage is
+As verified on **October 1, 2026 at 22:42 Eastern**, production on a1347-m runs
+green-theme/chart-navigation release **`8f8c26a`**, installed at 22:40 Eastern.
+Storage release `fb6c33a` completed at 21:12 Eastern; migration 023 and offline
+compaction completed, and automatic storage retention is enabled. The UI release
+applied migration 024, passed its installer checks, and serves the LAN overview
+with HTTP 200. Its reviewed stage is
 `/home/mjm2z/stock-watch-releases/8f8c26ae62b4`. See the
 [UI release report](docs/ui-polish-2026-10-01.md) for verification and rollout status.
 
@@ -41,8 +42,7 @@ owns trading validation, reservations, order intent and accounting.
 
 The installed application includes the manual paper ticket, instrument charts,
 system research and backtesting, activity records, and matching app/favicon artwork.
-Migrations through storage migration **023** are installed. Signals navigation
-index **024** is pending deployment. A build, fixture test or screenshot establishes
+Migrations through Signals navigation index **024** are installed. A build, fixture test or screenshot establishes
 source behavior, not installation or broker connectivity.
 
 Current setup instructions are here and in the linked guides. Dated release reports

@@ -143,7 +143,7 @@ temporary files while preserving completed backups; SIGKILL leftovers are handle
 by later cleanup. Root-only verification markers describe past recovery checks;
 actual database file presence is required before a copy counts toward retention.
 
-## Display cache budgets (UI release, pending deployment)
+## Display cache budgets (installed with UI release 8f8c26a)
 
 The shared browser chart LRU holds at most 32 entries / 16 MiB of serialized JSON;
 stock history's server LRU holds at most 64 MiB with a one-minute TTL. Crypto chart
