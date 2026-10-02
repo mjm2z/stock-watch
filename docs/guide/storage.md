@@ -76,7 +76,12 @@ about 78 GiB to 279 GiB, with all four core services active. The original cleanu
 reported 60,472,094,720 bytes reclaimed; the later disk measurement is consistent
 with removing four older recovery databases totaling 155,874,992,128 bytes.
 
-The following prevention changes are prepared in source, pending installation.
+The following prevention changes were installed with `fb6c33a` on October 1
+at 21:12 Eastern. Compaction reduced 48,012,939,264 bytes to 3,842,609,152 bytes,
+reclaiming 44,170,330,112 bytes while preserving 11,569 observations and 681
+unique content bodies. The installed receipt and all four active core services
+were verified afterward. A fresh recovery copy is retained at
+`/var/backups/stock-watch-releases/20261001T200907Z`. The cleanup timer is enabled.
 Migration **023_company_fact_storage** separates SEC CompanyFacts observations
 from their JSON bodies. Every observation retains its original ID, capture time,
 instrument, provider and ingestion reference. Identical bodies share a SHA-256

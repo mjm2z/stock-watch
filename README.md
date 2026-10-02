@@ -1,18 +1,22 @@
 # StockWatch
 
-As verified on **October 1, 2026**, production on a1347-m still runs **`22b69c9`**.
-The storage release **`fb6c33a`** is staged but **not installed**: its attempted
-installation stopped before changing services because US trading hours were open.
+As verified on **October 1, 2026 at 22:12 Eastern**, production on a1347-m runs
+storage release **`fb6c33a`**, successfully installed at 21:12 Eastern. Migration
+023 and offline compaction completed; automatic storage retention is enabled.
 The green-theme/chart-navigation release **`8f8c26a`** passed local and Linux
 staging verification; it is **not yet deployed**. Its reviewed stage is
 `/home/mjm2z/stock-watch-releases/8f8c26ae62b4`. See the
 [UI release report](docs/ui-polish-2026-10-01.md) for verification and rollout status.
 
 Completed cleanup reclaimed about **201 GiB** from old builds, abandoned backups
-and redundant recovery databases. A subsequent host check showed approximately
-272 GiB free; available space changes with normal activity. The live database has
-not yet been deduplicated or compacted. Both recent verified recovery copies were
-preserved. All four core StockWatch services were active at the last service check.
+and redundant recovery databases. Storage maintenance subsequently reduced the
+main database from **48.01 GB to 3.84 GB**, preserving 11,569 observations backed
+by 681 unique CompanyFacts bodies. A fresh recovery backup was retained; the host
+reported about **252 GiB available** after installation. All four core services
+were active, and feed, execution and notification health checks passed. General
+health remains degraded by a pre-maintenance Alpaca calendar timeout and an older
+scanner operation with a stale heartbeat; broker reconciliation is matched. These
+scanner warnings remain follow-up work, not a failed storage installation.
 
 Manual account credentials, Telegram authorization and combined-account setup are
 confirmed. End-to-end paper order/fill and Telegram trade-notification delivery
@@ -37,8 +41,8 @@ owns trading validation, reservations, order intent and accounting.
 
 The installed application includes the manual paper ticket, instrument charts,
 system research and backtesting, activity records, and matching app/favicon artwork.
-Migration **022** is installed. Storage migration **023** and Signals navigation
-index **024** are pending deployment. A build, fixture test or screenshot establishes
+Migrations through storage migration **023** are installed. Signals navigation
+index **024** is pending deployment. A build, fixture test or screenshot establishes
 source behavior, not installation or broker connectivity.
 
 Current setup instructions are here and in the linked guides. Dated release reports
