@@ -105,3 +105,10 @@ The existing general-health scanner warnings remain; broker reconciliation is
 matched. Recovery metadata is retained at
 `/var/backups/stock-watch-releases/20261002T030251Z`. The documentation commit after staging does not alter the
 reviewed application artifacts.
+
+## SEC context (next release; not yet installed)
+
+Overview's selected tickers also drive the new Company information panel. It shows
+one issuer at a time without changing chart comparisons; newly added stocks become
+the active company. Fund reports, annual corporate metrics and earnings disclosures
+are clearly distinguished. See the [SEC guide](../sec-company-information.md).

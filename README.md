@@ -166,6 +166,14 @@ failed request pauses minute-window refresh; interrupted Bitcoin collection gets
 one automatic retry before requiring Retry. Existing bars stay visible. TradingView
 attribution moves from individual charts to a single app-footer link.
 
+A **Company information** panel is implemented for the next release (not yet
+installed). It follows chart selections and shows SEC filings, annual reported
+financials with source links, and earnings-related 8-K disclosures. Funds use an
+issuer-filings view without corporate earnings metrics. Collection is asynchronous,
+with bounded storage and reuse of existing SEC facts; it cannot submit trades or
+change research qualification. See the [SEC company information guide](docs/sec-company-information.md)
+for exact coverage, freshness, limitations, worker operation and rollout.
+
 Stock ranges include 6M, 5Y, 10Y and 30Y. These are requested windows, not promises of
 provider coverage. Only returned bars are plotted; partial-history notices identify
 limited coverage. Daily requests are bounded to 12,000 bars and finer resolutions to

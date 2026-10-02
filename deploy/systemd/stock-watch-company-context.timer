@@ -1,0 +1,11 @@
+[Unit]
+Description=Collect requested SEC company information
+
+[Timer]
+OnBootSec=15s
+OnUnitInactiveSec=10s
+AccuracySec=1s
+Unit=stock-watch-company-context.service
+
+[Install]
+WantedBy=timers.target

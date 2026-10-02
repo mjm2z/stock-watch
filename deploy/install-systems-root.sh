@@ -17,7 +17,7 @@ case "${1:-}" in
   --skip-init) ;;
   *) echo 'Unknown installer option' >&2; exit 1 ;;
 esac
-for name in bitcoin-monitor bitcoin-trading bitcoin-data bitcoin-automation systems-stock-shadow systems-stocks systems-research chart discovery; do
+for name in bitcoin-monitor bitcoin-trading bitcoin-data bitcoin-automation systems-stock-shadow systems-stocks systems-research chart discovery company-context; do
   install -o root -g root -m 0644 "$runtime/deploy/systemd/stock-watch-$name.service" /etc/systemd/system/
   install -o root -g root -m 0644 "$runtime/deploy/systemd/stock-watch-$name.timer" /etc/systemd/system/
 done
@@ -32,6 +32,6 @@ CONFIG
 systemctl daemon-reload
 # Research and watch-only collection are safe to start without a broker account.
 # Bitcoin execution remains off until credentials and shadow review are ready.
-systemctl enable --now stock-watch-bitcoin-monitor.timer stock-watch-bitcoin-data.timer stock-watch-systems-research.timer stock-watch-systems-stock-shadow.timer stock-watch-chart.timer stock-watch-discovery.timer
+systemctl enable --now stock-watch-bitcoin-monitor.timer stock-watch-bitcoin-data.timer stock-watch-systems-research.timer stock-watch-systems-stock-shadow.timer stock-watch-chart.timer stock-watch-discovery.timer stock-watch-company-context.timer
 systemctl restart stock-watch-web.service
 printf '%s\n' 'Systems research and blockchain monitoring installed. Bitcoin/stock system trading timers remain unchanged; no strategy was activated.'

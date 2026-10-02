@@ -81,6 +81,9 @@ class SecClient:
     def get_company_tickers(self) -> Mapping[str, Any]:
         return self._get(f"{SEC_FILES_BASE_URL}/files/company_tickers.json")
 
+    def get_fund_tickers(self) -> Mapping[str, Any]:
+        return self._get(f"{SEC_FILES_BASE_URL}/files/company_tickers_mf.json")
+
     def get_submissions(self, cik: str | int) -> Mapping[str, Any]:
         padded = _normalize_cik(cik)
         return self._get(f"{SEC_DATA_BASE_URL}/submissions/CIK{padded}.json")

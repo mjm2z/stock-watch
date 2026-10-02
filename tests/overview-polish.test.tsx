@@ -2,6 +2,7 @@ import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { StockMarketChart } from '@/components/StockMarketChart'
 import { clearChartHistoryCache } from '@/components/useChartHistory'
 import { ChartControls } from '@/components/ChartControls'
+jest.mock('@/components/CompanyInformation', () => ({ CompanyInformation: () => null }))
 jest.mock('@/components/StockSearch', () => ({
   StockSearch: ({ onSelect }: any) => (
     <div>

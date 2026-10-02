@@ -1,6 +1,7 @@
 'use client'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { LoaderCircle, X } from 'lucide-react'
+import { CompanyInformation } from './CompanyInformation'
 import { InteractiveChart } from './MarketChart'
 import { StockSearch } from './StockSearch'
 import { useChartHistory } from './useChartHistory'
@@ -98,185 +99,188 @@ export function StockMarketChart() {
     setNotice('')
   }
   return (
-    <section className="sw-panel sw-overview-chart" aria-label="Stocks price chart">
-      <div className="sw-chart-top">
-        <StockSearch
-          className="sw-chart-search"
-          onSelect={(s) => add(s.ticker)}
-          addExactMatch
-          clearOnSelect
+    <>
+      <section className="sw-panel sw-overview-chart" aria-label="Stocks price chart">
+        <div className="sw-chart-top">
+          <StockSearch
+            className="sw-chart-search"
+            onSelect={(s) => add(s.ticker)}
+            addExactMatch
+            clearOnSelect
+          />
+          <ul className="sw-chart-legend" aria-label="Selected stocks">
+            {symbols.map((s) => (
+              <li key={s}>
+                <span className="sw-legend-indicator">
+                  {data[s]?.loading ? (
+                    <LoaderCircle
+                      size={14}
+                      className="animate-spin motion-reduce:animate-none"
+                      aria-label={`Loading ${s}`}
+                    />
+                  ) : (
+                    <span style={{ background: colors.current[s] }} />
+                  )}
+                </span>
+                <strong>{s}</strong>
+                <button
+                  aria-label={`Remove ${s}`}
+                  onClick={() => {
+                    setSymbols(symbols.filter((t) => t !== s))
+                    delete colors.current[s]
+                    setNotice('')
+                  }}
+                >
+                  <X size={15} />
+                </button>
+              </li>
+            ))}
+          </ul>
+        </div>
+        {notice && (
+          <p role="status" className="text-sm text-muted-foreground">
+            {notice}
+          </p>
+        )}
+        <ChartControls
+          range={range}
+          onRange={setRange}
+          ranges={['1D', '1W', '1M', '3M', '6M', '1Y', '5Y', '10Y', '30Y']}
+          custom={custom}
+          onCustom={setCustom}
+          style={style}
+          onStyle={setStyle}
+          volume={volume}
+          onVolume={() => setVolume(!volume)}
+          multiple={symbols.length > 1}
+          hideStyle
         />
-        <ul className="sw-chart-legend" aria-label="Selected stocks">
-          {symbols.map((s) => (
-            <li key={s}>
-              <span className="sw-legend-indicator">
-                {data[s]?.loading ? (
-                  <LoaderCircle
-                    size={14}
-                    className="animate-spin motion-reduce:animate-none"
-                    aria-label={`Loading ${s}`}
-                  />
-                ) : (
-                  <span style={{ background: colors.current[s] }} />
-                )}
-              </span>
-              <strong>{s}</strong>
+        <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
+          <div className="flex items-center gap-2">
+            <ChartStyleSelect style={style} onStyle={setStyle} multiple={symbols.length > 1} />
+            <button className="sw-button" onClick={history.reset}>
+              Reset view
+            </button>
+          </div>
+          <div className="sw-segmented" role="radiogroup" aria-label="Price scale">
+            {(['dollars', 'percent'] as const).map((v) => (
               <button
-                aria-label={`Remove ${s}`}
+                key={v}
+                role="radio"
+                aria-checked={scale === v}
+                aria-label={v === 'dollars' ? 'Dollar prices' : 'Percentage change'}
                 onClick={() => {
-                  setSymbols(symbols.filter((t) => t !== s))
-                  delete colors.current[s]
-                  setNotice('')
+                  chosenScale.current = true
+                  setScale(v)
+                }}
+                onKeyDown={(e) => {
+                  if (['ArrowLeft', 'ArrowRight'].includes(e.key)) {
+                    e.preventDefault()
+                    chosenScale.current = true
+                    setScale(v === 'dollars' ? 'percent' : 'dollars')
+                    ;(
+                      e.currentTarget.parentElement?.querySelector(
+                        `[aria-label="${v === 'dollars' ? 'Percentage change' : 'Dollar prices'}"]`
+                      ) as HTMLElement
+                    )?.focus()
+                  }
                 }}
               >
-                <X size={15} />
+                {v === 'dollars' ? '$' : '%'}
               </button>
-            </li>
-          ))}
-        </ul>
-      </div>
-      {notice && (
-        <p role="status" className="text-sm text-muted-foreground">
-          {notice}
-        </p>
-      )}
-      <ChartControls
-        range={range}
-        onRange={setRange}
-        ranges={['1D', '1W', '1M', '3M', '6M', '1Y', '5Y', '10Y', '30Y']}
-        custom={custom}
-        onCustom={setCustom}
-        style={style}
-        onStyle={setStyle}
-        volume={volume}
-        onVolume={() => setVolume(!volume)}
-        multiple={symbols.length > 1}
-        hideStyle
-      />
-      <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
-        <div className="flex items-center gap-2">
-          <ChartStyleSelect style={style} onStyle={setStyle} multiple={symbols.length > 1} />
-          <button className="sw-button" onClick={history.reset}>
-            Reset view
-          </button>
+            ))}
+          </div>
         </div>
-        <div className="sw-segmented" role="radiogroup" aria-label="Price scale">
-          {(['dollars', 'percent'] as const).map((v) => (
-            <button
-              key={v}
-              role="radio"
-              aria-checked={scale === v}
-              aria-label={v === 'dollars' ? 'Dollar prices' : 'Percentage change'}
-              onClick={() => {
-                chosenScale.current = true
-                setScale(v)
-              }}
-              onKeyDown={(e) => {
-                if (['ArrowLeft', 'ArrowRight'].includes(e.key)) {
-                  e.preventDefault()
-                  chosenScale.current = true
-                  setScale(v === 'dollars' ? 'percent' : 'dollars')
-                  ;(
-                    e.currentTarget.parentElement?.querySelector(
-                      `[aria-label="${v === 'dollars' ? 'Percentage change' : 'Dollar prices'}"]`
-                    ) as HTMLElement
-                  )?.focus()
-                }
-              }}
-            >
-              {v === 'dollars' ? '$' : '%'}
-            </button>
-          ))}
+        <div className="sw-chart-feedback">
+          {symbols.some((s) => data[s]?.error || data[s]?.partial) && (
+            <div role={symbols.some((s) => data[s]?.error) ? 'alert' : 'status'}>
+              <span
+                title={symbols
+                  .map((s) =>
+                    data[s]?.error
+                      ? `${s}: ${data[s].error}`
+                      : data[s]?.partial
+                        ? `${s}: Partial history`
+                        : ''
+                  )
+                  .filter(Boolean)
+                  .join(' · ')}
+              >
+                {symbols
+                  .map((s) =>
+                    data[s]?.error
+                      ? `${s}: ${data[s].error}`
+                      : data[s]?.partial
+                        ? `${s}: Partial history`
+                        : ''
+                  )
+                  .filter(Boolean)
+                  .join(' · ')}
+              </span>
+              {symbols.some((s) => data[s]?.error) && (
+                <button className="underline" onClick={history.retry}>
+                  Retry
+                </button>
+              )}
+            </div>
+          )}
         </div>
-      </div>
-      <div className="sw-chart-feedback">
-        {symbols.some((s) => data[s]?.error || data[s]?.partial) && (
-          <div role={symbols.some((s) => data[s]?.error) ? 'alert' : 'status'}>
-            <span
-              title={symbols
-                .map((s) =>
-                  data[s]?.error
-                    ? `${s}: ${data[s].error}`
-                    : data[s]?.partial
-                      ? `${s}: Partial history`
-                      : ''
-                )
-                .filter(Boolean)
-                .join(' · ')}
-            >
-              {symbols
-                .map((s) =>
-                  data[s]?.error
-                    ? `${s}: ${data[s].error}`
-                    : data[s]?.partial
-                      ? `${s}: Partial history`
-                      : ''
-                )
-                .filter(Boolean)
-                .join(' · ')}
-            </span>
-            {symbols.some((s) => data[s]?.error) && (
-              <button className="underline" onClick={history.retry}>
-                Retry
-              </button>
-            )}
-          </div>
-        )}
-      </div>
-      <div className="relative">
-        {(history.loading || history.notice || history.customView) && (
-          <div className="sw-chart-status" role="status">
-            {history.loading && (
-              <LoaderCircle size={14} className="animate-spin motion-reduce:animate-none" />
-            )}
-            {history.loading ? 'Loading history…' : history.notice || 'Custom view'}
-          </div>
-        )}
-        {plotted.length ? (
-          <InteractiveChart
-            key={range + custom.start + custom.end + scale + symbols.join(',') + resetToken}
-            bars={plotted[0].bars}
-            comparisons={plotted.slice(1)}
-            label={plotted[0].name}
-            color={plotted[0].color}
-            style={symbols.length > 1 ? 'line' : style}
-            percent={scale === 'percent'}
-            volume={volume && symbols.length === 1}
-            showDataTable={false}
-            externalReset
-            resetToken={resetToken}
-            onVisibleRange={history.onVisibleRange}
-          />
-        ) : (
-          <div className="sw-chart-empty" role="status">
-            {!symbols.length
-              ? 'Search for a stock to start your chart.'
-              : symbols.some((s) => data[s]?.loading)
-                ? 'Loading price history…'
-                : loaded.length
-                  ? 'No shared starting observation for this comparison.'
-                  : 'No history available for this range.'}
-          </div>
-        )}
-      </div>
-      {volume &&
-        symbols.length > 1 &&
-        loaded.map((s) => (
-          <div key={s.name} className="mt-3">
-            <p className="text-xs font-medium" style={{ color: s.color }}>
-              {s.name} volume
-            </p>
+        <div className="relative">
+          {(history.loading || history.notice || history.customView) && (
+            <div className="sw-chart-status" role="status">
+              {history.loading && (
+                <LoaderCircle size={14} className="animate-spin motion-reduce:animate-none" />
+              )}
+              {history.loading ? 'Loading history…' : history.notice || 'Custom view'}
+            </div>
+          )}
+          {plotted.length ? (
             <InteractiveChart
-              bars={s.bars}
-              label={`${s.name} volume`}
-              volume
-              volumeOnly
-              resetToken={resetToken}
-              height={100}
+              key={range + custom.start + custom.end + scale + symbols.join(',') + resetToken}
+              bars={plotted[0].bars}
+              comparisons={plotted.slice(1)}
+              label={plotted[0].name}
+              color={plotted[0].color}
+              style={symbols.length > 1 ? 'line' : style}
+              percent={scale === 'percent'}
+              volume={volume && symbols.length === 1}
               showDataTable={false}
+              externalReset
+              resetToken={resetToken}
+              onVisibleRange={history.onVisibleRange}
             />
-          </div>
-        ))}
-    </section>
+          ) : (
+            <div className="sw-chart-empty" role="status">
+              {!symbols.length
+                ? 'Search for a stock to start your chart.'
+                : symbols.some((s) => data[s]?.loading)
+                  ? 'Loading price history…'
+                  : loaded.length
+                    ? 'No shared starting observation for this comparison.'
+                    : 'No history available for this range.'}
+            </div>
+          )}
+        </div>
+        {volume &&
+          symbols.length > 1 &&
+          loaded.map((s) => (
+            <div key={s.name} className="mt-3">
+              <p className="text-xs font-medium" style={{ color: s.color }}>
+                {s.name} volume
+              </p>
+              <InteractiveChart
+                bars={s.bars}
+                label={`${s.name} volume`}
+                volume
+                volumeOnly
+                resetToken={resetToken}
+                height={100}
+                showDataTable={false}
+              />
+            </div>
+          ))}
+      </section>
+      {ready && <CompanyInformation symbols={symbols} />}
+    </>
   )
 }
