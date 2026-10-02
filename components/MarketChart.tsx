@@ -306,7 +306,7 @@ export function InteractiveChart({
     <div>
       {!volumeOnly && (
         <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
-          <div className="min-h-5 text-xs text-muted-foreground" aria-live="off">
+          <div className="min-h-5 min-w-0 truncate text-xs text-muted-foreground" aria-live="off">
             {hover && percent
               ? `${new Date(hover.at).toLocaleString()} · ${label} ${hover.close.toFixed(2)}%`
               : hover
