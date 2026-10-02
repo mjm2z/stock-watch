@@ -166,7 +166,8 @@ failed request pauses minute-window refresh; interrupted Bitcoin collection gets
 one automatic retry before requiring Retry. Existing bars stay visible. TradingView
 attribution moves from individual charts to a single app-footer link.
 
-A **Company information** panel is implemented for the next release (not yet
+The **Company information** release `67e2ba9` is committed, pushed and verified
+in Linux staging at `/home/mjm2z/stock-watch-releases/67e2ba9211a0` (not yet
 installed). It follows chart selections and shows SEC filings, annual reported
 financials with source links, and earnings-related 8-K disclosures. Funds use an
 issuer-filings view without corporate earnings metrics. Collection is asynchronous,

@@ -1,7 +1,8 @@
 # SEC company information
 
-Status: implemented in source; production deployment and live provider verification
-are pending. This is the first, context-focused phase of the free-tools roadmap.
+Status: release `67e2ba9211a092664c568f99c69f5cca9c8b45b3` is committed, pushed
+and verified in Linux staging at `/home/mjm2z/stock-watch-releases/67e2ba9211a0`.
+Production deployment and live provider verification remain pending. This is the first, context-focused phase of the free-tools roadmap.
 FRED/ALFRED, LEAN and QuantConnect integrations are not included.
 
 ## What appears in Overview
@@ -104,3 +105,21 @@ be evaluated as an isolated research runner, using free permitted data; it must 
 become a second execution owner. QuantConnect's free browser workspace can support
 external comparisons, but its paid API/CLI integrations are outside the free-only
 constraint. No paid subscriptions or datasets are required by this SEC feature.
+
+## Release verification (October 2, 2026)
+
+Local type checks and production build passed. Linux staging passed type checking,
+lint (existing warnings only), all 114 JavaScript tests, eight feed tests, 416 worker
+tests and 51 deployment-helper tests (one Linux platform-specific skip), followed
+by worker-wheel and reviewed-manifest/preflight verification. Browser fixtures at
+1440px and 390px in light/dark themes passed company/fund switching, corporate
+metric suppression for funds, no horizontal overflow and no JavaScript errors.
+
+The initial worker-suite run identified two migration-list expectations that needed
+025 added; both now pass along with existing ledger-preservation checks. An initial
+Node test-environment annotation conflicted with the repository's browser test
+setup; the tests now use the established SQLite test environment and pass.
+A direct unauthenticated local SEC probe returned HTTP 403. This does not verify
+or invalidate the server's configured SEC identity; live collection must be checked
+after installation. No test orders, new accounts or strategy activations occurred.
+The documentation update after staging does not alter the reviewed release files.
