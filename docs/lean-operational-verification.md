@@ -14,7 +14,7 @@ failure exercises below must not be inferred from local test results.
 | Runner boundary tests | 22 local tests pass, including recovery, interrupted starts, timeout, oversized results, storage rejection |
 | Independent monitor | Installed on a1347-j; active alongside unchanged HomeOps watchdog; two healthy observations, no incident |
 | Runner restart | Passed October 3 at 13:10:33 Eastern; same container and exact retained fixture result |
-| Bridge restart | Helper staged; not started |
+| Bridge restart | Passed at 13:18:48 Eastern; resumed stable job and completed with zero differences |
 | Full 30-minute timeout | Helper staged; not started |
 | Real outage/recovery delivery | Authorized; not exercised yet |
 | Authenticated browser queue/cancel | Not yet verified end to end |
@@ -60,3 +60,10 @@ All five application services were active, LEAN health passed, and HomeOps links
 were updated to the normal Systems library. The deployed browser check used no
 style injection; report metrics and both charts rendered with no page errors or
 mobile horizontal overflow.
+
+Bridge recovery evidence: job `16298801-5601-4622-8dda-26bf7f27edd8`,
+created at 13:18:10 Eastern. The bridge restarted at 13:18:21 during remote
+research; the comparison completed at 13:18:47 with zero differences and the
+verification helper exited successfully at 13:18:48. A prior separate invocation
+created `ef15b967-7768-466f-bc3c-45420cbdaeaf`, also completed; these are distinct
+operator verification requests, not a restarted job receiving a new identity.

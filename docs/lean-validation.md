@@ -174,5 +174,5 @@ Run scenarios sequentially and leave the research queue idle during verification
 The bridge helper `deploy/verify-lean-bridge-root.py` queues a separate audited
 historical replay and restarts only the bridge while it is awaiting LEAN.
 The live runner restart passed on October 3 at 13:10:33 Eastern with the same
-container and exact retained fixture result. Bridge restart, full timeout and
-real notification delivery remain pending.
+container and exact retained fixture result. The bridge restart also passed at 13:18:48 with zero comparison differences.
+Full timeout and real notification delivery remain pending.
