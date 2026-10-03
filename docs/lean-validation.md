@@ -136,3 +136,12 @@ V4 completed at 11:09 Eastern with **zero differences** across all 144 decisions
 is committed in the runner repository. The supervised runner and scoped SSH client
 are staged for root installation; retained market-data validation and the reviewed
 StockWatch application release remain outstanding.
+
+The runner service `e300f918` is now installed and active on a1347-d, with healthy
+restricted SSH protocol access from a1347-m. Its first queued fixture was rejected
+before engine launch because Docker local-log compression requires more than one
+rotated file. Runner `d1f1000` disables compression while keeping a single bounded
+10 MiB log and is staged for a root update. Installed-service execution verification
+is therefore not yet complete. StockWatch's registry currently contains only a
+daily Bitcoin dataset; an hourly research dataset must also be prepared before
+the new adapter can validate retained market observations.
