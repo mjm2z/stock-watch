@@ -114,3 +114,10 @@ could not detect. The corrected call supplies the raw-data UTC timezone explicit
 see [LEAN's Python AddData overloads](https://github.com/QuantConnect/Lean/blob/master/Algorithm/QCAlgorithm.Python.cs).
 The retry keeps the failed output and checks all three exact fixture timestamps,
 not merely the engine exit code.
+
+The strategy fixture subsequently completed at 11:02 Eastern but did not match:
+StockWatch produced 11 fills, LEAN 2. Default venue lot rounding left a remainder
+that blocked re-entry, and LEAN buy-fill quantities were net of Bitcoin fees.
+Corrections for dataset settlement precision, gross/net evidence and isolation
+from image-bundled sample prices are staged, with 15 runner regression tests
+passing. The retained divergent result remains evidence, not a successful match.
