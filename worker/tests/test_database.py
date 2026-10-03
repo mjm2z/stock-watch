@@ -49,7 +49,7 @@ class DatabaseMigrationTests(unittest.TestCase):
                 "012_shared_research",
                 "013_assessment_controls",
                 "014_news_revisions",
-                "015_exit_timing", "016_systems", "017_bitcoin_automation", "018_workspace", "019_research_control", "020_correctness", "021_operator_controls", "022_research_inspection", "023_company_fact_storage", "024_signal_navigation", "025_company_context", "026_filing_details",
+                "015_exit_timing", "016_systems", "017_bitcoin_automation", "018_workspace", "019_research_control", "020_correctness", "021_operator_controls", "022_research_inspection", "023_company_fact_storage", "024_signal_navigation", "025_company_context", "026_filing_details", "027_lean_comparisons",
             ],
         )
 
@@ -205,7 +205,7 @@ class DatabaseMigrationTests(unittest.TestCase):
             INSERT INTO paper_authorizations VALUES ('automatic-v1','trial',1,'2026-01-01','100','separate-paper','active');
         """)
         before = release.authority(self.connection)
-        self.assertEqual(apply_migrations(self.connection, MIGRATIONS_DIR), ['020_correctness', '021_operator_controls', '022_research_inspection', '023_company_fact_storage', '024_signal_navigation', '025_company_context', '026_filing_details'])
+        self.assertEqual(apply_migrations(self.connection, MIGRATIONS_DIR), ['020_correctness', '021_operator_controls', '022_research_inspection', '023_company_fact_storage', '024_signal_navigation', '025_company_context', '026_filing_details', '027_lean_comparisons'])
         after=release.authority(self.connection, before)
         self.assertEqual(before, {key:after[key] for key in before})
         self.assertEqual(after['system_entry_controls']['rows'], [])

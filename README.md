@@ -66,6 +66,16 @@ $1,000 to manual Bitcoin**, with a **$100 entry cap including a 1% fee allowance
 The broker's larger cash balance does not enlarge either application budget.
 Code can be deployed while manual trading remains visibly **unconfigured**.
 
+## LEAN research integration in progress
+
+A separate [LEAN runner repository](https://github.com/mjm2z/stockwatch-lean) now
+exists for independent Bitcoin trend validation on a1347-d. Docker is installed;
+the image downloaded, but the first offline proof failed to load fixture events.
+A corrected subscription is staged for retry. The new
+Systems comparison UI, background bridge and additive migration 027 are source
+work, **not an operational deployment**. Production remains at the release above.
+See [architecture, workflow, resource limits and deployment steps](docs/lean-validation.md).
+
 ## Find your way around
 
 Choose **Stocks** or **Crypto** in the sidebar. Navigation retains the selected

@@ -1,5 +1,6 @@
 'use client'
 import Link from 'next/link'
+import { LeanValidation } from './LeanValidation'
 import { useOperator } from './OperatorSession'
 import { SystemEquityChart } from '@/components/dashboard/SystemEquityChart'
 import { FormEvent, useCallback, useEffect, useState } from 'react'
@@ -121,6 +122,7 @@ export function SystemsWorkspace({ asset }: { asset: 'stocks' | 'bitcoin' }) {
           {notice}
         </p>
       )}
+      {asset === 'bitcoin' && <LeanValidation versions={data.versions} datasets={data.datasets} />}
       <section className="grid gap-6 lg:grid-cols-2">
         <form
           className="space-y-4 rounded-xl border p-5"

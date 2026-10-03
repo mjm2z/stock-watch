@@ -306,7 +306,7 @@ def main():
     (recovery / 'enabled-timers.json').write_text(json.dumps(enabled, indent=2))
     if timers:
         run('systemctl', 'stop', *timers)
-    persistent = [line.split()[0] for line in units if line.split()[0] in ('stock-watch-market-data.service','stock-watch-manual-paper.service','stock-watch-execution.service')]
+    persistent = [line.split()[0] for line in units if line.split()[0] in ('stock-watch-market-data.service','stock-watch-manual-paper.service','stock-watch-execution.service','stock-watch-lean.service')]
     if persistent: run('systemctl','stop',*persistent)
     services = drain_services(units)
     deadline = time.monotonic() + 600
@@ -358,7 +358,7 @@ def main():
         if any(authority_after.get(key)!=value for key,value in authority_before.items()):
             raise RuntimeError('Existing trading authority changed during migration; services remain stopped')
     run('bash', str(runtime / 'deploy/install-systems-root.sh'), '--skip-init')
-    for name in ('market-data','manual-paper','execution'):
+    for name in ('market-data','manual-paper','execution','lean'):
         run('install','-o','root','-g','root','-m','0644',str(runtime / ('deploy/systemd/stock-watch-'+name+'.service')),'/etc/systemd/system/')
     for name in ('stock-watch-storage-cleanup.service', 'stock-watch-storage-cleanup.timer'):
         run('install', '-o', 'root', '-g', 'root', '-m', '0644',
@@ -369,7 +369,7 @@ def main():
         run('systemctl','disable','--now','stock-watch-bitcoin-automation.timer')
         enabled.pop('stock-watch-bitcoin-automation.timer',None)
         run('systemctl','enable','--now','stock-watch-execution.service')
-    run('systemctl','enable','--now','stock-watch-market-data.service','stock-watch-manual-paper.service')
+    run('systemctl','enable','--now','stock-watch-market-data.service','stock-watch-manual-paper.service','stock-watch-lean.service')
     run('systemctl','is-active','--quiet','stock-watch-market-data.service','stock-watch-manual-paper.service')
     if coordinator_enabled: run('systemctl','is-active','--quiet','stock-watch-execution.service')
     for mode in ('enabled', 'enabled-runtime'):
