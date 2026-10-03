@@ -73,8 +73,10 @@ exists for independent Bitcoin trend validation on a1347-d. The pinned-image
 offline proof passed on October 3 at 10:58 Eastern, processing three exact fixture
 events with networking disabled. The synthetic strategy comparison subsequently matched all decisions, fills and
 equity observations at 11:09 Eastern; retained market-data validation remains pending.
-The new Systems comparison UI, background bridge and additive migration 027 are
-committed source work, **not an operational deployment**. Production remains at
+The independent runner is installed at `0aef431` and passes queued baseline, gap
+recovery and minute-risk drawdown fixtures through its restricted connection.
+The Systems comparison UI, background bridge and additive migration 027 remain
+committed source work, **not yet deployed in StockWatch**. Production remains at
 the release above.
 See [architecture, workflow, resource limits and deployment steps](docs/lean-validation.md).
 

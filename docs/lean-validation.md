@@ -145,3 +145,13 @@ rotated file. Runner `d1f1000` disables compression while keeping a single bound
 is therefore not yet complete. StockWatch's registry currently contains only a
 daily Bitcoin dataset; an hourly research dataset must also be prepared before
 the new adapter can validate retained market observations.
+
+## Installed runner verification — October 3, 11:22 Eastern
+
+Runner `0aef4311004e11f1d4c3838d7931abb97e686b74` is active. Its installed
+queue/SSH/container/result path matched the baseline fixture, a four-hour gap
+fixture and a minute-quote drawdown-exit fixture, all with zero differences.
+Reusing the completed baseline ID returned the same retained result. The operator
+reported running the scoped client installer; the StockWatch service identity
+will be verified through the bridge after deployment. The app remains on migration
+026; migration 027 and the bridge are being staged through the reviewed installer.
