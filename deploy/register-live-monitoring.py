@@ -14,7 +14,7 @@ import socket
 from urllib.request import urlopen
 
 
-COMPONENTS = ("market-feed", "execution", "notifications", "proxy")
+COMPONENTS = ("market-feed", "execution", "notifications", "proxy", "lean")
 
 
 def main():
@@ -49,7 +49,7 @@ def main():
                     "url": url,
                     "kind": "API",
                     "parent_site": "stock-watch",
-                    "open_url": "http://stockwatch.home.arpa/crypto?view=operations",
+                    "open_url": "http://stockwatch.home.arpa/crypto?view=systems" if component == "lean" else "http://stockwatch.home.arpa/crypto?view=operations",
                 }
         if identifier not in existing:
             config["sites"].append(desired)

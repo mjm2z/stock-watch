@@ -163,3 +163,9 @@ the service user at 0600. The client installer verifies runner health and image
 identity by running SSH as `stock-watch`. Existing broker configuration permissions
 are preserved. The earlier staged app revision `b9e0dbf` must not be installed;
 a revised bridge release is being prepared with the corrected paths.
+
+After the bridge reports healthy, register the independent HomeOps endpoint with
+`python3 deploy/register-live-monitoring.py --components lean` on a1347-m as the
+HomeOps user. The helper backs up configuration and refuses an unhealthy endpoint.
+The existing a1347-j watchdog remains independent of both execution hosts. This
+registration and watchdog verification remain pending until application deployment.
