@@ -8,14 +8,14 @@ from .systems.engine import replay,SystemConfig
 
 def now():return datetime.now(timezone.utc).isoformat()
 def settings():
-    path=Path('/etc/stock-watch/lean-runner.json')
+    path=Path('/etc/stock-watch-lean/lean-runner.json')
     if not path.is_file():return None
     value=json.loads(path.read_text())
     if value.get('host')!='lean-submit@192.168.4.33':raise ValueError('Unexpected LEAN runner host')
     return value
 
 def remote(config,message):
-    process=subprocess.run(['ssh','-T','-o','BatchMode=yes','-o','ConnectTimeout=5','-o','StrictHostKeyChecking=yes','-o','UserKnownHostsFile=/etc/stock-watch/lean_known_hosts','-i','/etc/stock-watch/lean_runner_ed25519',config['host'],'stockwatch-lean'],input=canonical(message).encode(),stdout=subprocess.PIPE,stderr=subprocess.DEVNULL,timeout=60)
+    process=subprocess.run(['ssh','-T','-o','BatchMode=yes','-o','ConnectTimeout=5','-o','StrictHostKeyChecking=yes','-o','UserKnownHostsFile=/etc/stock-watch-lean/lean_known_hosts','-i','/etc/stock-watch-lean/lean_runner_ed25519',config['host'],'stockwatch-lean'],input=canonical(message).encode(),stdout=subprocess.PIPE,stderr=subprocess.DEVNULL,timeout=60)
     if process.returncode:raise ConnectionError('LEAN runner connection unavailable')
     if len(process.stdout)>MAX_INPUT+1048576:raise ValueError('Runner response exceeds limit')
     response=json.loads(process.stdout)

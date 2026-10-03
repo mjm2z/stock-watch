@@ -11,7 +11,8 @@ def main():
     subprocess.run(['ssh-keygen','-y','-f',str(key)],check=True,stdout=subprocess.DEVNULL)
     lines=known.read_text().strip().splitlines()
     if len(lines)!=1 or not lines[0].startswith('192.168.4.33 ssh-ed25519 '):raise SystemExit('Expected the verified a1347-d Ed25519 host key')
-    account=pwd.getpwnam('stock-watch');root=pathlib.Path('/etc/stock-watch')
+    account=pwd.getpwnam('stock-watch');root=pathlib.Path('/etc/stock-watch-lean')
+    root.mkdir(mode=0o750,exist_ok=True);os.chown(root,0,account.pw_gid);root.chmod(0o750)
     for source,name in [(key,'lean_runner_ed25519'),(known,'lean_known_hosts')]:
         destination=root/name
         if destination.exists() and destination.read_bytes()!=source.read_bytes():raise SystemExit('Existing LEAN identity differs; review before replacing')
@@ -21,5 +22,9 @@ def main():
     for source,name in [(key,'lean_runner_ed25519'),(known,'lean_known_hosts')]:
         destination=root/name;shutil.copyfile(source,destination);os.chown(destination,account.pw_uid,account.pw_gid);destination.chmod(0o600)
     config.write_text(json.dumps(desired));os.chown(config,account.pw_uid,account.pw_gid);config.chmod(0o600)
-    print('Scoped LEAN identity configured. The reviewed application release installs the bridge service.')
+    response=subprocess.run(['runuser','-u','stock-watch','--','ssh','-T','-o','BatchMode=yes','-o','ConnectTimeout=5','-o','StrictHostKeyChecking=yes','-o','UserKnownHostsFile='+str(root/'lean_known_hosts'),'-i',str(root/'lean_runner_ed25519'),desired['host'],'stockwatch-lean'],input='{"action":"health"}',text=True,capture_output=True,timeout=30)
+    if response.returncode:raise SystemExit('Scoped identity installed but service-user SSH verification failed: '+response.stderr[:300])
+    health=json.loads(response.stdout)
+    if not health.get('healthy') or health.get('image')!=desired['expected_image']:raise SystemExit('Research runner health/pin did not verify')
+    print('Scoped LEAN identity configured and verified as the stock-watch service user. Existing broker configuration permissions are unchanged.')
 if __name__=='__main__':main()

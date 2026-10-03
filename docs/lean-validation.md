@@ -155,3 +155,11 @@ Reusing the completed baseline ID returned the same retained result. The operato
 reported running the scoped client installer; the StockWatch service identity
 will be verified through the bridge after deployment. The app remains on migration
 026; migration 027 and the bridge are being staged through the reviewed installer.
+
+Before bridge deployment, the protected parent directory was checked: the existing
+`/etc/stock-watch` is root-only. Research client files therefore now live separately
+in `/etc/stock-watch-lean` (root:stock-watch, 0750), with individual files owned by
+the service user at 0600. The client installer verifies runner health and image
+identity by running SSH as `stock-watch`. Existing broker configuration permissions
+are preserved. The earlier staged app revision `b9e0dbf` must not be installed;
+a revised bridge release is being prepared with the corrected paths.
