@@ -1,10 +1,10 @@
 # StockWatch
 
-As verified on **October 2, 2026 at 23:15 Eastern**, production on a1347-m runs
-inline SEC filing release **`2d69d52`**, installed at 23:12 Eastern with migration
-**026**. Web, feed, execution and manual-paper services are active; feed, execution
-and notification health checks pass. The verified recovery snapshot is
-`/var/backups/stock-watch-releases/20261003T025852Z`.
+As verified on **October 3, 2026 at 11:53 Eastern**, production on a1347-m runs
+LEAN integration release **`992d909e0ec6`**, installed at 11:50 Eastern with migration
+**027**. Web, feed, execution, manual-paper and LEAN bridge services are active;
+feed, execution, notification and LEAN health checks pass. The verified recovery
+snapshot is `/var/backups/stock-watch-releases/20261003T153421Z`.
 
 The canonical LAN address is **http://stockwatch.home.arpa/**. The shared proxy on
 a1990 forwards to a1347-m:3001; the old hostname with :3001 remains compatible.
@@ -49,7 +49,7 @@ owns trading validation, reservations, order intent and accounting.
 
 The installed application includes the manual paper ticket, instrument charts,
 system research and backtesting, activity records, and matching app/favicon artwork.
-Migrations through filing details **026** are installed. A build, fixture test or screenshot establishes
+Migrations through LEAN comparisons **027** are installed. A build, fixture test or screenshot establishes
 source behavior, not installation or broker connectivity.
 
 Current setup instructions are here and in the linked guides. Dated release reports
@@ -66,19 +66,22 @@ $1,000 to manual Bitcoin**, with a **$100 entry cap including a 1% fee allowance
 The broker's larger cash balance does not enlarge either application budget.
 Code can be deployed while manual trading remains visibly **unconfigured**.
 
-## LEAN research integration in progress
+## LEAN research validation
 
-A separate [LEAN runner repository](https://github.com/mjm2z/stockwatch-lean) now
-exists for independent Bitcoin trend validation on a1347-d. The pinned-image
-offline proof passed on October 3 at 10:58 Eastern, processing three exact fixture
-events with networking disabled. The synthetic strategy comparison subsequently matched all decisions, fills and
-equity observations at 11:09 Eastern; retained market-data validation remains pending.
-The independent runner is installed at `0aef431` and passes queued baseline, gap
-recovery and minute-risk drawdown fixtures through its restricted connection.
-The Systems comparison UI, background bridge and additive migration 027 remain
-committed source work, **not yet deployed in StockWatch**. Production remains at
-the release above.
-See [architecture, workflow, resource limits and deployment steps](docs/lean-validation.md).
+The separate [LEAN runner](https://github.com/mjm2z/stockwatch-lean) runs on
+a1347-d at `0aef431`; StockWatch's background bridge and **Crypto → Systems**
+comparison interface are deployed at `992d909e0ec6`. Preview and queue supported
+original Bitcoin hourly trend comparisons, inspect metrics/equity/differences,
+cancel research work or download full evidence. The scoped runner has no broker
+credentials or trading authority. HomeOps monitors its bridge health.
+
+On October 3, September's 720 hourly BTC/USD observations produced **zero
+differences** between StockWatch and LEAN across 720 decisions, six fills and 726
+equity observations. Starting from $300, both ended at $300.94564011 with
+$2.25873657 in modeled fees. These are synthetic next-bar fills, not executable
+historical quotes; agreement does not qualify a strategy or establish profitability.
+Installed synthetic baseline, gap and minute-risk fixtures also passed.
+See [architecture, workflow, evidence, limits and operations](docs/lean-validation.md).
 
 ## Find your way around
 

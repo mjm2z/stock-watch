@@ -1,0 +1,188 @@
+# Historical implementation checkpoints — superseded
+
+These October 3 development notes are retained as dated evidence. For the current
+deployment and supported workflow, see [LEAN validation](lean-validation.md).
+
+# Independent LEAN validation
+
+## Deployment status — October 3, 2026
+
+The integration is under implementation and is **not deployed in StockWatch**.
+Production remains at release `2d69d5241ee3`, migration 026. The pinned-image offline
+proof passed on a1347-d on October 3 at 10:58 Eastern: all three exact fixture events
+were processed with live mode false and networking disabled. The verified receipt
+is `/var/lib/stockwatch-lean-proof/verified.json`. The initial custom-data binding
+failure and retry-guard issue were corrected; earlier outputs are preserved.
+
+Actual strategy/portfolio comparison remains unverified. A separate 144-bar
+synthetic adapter test ran and exposed a float/Decimal sizing error at its first
+buy decision. The correction and numeric regression tests are staged for retry. Migration 027,
+the bridge and the Systems interface are source changes awaiting end-to-end
+verification and a reviewed release.
+
+The independent runner repository is [stockwatch-lean](https://github.com/mjm2z/stockwatch-lean).
+It uses the free LEAN engine directly, without a paid QuantConnect CLI, cloud job,
+data subscription or broker credentials. The official image is approximately
+14 GB compressed; its expanded runtime consumes additional host storage outside
+job retention. Its immutable digest and engine build 18155 identify the runtime;
+the registry attestation does not supply a corresponding source commit.
+
+## Workflow implemented in source
+
+In Crypto → Systems, choose an immutable original Bitcoin trend version and a
+registered hourly Bitcoin dataset. Preview the full historical interval, $300
+starting cash and dataset cost assumptions, then queue a comparison. An operator
+session and healthy configured runner are required. Visual rules, newer Bitcoin
+protocols, stocks, partial-fill inputs and unsupported data features are rejected.
+This initial adapter is intentionally narrow.
+
+The bridge recomputes StockWatch's baseline in the background and sends only the
+validated configuration, dataset and content hashes to LEAN. The runner receives
+no StockWatch baseline decisions, broker keys or trading authority. LEAN uses its
+own indicators, portfolio and explicit fill/fee models. The comparison covers
+ordered decisions, fills, fees, equity and sampled maximum drawdown. Quantity
+uses the dataset increment, dollar values a one-cent tolerance and drawdown one
+basis point. Missing events and timestamp mismatches are differences. Agreement
+is diagnostic evidence and never qualifies or activates a trading system.
+
+The interface includes queue stage, elapsed time, cancellation, metrics, equity
+curves, the first reported divergence, paged differences and a downloadable full
+report. Charts are sampled for display; full result arrays remain in the report.
+Synthetic quotes, bar approximations, gaps and other input limitations remain
+visible. A successful comparison cannot establish realistic fills or profitability.
+
+## Ownership and recovery
+
+| Host/service | Responsibility |
+| --- | --- |
+| a1347-m / `stock-watch-lean.service` | StockWatch baseline, durable intent, SSH submission and comparison |
+| a1347-d / `stockwatch-lean.service` | Research queue, fixed algorithm, bounded LEAN containers |
+| a1347-j | Existing independent watchdog; no LEAN execution |
+
+The bridge uses a dedicated SSH key and pinned host key. The restricted remote
+account accepts only the JSON research protocol over a local Unix socket; it has
+no Docker group access. The root supervisor launches only bundled code in a
+pinned image with no network, dropped capabilities, a read-only filesystem,
+2 CPUs, 3 GiB memory and a 30-minute deadline. Arbitrary algorithms and paths
+cannot be supplied through the app.
+
+Stable comparison IDs bind to exact input hashes. Lost submission acknowledgements
+are reconciled before another submission. Restarted supervision inspects existing
+containers; interrupted or missing execution fails explicitly rather than silently
+starting a second run. Cancellation is durable intent and remains pending during
+an outage. It never cancels trades or changes system activation.
+
+Current source conservatively allows five unfinished comparisons total and runs
+one engine job at a time. Requests/results are bounded at 64 MiB; temporary engine
+output is bounded at 500 MiB. Completed artifacts are pruned after 30 days or under
+storage pressure, with a 10 GiB target cap on each host. StockWatch retains compact
+comparison summaries after artifacts expire. Runner failure logs retain a bounded
+tail. Historical trading ledgers and input datasets are outside this policy.
+
+## Deployment and operations
+
+First verify the offline three-event engine proof, then test the actual adapter
+against fixtures and a retained Bitcoin dataset. Install the reviewed runner from
+a clean pinned checkout using `deploy/install-runner.py` in its repository.
+Configure the separately generated research SSH identity using StockWatch's
+`deploy/install-lean-client-root.py`. Neither helper takes Alpaca credentials.
+
+Deploy StockWatch only through `deploy/install-reviewed-release.py`, which backs
+up before additive migration 027 and stops the bridge during database/runtime
+cutover. The bridge can run unconfigured; the UI stays disabled. The read-only
+`/api/health/lean` endpoint reports unavailable until configuration and fresh
+runner health are present. Independent HomeOps monitoring remains to be wired
+and verified before this integration is described as operational.
+
+When rolling back to an application release without LEAN support, stop and disable
+`stock-watch-lean.service` before switching runtimes. Preserve migration 027 tables
+and research artifacts; do not restore an older trading database merely to remove
+this research interface. Stop the separate runner only after inspecting active
+comparisons and cancellation state.
+
+Monitor the prerequisite proof without keeping an agent occupied:
+
+```sh
+ssh a1347-d 'journalctl -fu stockwatch-lean-proof.service'
+```
+
+Ctrl-C stops viewing the journal, not the proof. A stopped/transient unit alone is
+not proof of success: inspect its exit status and verified result before proceeding.
+
+## Local verification checkpoint
+
+The October 3 source checkpoint passed the production build, TypeScript, lint
+(with existing unrelated warnings), 121 JavaScript tests, 428 worker tests and
+thirteen runner unit tests. These checks do not exercise the LEAN container API.
+The first container run exposed a subscription overload problem that local tests
+could not detect. The corrected call supplies the raw-data UTC timezone explicitly;
+see [LEAN's Python AddData overloads](https://github.com/QuantConnect/Lean/blob/master/Algorithm/QCAlgorithm.Python.cs).
+The retry keeps the failed output and checks all three exact fixture timestamps,
+not merely the engine exit code.
+
+The strategy fixture subsequently completed at 11:02 Eastern but did not match:
+StockWatch produced 11 fills, LEAN 2. Default venue lot rounding left a remainder
+that blocked re-entry, and LEAN buy-fill quantities were net of Bitcoin fees.
+Corrections for dataset settlement precision, gross/net evidence and isolation
+from image-bundled sample prices are staged, with 15 runner regression tests
+passing. The retained divergent result remains evidence, not a successful match.
+
+The 11:07 Eastern rerun (`/var/lib/stockwatch-lean-adapter-20261003T150733`)
+matched 144 decisions, 11 fills, fees ($4.291403484365231), ending equity
+($319.2626202153341 within floating-point precision) and maximum drawdown.
+Five midnight equity observations remained stale. The custom mark handler now
+invalidates LEAN's native portfolio-value cache after updating the security and
+currency conversion. Sixteen local regression tests pass; the full comparison
+remains pending a container rerun, with unchanged tolerances.
+
+V4 completed at 11:09 Eastern with **zero differences** across all 144 decisions,
+11 fills and 155 equity observations, using unchanged tolerances. Its source-bound
+[fixture evidence](https://github.com/mjm2z/stockwatch-lean/blob/main/docs/fixture-verification.json)
+is committed in the runner repository. The supervised runner and scoped SSH client
+are staged for root installation; retained market-data validation and the reviewed
+StockWatch application release remain outstanding.
+
+The runner service `e300f918` is now installed and active on a1347-d, with healthy
+restricted SSH protocol access from a1347-m. Its first queued fixture was rejected
+before engine launch because Docker local-log compression requires more than one
+rotated file. Runner `d1f1000` disables compression while keeping a single bounded
+10 MiB log and is staged for a root update. Installed-service execution verification
+is therefore not yet complete. StockWatch's registry currently contains only a
+daily Bitcoin dataset; an hourly research dataset must also be prepared before
+the new adapter can validate retained market observations.
+
+## Installed runner verification — October 3, 11:22 Eastern
+
+Runner `0aef4311004e11f1d4c3838d7931abb97e686b74` is active. Its installed
+queue/SSH/container/result path matched the baseline fixture, a four-hour gap
+fixture and a minute-quote drawdown-exit fixture, all with zero differences.
+Reusing the completed baseline ID returned the same retained result. The operator
+reported running the scoped client installer; the StockWatch service identity
+will be verified through the bridge after deployment. The app remains on migration
+026; migration 027 and the bridge are being staged through the reviewed installer.
+
+Before bridge deployment, the protected parent directory was checked: the existing
+`/etc/stock-watch` is root-only. Research client files therefore now live separately
+in `/etc/stock-watch-lean` (root:stock-watch, 0750), with individual files owned by
+the service user at 0600. The client installer verifies runner health and image
+identity by running SSH as `stock-watch`. Existing broker configuration permissions
+are preserved. The earlier staged app revision `b9e0dbf` must not be installed;
+a revised bridge release is being prepared with the corrected paths.
+
+After the bridge reports healthy, register the independent HomeOps endpoint with
+`python3 deploy/register-live-monitoring.py --components lean` on a1347-m as the
+HomeOps user. The helper backs up configuration and refuses an unhealthy endpoint.
+The existing a1347-j watchdog remains independent of both execution hosts. This
+registration and watchdog verification remain pending until application deployment.
+
+## Historical verification prepared for the reviewed app release
+
+`deploy/run-lean-history-root.py` checks that release `992d909e0ec6` and a healthy
+bridge are installed, verifies the historical helper's content hash, and launches
+it as the `stock-watch` user with the existing protected environment. The helper
+fetches September 1–October 1, 2026 hourly BTC/USD data, retains its manifest and
+quotes, and queues the existing original SMA 20/100 version with $300 simulated
+starting cash and 50% allocation. Next-bar execution is explicitly synthetic.
+A fixed verification ID prevents duplicate comparisons; incompatible reuse fails.
+It never creates a deployment, qualifies a system or submits a broker order. The
+root launcher refuses to run before the reviewed installation finishes.

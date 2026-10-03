@@ -1,0 +1,51 @@
+{
+  "id": "f88ac8db-ae06-549e-af58-5ba17958366f",
+  "contract": "stockwatch-lean-bitcoin-trend-v1",
+  "config_sha256": "e664521e08effecaea9a67e44b54ccf858675184860ad186493eb0e8f4a5856d",
+  "dataset_sha256": "0d7919848ed460bd9dda8deadbb05832986150b8ece11d3b6843c261fe61b1cc",
+  "image": "quantconnect/lean@sha256:383b6540839f6e111b451a3d92919edfdb8ffbfdeeb85325491631a36ca58082",
+  "outcome": "matched",
+  "difference_count": 0,
+  "tolerances": {
+    "drawdown": 0.0001,
+    "money": 0.01,
+    "quantity": 1e-09
+  },
+  "limitations": [
+    "Bars may contain quote midpoints; zero volume is not a trade",
+    "Next-bar open is a synthetic execution proxy, not a historical bid/ask quote",
+    "Bar marks cannot reproduce continuous risk execution",
+    "Coarse execution data: exploratory only",
+    "Fewer than 30 closed trades; performance evidence is limited",
+    "Risk replay uses hourly marks; minute-level drawdown execution is not reproduced",
+    "Synthetic bar execution proxies; historical spread and liquidity unavailable"
+  ],
+  "promotion_ready": false,
+  "verified_at": "2026-10-03T15:53:00Z",
+  "app_revision": "992d909e0ec6eca061e4303b0eff3e86c65275f0",
+  "runner_revision": "0aef4311004e11f1d4c3838d7931abb97e686b74",
+  "report_sha256": "d1bb0cc52557ae7f70b290ee068237bb4101a20b36e3bdc8d1b5535ec9ae3581",
+  "interval": {
+    "start": "2026-09-01T00:00:00Z",
+    "end_exclusive": "2026-10-01T00:00:00Z"
+  },
+  "report_url": "/api/lean/f88ac8db-ae06-549e-af58-5ba17958366f?download=1",
+  "baseline": {
+    "ending_equity": 300.94564011121986,
+    "fees": 2.2587365683225618,
+    "maximum_drawdown": -0.039768454906016104,
+    "risk_paused": false,
+    "decisions_count": 720,
+    "fills_count": 6,
+    "equity_curve_count": 726
+  },
+  "lean": {
+    "ending_equity": 300.9456401112198,
+    "fees": 2.2587365683225613,
+    "maximum_drawdown": -0.039768454906016104,
+    "risk_paused": false,
+    "decisions_count": 720,
+    "fills_count": 6,
+    "equity_curve_count": 726
+  }
+}
