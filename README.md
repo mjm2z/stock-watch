@@ -1,10 +1,12 @@
 # StockWatch
 
-As verified on **October 3, 2026 at 11:53 Eastern**, production on a1347-m runs
-LEAN integration release **`992d909e0ec6`**, installed at 11:50 Eastern with migration
+As verified on **October 3, 2026 at 13:12 Eastern**, production on a1347-m runs
+LEAN UI correction release **`7f4f4ef4bcd2`**, installed at 13:12 Eastern with migration
 **027**. Web, feed, execution, manual-paper and LEAN bridge services are active;
-feed, execution, notification and LEAN health checks pass. The verified recovery
-snapshot is `/var/backups/stock-watch-releases/20261003T153421Z`.
+feed, execution, notification and LEAN health checks pass. The verified database recovery
+snapshot remains `/var/backups/stock-watch-releases/20261003T153421Z`; the new
+code-only installation retained the database and recorded runtime recovery at
+`/var/backups/stock-watch-releases/20261003T171159Z`.
 
 The canonical LAN address is **http://stockwatch.home.arpa/**. The shared proxy on
 a1990 forwards to a1347-m:3001; the old hostname with :3001 remains compatible.
@@ -70,9 +72,11 @@ Code can be deployed while manual trading remains visibly **unconfigured**.
 
 The separate [LEAN runner](https://github.com/mjm2z/stockwatch-lean) runs on
 a1347-d at `0aef431`; StockWatch's background bridge and **Crypto → Systems**
-comparison engine is deployed at `992d909e0ec6`. Browser verification found the
-card is currently reachable only at `/systems?asset=bitcoin&legacy=1`; its normal
-Systems-library mount and mobile sizing fix are prepared for the next release. Preview and queue supported
+comparison interface is deployed at `7f4f4ef4bcd2`. It is now accessible in the
+normal `/systems?asset=bitcoin` library; desktop/mobile verification passed with
+no horizontal overflow or page errors. The live supervisor restart check also
+passed, retaining the same container and exact fixture result.
+Preview and queue supported
 original Bitcoin hourly trend comparisons, inspect metrics/equity/differences,
 cancel research work or download full evidence. The scoped runner has no broker
 credentials or trading authority. HomeOps monitors its bridge health.

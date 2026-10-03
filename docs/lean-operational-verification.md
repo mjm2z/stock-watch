@@ -6,10 +6,10 @@ failure exercises below must not be inferred from local test results.
 | Check | Evidence/status |
 | --- | --- |
 | Deployed historical report | 720 decisions, 6 fills, 726 equity observations; zero differences |
-| Browser discovery | LEAN missing from normal Systems library; available only through `legacy=1` |
+| Browser discovery | Fixed: LEAN visible in normal `/systems?asset=bitcoin` library |
 | Browser report | Existing metrics, both charts, limitations and report link render |
-| Mobile | Existing chart grid overflow reproduced; proposed sizing eliminated overflow with no page errors |
-| Normal library fix | Committed and Linux-staged at `7f4f4ef4bcd2`; not installed yet |
+| Mobile | Installed fix verified at 390px: no horizontal overflow and no page errors |
+| Normal library fix | Installed `7f4f4ef4bcd2` at 13:12:15 Eastern; desktop/mobile walkthrough passed |
 | Linux release | 123 JS, 430 worker, 58 deployment tests (one platform skip), type-check and production build pass |
 | Runner boundary tests | 22 local tests pass, including recovery, interrupted starts, timeout, oversized results, storage rejection |
 | Independent monitor | Installed on a1347-j; active alongside unchanged HomeOps watchdog; two healthy observations, no incident |
@@ -53,3 +53,10 @@ Runner restart evidence: job `7ac6309f-65f7-4d19-9d6e-f7370defe8f2`, container
 The synthetic job was paused, the supervisor restarted at 13:10:13 Eastern, and
 the same container completed at 13:10:33. The helper compared the full result to
 the retained verified fixture and exited successfully.
+
+Release `7f4f4ef4bcd2` installed as code-only: no migrations or database backup
+were required. Prior runtime recovery is `/var/backups/stock-watch-releases/20261003T171159Z`.
+All five application services were active, LEAN health passed, and HomeOps links
+were updated to the normal Systems library. The deployed browser check used no
+style injection; report metrics and both charts rendered with no page errors or
+mobile horizontal overflow.

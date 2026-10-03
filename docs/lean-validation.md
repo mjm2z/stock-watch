@@ -21,7 +21,7 @@ next-bar execution, not proof of executable fills or profitability. Only three
 closed trades occurred; hourly marks cannot reproduce continuous risk execution.
 No qualification, activation or broker order was created. See the compact
 [evidence record](lean-historical-verification.json), or open the completed run
-in the existing advanced screen at `/systems?asset=bitcoin&legacy=1` and download its complete report.
+in the normal Systems library at `/systems?asset=bitcoin` and download its complete report.
 
 The independent runner repository is [stockwatch-lean](https://github.com/mjm2z/stockwatch-lean).
 It uses the free LEAN engine directly, without a paid QuantConnect CLI, cloud job,
@@ -150,10 +150,11 @@ broker configuration. Do not move them back under `/etc/stock-watch`.
 
 The browser walkthrough found that the original LEAN card was mounted only in the
 older Systems screen. The normal `/systems?asset=bitcoin` library did not expose it,
-and `/crypto?view=systems` incorrectly opened Overview. A corrected mount and
-monitoring links are prepared in source; they require a reviewed application release.
+and `/crypto?view=systems` incorrectly opened Overview. The corrected mount and
+monitoring links were installed in `7f4f4ef4bcd2` at 13:12 Eastern.
 The old screen's historical metrics and charts rendered in the deployed browser.
-Mobile chart overflow was also found; the prepared fix constrains grid children.
+Mobile chart overflow was also found; the installed fix constrains grid children.
+The normal Systems library and mobile sizing now pass the deployed browser check.
 
 `deploy/lean-watchdog.py` adds a separate a1347-j research monitor using the existing
 protected Telegram transport. It checks each minute, requires three failures and
