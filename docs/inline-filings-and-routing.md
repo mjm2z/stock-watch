@@ -126,3 +126,24 @@ After installation completes and its receipt/health are verified, activate routi
 ```sh
 ssh -t a1990 'sudo python3 /home/mjm2z/activate-stockwatch-domain.py --apply'
 ```
+
+
+### Production verification — October 2, 23:15 Eastern
+
+Both application and proxy activation are complete. The installed receipt identifies
+`2d69d5241ee3beac061be72d4073d5f553ab6fee`, installed at 23:12:45 Eastern with migration
+026 and a fresh verified backup at `/var/backups/stock-watch-releases/20261003T025852Z`.
+The installer journal records successful completion; the later missing transient-unit
+file message is cleanup noise, not an installation failure.
+
+`stock-watch-web`, market-data, execution and manual-paper services are active, as
+is the company-context timer. Feed, execution and notification health pass through
+the port-free proxy. DNS answers 192.168.4.36. A five-second SSE sample through port
+80 contained advancing event IDs 296–301 in the current connection generation;
+the sample was intentionally stopped by curl's time limit.
+
+AAPL filing `0000320193-26-000020` completed live background extraction: 39,497
+characters of primary-document excerpt and 16 exact-accession financial facts,
+with no collection error. This verifies one filing, not universal issuer/exhibit
+coverage. Firefox smoke testing and registration of the optional separate HomeOps
+proxy monitor remain follow-up items. No test orders were submitted.

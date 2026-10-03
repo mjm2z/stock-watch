@@ -1,16 +1,17 @@
 # StockWatch
 
-As verified on **October 2, 2026 at 22:33 Eastern**, production on a1347-m runs
-SEC company-information release **`67e2ba9`**, installed at 20:01 Eastern with
-migration **025** and the company-context timer enabled. Web, feed, execution and
-manual-paper services were active; feed, execution and notification checks passed.
-The verified recovery snapshot is `/var/backups/stock-watch-releases/20261002T224616Z`.
+As verified on **October 2, 2026 at 23:15 Eastern**, production on a1347-m runs
+inline SEC filing release **`2d69d52`**, installed at 23:12 Eastern with migration
+**026**. Web, feed, execution and manual-paper services are active; feed, execution
+and notification health checks pass. The verified recovery snapshot is
+`/var/backups/stock-watch-releases/20261003T025852Z`.
 
-The next source change adds inline SEC filing excerpts, exact-accession financial
-facts, hidden vertical scrollbar tracks and a reviewed port-free routing helper.
-**Source `2d69d52` is pushed and fully verified in Linux staging. These additions
-require a new application installation and a separate proxy activation; they are
-not yet verified live.** See [inline filings and LAN routing](docs/inline-filings-and-routing.md).
+The canonical LAN address is **http://stockwatch.home.arpa/**. The shared proxy on
+a1990 forwards to a1347-m:3001; the old hostname with :3001 remains compatible.
+Live Coinbase SSE events advance through the proxy. A real AAPL 10-Q completed
+background extraction with source text and 16 exact-accession financial facts.
+Inline SEC filing excerpts, hidden vertical scrollbar tracks and port-free routing
+are deployed. See [coverage, limitations and verification](docs/inline-filings-and-routing.md).
 
 Completed cleanup reclaimed about **201 GiB** from old builds, abandoned backups
 and redundant recovery databases. Storage maintenance subsequently reduced the
@@ -45,7 +46,7 @@ owns trading validation, reservations, order intent and accounting.
 
 The installed application includes the manual paper ticket, instrument charts,
 system research and backtesting, activity records, and matching app/favicon artwork.
-Migrations through SEC company context **025** are installed; filing-details migration **026** is pending installation. A build, fixture test or screenshot establishes
+Migrations through filing details **026** are installed. A build, fixture test or screenshot establishes
 source behavior, not installation or broker connectivity.
 
 Current setup instructions are here and in the linked guides. Dated release reports
