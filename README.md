@@ -69,11 +69,12 @@ Code can be deployed while manual trading remains visibly **unconfigured**.
 ## LEAN research integration in progress
 
 A separate [LEAN runner repository](https://github.com/mjm2z/stockwatch-lean) now
-exists for independent Bitcoin trend validation on a1347-d. Docker is installed;
-the image downloaded, but the first offline proof failed to load fixture events.
-A corrected subscription is staged for retry. The new
-Systems comparison UI, background bridge and additive migration 027 are source
-work, **not an operational deployment**. Production remains at the release above.
+exists for independent Bitcoin trend validation on a1347-d. The pinned-image
+offline proof passed on October 3 at 10:58 Eastern, processing three exact fixture
+events with networking disabled. Strategy/accounting comparison remains unverified.
+The new Systems comparison UI, background bridge and additive migration 027 are
+committed source work, **not an operational deployment**. Production remains at
+the release above.
 See [architecture, workflow, resource limits and deployment steps](docs/lean-validation.md).
 
 ## Find your way around

@@ -3,13 +3,16 @@
 ## Deployment status — October 3, 2026
 
 The integration is under implementation and is **not deployed in StockWatch**.
-Production remains at release `2d69d5241ee3`, migration 026. Docker was installed
-on a1347-d, and the operator started `stockwatch-lean-proof.service`. The pinned
-image has downloaded and LEAN started, but the first proof failed with a custom-data
-subscription binding error and zero fixture events. An explicit UTC subscription
-correction is staged for an operator-started retry; no engine proof or comparison
-success has been established. Migration 027, the bridge and the Systems interface are source
-changes awaiting end-to-end verification and a reviewed release.
+Production remains at release `2d69d5241ee3`, migration 026. The pinned-image offline
+proof passed on a1347-d on October 3 at 10:58 Eastern: all three exact fixture events
+were processed with live mode false and networking disabled. The verified receipt
+is `/var/lib/stockwatch-lean-proof/verified.json`. The initial custom-data binding
+failure and retry-guard issue were corrected; earlier outputs are preserved.
+
+Actual strategy/portfolio comparison remains unverified. A separate 144-bar
+synthetic adapter test is staged and requires an operator start. Migration 027,
+the bridge and the Systems interface are source changes awaiting end-to-end
+verification and a reviewed release.
 
 The independent runner repository is [stockwatch-lean](https://github.com/mjm2z/stockwatch-lean).
 It uses the free LEAN engine directly, without a paid QuantConnect CLI, cloud job,
@@ -104,7 +107,7 @@ not proof of success: inspect its exit status and verified result before proceed
 
 The October 3 source checkpoint passed the production build, TypeScript, lint
 (with existing unrelated warnings), 121 JavaScript tests, 428 worker tests and
-eight runner unit tests. These checks do not exercise the LEAN container API.
+eleven runner unit tests. These checks do not exercise the LEAN container API.
 The first container run exposed a subscription overload problem that local tests
 could not detect. The corrected call supplies the raw-data UTC timezone explicitly;
 see [LEAN's Python AddData overloads](https://github.com/QuantConnect/Lean/blob/master/Algorithm/QCAlgorithm.Python.cs).
