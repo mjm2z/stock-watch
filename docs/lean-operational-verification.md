@@ -13,7 +13,7 @@ failure exercises below must not be inferred from local test results.
 | Linux release | 123 JS, 430 worker, 58 deployment tests (one platform skip), type-check and production build pass |
 | Runner boundary tests | 22 local tests pass, including recovery, interrupted starts, timeout, oversized results, storage rejection |
 | Independent monitor | Installed on a1347-j; active alongside unchanged HomeOps watchdog; two healthy observations, no incident |
-| Runner restart | Helper staged; operator command requested; result pending |
+| Runner restart | Passed October 3 at 13:10:33 Eastern; same container and exact retained fixture result |
 | Bridge restart | Helper staged; not started |
 | Full 30-minute timeout | Helper staged; not started |
 | Real outage/recovery delivery | Authorized; not exercised yet |
@@ -47,3 +47,9 @@ Install the corrected app only through its reviewed staged installer, separately
 from active failure exercises. After installation, verify `/systems?asset=bitcoin`
 on desktop/mobile and refresh HomeOps's LEAN browser link using
 `deploy/register-live-monitoring.py --components lean`.
+
+Runner restart evidence: job `7ac6309f-65f7-4d19-9d6e-f7370defe8f2`, container
+`ec9a7a8ce61edffbb8c8cbf247b3c4f7d3ac633deae16e2ce222163625fb3db8`.
+The synthetic job was paused, the supervisor restarted at 13:10:13 Eastern, and
+the same container completed at 13:10:33. The helper compared the full result to
+the retained verified fixture and exited successfully.
