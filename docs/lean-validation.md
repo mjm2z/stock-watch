@@ -121,3 +121,11 @@ that blocked re-entry, and LEAN buy-fill quantities were net of Bitcoin fees.
 Corrections for dataset settlement precision, gross/net evidence and isolation
 from image-bundled sample prices are staged, with 15 runner regression tests
 passing. The retained divergent result remains evidence, not a successful match.
+
+The 11:07 Eastern rerun (`/var/lib/stockwatch-lean-adapter-20261003T150733`)
+matched 144 decisions, 11 fills, fees ($4.291403484365231), ending equity
+($319.2626202153341 within floating-point precision) and maximum drawdown.
+Five midnight equity observations remained stale. The custom mark handler now
+invalidates LEAN's native portfolio-value cache after updating the security and
+currency conversion. Sixteen local regression tests pass; the full comparison
+remains pending a container rerun, with unchanged tolerances.
