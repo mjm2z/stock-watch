@@ -49,7 +49,7 @@ def main():
                     "url": url,
                     "kind": "API",
                     "parent_site": "stock-watch",
-                    "open_url": "http://stockwatch.home.arpa/crypto?view=systems" if component == "lean" else "http://stockwatch.home.arpa/crypto?view=operations",
+                    "open_url": "http://stockwatch.home.arpa/systems?asset=bitcoin" if component == "lean" else "http://stockwatch.home.arpa/crypto?view=operations",
                 }
         if identifier not in existing:
             config["sites"].append(desired)

@@ -1,6 +1,7 @@
 'use client'
 import { TableScrollRegion } from './TableScrollRegion'
 import Link from 'next/link'
+import { LeanResearchValidation } from './LeanValidation'
 import { ResearchLab } from './ResearchLab'
 import { ResearchActivity } from './ResearchActivity'
 import { ResearchControl } from './ResearchControl'
@@ -539,6 +540,7 @@ export function ResearchWorkspace({
           Read-only workspace. Sign in through the header to save drafts or request research.
         </p>
       )}
+      {mode === 'systems' && asset === 'bitcoin' && !editing && <LeanResearchValidation />}
       {mode === 'systems' && (
         <>
           {asset === 'bitcoin' && !editing && <BitcoinSystemResearch />}

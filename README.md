@@ -70,7 +70,9 @@ Code can be deployed while manual trading remains visibly **unconfigured**.
 
 The separate [LEAN runner](https://github.com/mjm2z/stockwatch-lean) runs on
 a1347-d at `0aef431`; StockWatch's background bridge and **Crypto → Systems**
-comparison interface are deployed at `992d909e0ec6`. Preview and queue supported
+comparison engine are deployed at `992d909e0ec6`. Browser verification found the
+card is currently reachable only at `/systems?asset=bitcoin&legacy=1`; its normal
+Systems-library mount and mobile sizing fix are prepared for the next release. Preview and queue supported
 original Bitcoin hourly trend comparisons, inspect metrics/equity/differences,
 cancel research work or download full evidence. The scoped runner has no broker
 credentials or trading authority. HomeOps monitors its bridge health.

@@ -113,7 +113,7 @@ export function LeanValidation({ versions, datasets }: { versions: Row[]; datase
   const healthy = state.health?.healthy && !state.health?.stale
   const summary = detail.summary
   return (
-    <section className="sw-panel" aria-label="LEAN validation">
+    <section className="sw-panel min-w-0" aria-label="LEAN validation">
       <div className="flex flex-wrap justify-between gap-3">
         <div>
           <h2 className="text-lg font-semibold">Validate with LEAN</h2>
@@ -258,9 +258,9 @@ export function LeanValidation({ versions, datasets }: { versions: Row[]; datase
             {summary.difference_count} differences · Money ±$0.01 · Quantity ±
             {summary.tolerances?.quantity} BTC · Drawdown ±1 basis point
           </p>
-          <div className="grid lg:grid-cols-2 gap-5 mt-4">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 mt-4">
             {['baseline', 'lean'].map((key) => (
-              <div key={key}>
+              <div key={key} className="min-w-0">
                 <h4 className="font-medium">{key === 'baseline' ? 'StockWatch' : 'LEAN'}</h4>
                 <p className="sw-muted">
                   Ending equity ${summary[key]?.ending_equity?.toFixed(2)} · Fees $
@@ -342,5 +342,49 @@ export function LeanValidation({ versions, datasets }: { versions: Row[]; datase
         </div>
       )}
     </section>
+  )
+}
+
+/** Current Systems library uses a different document schema; load the supported
+ * immutable engine catalog directly rather than converting visual documents. */
+export function LeanResearchValidation() {
+  const [catalog, setCatalog] = useState<{ versions: Row[]; datasets: Row[] }>({
+    versions: [],
+    datasets: [],
+  })
+  const [error, setError] = useState('')
+  useEffect(() => {
+    const controller = new AbortController()
+    async function load() {
+      try {
+        const response = await fetch('/api/systems?asset=bitcoin', {
+          cache: 'no-store',
+          signal: controller.signal,
+        })
+        const body = await response.json()
+        if (!response.ok) throw Error(body.error || 'LEAN input catalog unavailable')
+        setCatalog({ versions: body.versions, datasets: body.datasets })
+        setError('')
+      } catch (error) {
+        if (!controller.signal.aborted)
+          setError(error instanceof Error ? error.message : 'LEAN input catalog unavailable')
+      }
+    }
+    void load()
+    const timer = setInterval(load, 15000)
+    return () => {
+      controller.abort()
+      clearInterval(timer)
+    }
+  }, [])
+  return (
+    <div>
+      {error && (
+        <p role="alert" className="sw-notice sw-error">
+          {error}
+        </p>
+      )}
+      <LeanValidation {...catalog} />
+    </div>
   )
 }

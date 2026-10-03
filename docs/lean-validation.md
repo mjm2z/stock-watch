@@ -21,7 +21,7 @@ next-bar execution, not proof of executable fills or profitability. Only three
 closed trades occurred; hourly marks cannot reproduce continuous risk execution.
 No qualification, activation or broker order was created. See the compact
 [evidence record](lean-historical-verification.json), or open the completed run
-in **Crypto → Systems → LEAN** and download its complete report.
+in the existing advanced screen at `/systems?asset=bitcoin&legacy=1` and download its complete report.
 
 The independent runner repository is [stockwatch-lean](https://github.com/mjm2z/stockwatch-lean).
 It uses the free LEAN engine directly, without a paid QuantConnect CLI, cloud job,
@@ -145,3 +145,30 @@ registered hourly dataset. An operator session is required for mutations. Read-o
 status is available at `/api/lean` and runner health at `/api/health/lean`.
 Research SSH files live in `/etc/stock-watch-lean`, independently of root-only
 broker configuration. Do not move them back under `/etc/stock-watch`.
+
+## Operational verification follow-up — October 3
+
+The browser walkthrough found that the original LEAN card was mounted only in the
+older Systems screen. The normal `/systems?asset=bitcoin` library did not expose it,
+and `/crypto?view=systems` incorrectly opened Overview. A corrected mount and
+monitoring links are prepared in source; they require a reviewed application release.
+The old screen's historical metrics and charts rendered in the deployed browser.
+Mobile chart overflow was also found; the prepared fix constrains grid children.
+
+`deploy/lean-watchdog.py` adds a separate a1347-j research monitor using the existing
+protected Telegram transport. It checks each minute, requires three failures and
+two successes, preserves 22:00–11:00 Eastern quiet hours, and records uncertain
+sends without automatic retry. `deploy/install-lean-watchdog-root.py` verifies its
+source hash and healthy baseline before installation. This does not change the
+HomeOps watchdog target. Monitor installation and real delivery are still pending.
+
+Runner `deploy/verify-operations.py` provides isolated `restart`, `timeout` and
+`outage` exercises on a1347-d, with journal progress and an empty-queue prerequisite.
+Restart must retain the container identity and exact verified synthetic result.
+Timeout retains the full production 30 minutes, requires container cleanup and a
+subsequent matching fixture. Outage schedules automatic restoration before a
+five-minute runner-only stop; inspect a1347-j incident receipts afterward.
+Run scenarios sequentially and leave the research queue idle during verification.
+The bridge helper `deploy/verify-lean-bridge-root.py` queues a separate audited
+historical replay and restarts only the bridge while it is awaiting LEAN.
+No live failure exercise has yet passed; local boundary tests are not substitutes.
