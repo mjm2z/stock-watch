@@ -43,6 +43,19 @@ class MonitoringRegistration(unittest.TestCase):
             self.assertEqual(config.read_bytes(), before)
             self.assertEqual(len(list(config.parent.glob('*.before-live-paper-*'))), 1)
 
+    def test_proxy_uses_compatibility_listener_and_canonical_browser_link(self):
+        with tempfile.TemporaryDirectory() as directory:
+            home = Path(directory)
+            config = home / '.config/home-ops/server.json'
+            config.parent.mkdir(parents=True)
+            config.write_text(json.dumps({'sites': [{'id': 'stock-watch', 'url': 'http://192.168.4.35:3001', 'open_url': 'http://stockwatch.home.arpa:3001'}]}))
+            self.run_registration(home, {'market-feed': {'fresh': True, 'retention': {'healthy': True}}}, ['proxy'])
+            sites = json.loads(config.read_text())['sites']
+            self.assertEqual(sites[0]['url'], 'http://192.168.4.35:3001')
+            self.assertEqual(sites[0]['open_url'], 'http://stockwatch.home.arpa/')
+            self.assertEqual(sites[1]['url'], 'http://192.168.4.36:3001/api/health/market-feed')
+            self.assertEqual(sites[1]['machine'], 'a1990')
+
     def test_unhealthy_body_does_not_partially_register(self):
         with tempfile.TemporaryDirectory() as directory:
             home = Path(directory)

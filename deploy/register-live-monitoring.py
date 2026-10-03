@@ -29,8 +29,10 @@ def main():
     config = json.loads(original)
     existing = {s["id"]: s for s in config["sites"]}
     added = []
+    # The proxy compatibility listener has its own virtual host; this check does
+    # not depend on the monitoring host using the LAN DNS resolver.
     for component in dict.fromkeys(args.components):
-        url = "http://stockwatch.home.arpa/api/health/market-feed" if component == "proxy" else "http://192.168.4.35:3001/api/health/" + component
+        url = "http://192.168.4.36:3001/api/health/market-feed" if component == "proxy" else "http://192.168.4.35:3001/api/health/" + component
         with urlopen(url, timeout=5) as response:
             body = json.load(response)
             healthy = (body.get("fresh") is True and body.get("retention", {}).get("healthy") is True
@@ -57,6 +59,10 @@ def main():
             if existing[identifier].get("page_url") == url:
                 del existing[identifier]["page_url"]
             added.append(component)
+    parent = existing.get('stock-watch')
+    if parent and parent.get('open_url') != 'http://stockwatch.home.arpa/':
+        parent['open_url'] = 'http://stockwatch.home.arpa/'
+        added.append('browser-link')
     if not added:
         print("Selected healthy components are already registered; no configuration changed.")
         return
@@ -74,7 +80,7 @@ def main():
     os.replace(temporary, path)
     print(
         "Registered healthy StockWatch components: " + ", ".join(added)
-        + ". Restart home-ops.service and home-ops-network.service, then verify a1347-j reporting."
+        + ". Restart the user units with systemctl --user restart home-ops.service home-ops-network.service, then verify a1347-j reporting."
     )
 
 

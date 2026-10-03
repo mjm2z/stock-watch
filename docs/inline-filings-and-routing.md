@@ -89,7 +89,7 @@ these UI checks. Live source coverage, advancing SSE through the proxy, auth beh
 and both installed identities must be checked after the separate root installations.
 
 After activation, `deploy/register-live-monitoring.py --components proxy` registers
-an independently checked canonical-route market-feed endpoint in HomeOps. Its default
+an independently checked proxy market-feed endpoint in HomeOps. Its default
 still registers the three direct-backend component checks; no monitor is silently
 switched to depend solely on the proxy. Follow the helper's restart instructions.
 
@@ -147,3 +147,34 @@ characters of primary-document excerpt and 16 exact-accession financial facts,
 with no collection error. This verifies one filing, not universal issuer/exhibit
 coverage. Firefox smoke testing and registration of the optional separate HomeOps
 proxy monitor remain follow-up items. No test orders were submitted.
+
+
+### Follow-up verification — October 2, 23:38 Eastern
+
+Firefox 155 passed live checks at 1440px and 390px: vertical scrollbar width `none`,
+keyboard PageDown advanced source excerpts by 288px, and neither viewport had
+horizontal page overflow. AAPL earnings filing `0000320193-26-000018` returned
+3,446 characters of primary text with no error; no unambiguous earnings exhibit
+was extracted. SPY was correctly classified as a fund. Its NPORT-P document
+`0001410368-26-089410` is unsupported by the HTML/text extractor and returned an
+explicit unavailable-format message; fund document extraction remains limited.
+
+The HomeOps server on a1347-m cannot resolve the LAN hostname through its default
+resolver. The registration helper therefore checks the dedicated compatibility
+proxy listener at `http://192.168.4.36:3001/api/health/market-feed`, retaining the
+canonical browser URL separately. This verifies proxy HTTP reachability, not LAN
+DNS or port-80 routing. HomeOps reported the check reachable (HTTP 200, 56ms) at
+03:37:29 UTC. The existing three direct component checks were preserved and their
+browser links, plus the parent StockWatch link, now omit the port. Configuration
+backups were retained; both HomeOps user services restarted and are active. The
+helper is installed separately at `/home/mjm2z/register-stockwatch-monitoring.py`;
+application revision remains `2d69d52`. Four registration regression tests pass.
+The a1347-j collector/connectivity cron schedules remain present; separate watchdog
+alert delivery was not tested or triggered.
+
+General StockWatch health remains degraded by old operation rows still labelled
+running, including work-once from October 1 and backup/dispatch/exit operations
+from September 29–30. The latest broker reconciliation is matched and no recent
+operation failure is reported. Repairing interruption recovery requires checking
+actual ownership and preserving the audit trail; this verification did not rewrite
+those rows or submit paper orders.

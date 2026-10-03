@@ -11,7 +11,10 @@ a1990 forwards to a1347-m:3001; the old hostname with :3001 remains compatible.
 Live Coinbase SSE events advance through the proxy. A real AAPL 10-Q completed
 background extraction with source text and 16 exact-accession financial facts.
 Inline SEC filing excerpts, hidden vertical scrollbar tracks and port-free routing
-are deployed. See [coverage, limitations and verification](docs/inline-filings-and-routing.md).
+are deployed. Firefox desktop/mobile scrolling is verified. HomeOps now monitors
+proxy HTTP reachability through its compatibility listener (independent of LAN DNS),
+with port-free browser links. Earnings primary text was verified; SPY N-PORT document
+extraction remains unsupported. See [coverage, limitations and verification](docs/inline-filings-and-routing.md).
 
 Completed cleanup reclaimed about **201 GiB** from old builds, abandoned backups
 and redundant recovery databases. Storage maintenance subsequently reduced the
