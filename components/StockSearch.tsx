@@ -251,7 +251,7 @@ export function StockSearch({
       {/* Results Dropdown */}
       {isOpen && results.length > 0 && (
         <ul
-          className="absolute z-50 mt-1 max-h-80 w-full overflow-auto rounded-md border bg-popover p-1 shadow-lg"
+          className="absolute z-50 mt-1 max-h-80 w-full overflow-y-auto rounded-md border bg-popover p-1 shadow-lg"
           id={resultId}
           role="listbox"
         >

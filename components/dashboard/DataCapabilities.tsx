@@ -54,7 +54,7 @@ export function DataCapabilities() {
             <summary className="break-all text-sm">
               {r.id} · {r.recordedAt}
             </summary>
-            <pre className="max-h-80 overflow-auto whitespace-pre-wrap break-all text-xs">
+            <pre className="max-h-80 overflow-y-auto whitespace-pre-wrap break-words whitespace-pre-wrap break-all text-xs">
               {JSON.stringify(r.review, null, 2)}
             </pre>
           </details>

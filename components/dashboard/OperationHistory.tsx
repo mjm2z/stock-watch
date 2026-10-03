@@ -78,7 +78,7 @@ export function OperationHistory({ runs }: { runs: Run[] }) {
                     )}
                     <details className="mt-2">
                       <summary>Raw audit record</summary>
-                      <pre className="mt-2 max-h-80 overflow-auto whitespace-pre-wrap break-all text-xs">
+                      <pre className="mt-2 max-h-80 overflow-y-auto whitespace-pre-wrap break-words whitespace-pre-wrap break-all text-xs">
                         {JSON.stringify(run, null, 2)}
                       </pre>
                     </details>

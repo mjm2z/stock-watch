@@ -1,14 +1,15 @@
 # StockWatch
 
-As verified on **October 1, 2026 at 23:03 Eastern**, production on a1347-m runs
-chart-control refinement **`7563c75`**, installed at 23:03 Eastern as a code-only
-release. It follows green-theme/chart-navigation release `8f8c26a`.
-Storage release `fb6c33a` completed at 21:12 Eastern; migration 023 and offline
-compaction completed, and automatic storage retention is enabled. The UI release
-applied migration 024, passed its installer checks, and serves the LAN overview
-with HTTP 200. Its reviewed stage is
-`/home/mjm2z/stock-watch-releases/7563c751b286`. See the
-[UI release report](docs/ui-polish-2026-10-01.md) for verification and rollout status.
+As verified on **October 2, 2026 at 22:33 Eastern**, production on a1347-m runs
+SEC company-information release **`67e2ba9`**, installed at 20:01 Eastern with
+migration **025** and the company-context timer enabled. Web, feed, execution and
+manual-paper services were active; feed, execution and notification checks passed.
+The verified recovery snapshot is `/var/backups/stock-watch-releases/20261002T224616Z`.
+
+The next source change adds inline SEC filing excerpts, exact-accession financial
+facts, hidden vertical scrollbar tracks and a reviewed port-free routing helper.
+**These additions require a new application installation and a separate proxy
+activation; they are not yet verified live.** See [inline filings and LAN routing](docs/inline-filings-and-routing.md).
 
 Completed cleanup reclaimed about **201 GiB** from old builds, abandoned backups
 and redundant recovery databases. Storage maintenance subsequently reduced the
@@ -43,7 +44,7 @@ owns trading validation, reservations, order intent and accounting.
 
 The installed application includes the manual paper ticket, instrument charts,
 system research and backtesting, activity records, and matching app/favicon artwork.
-Migrations through Signals navigation index **024** are installed. A build, fixture test or screenshot establishes
+Migrations through SEC company context **025** are installed; filing-details migration **026** is pending installation. A build, fixture test or screenshot establishes
 source behavior, not installation or broker connectivity.
 
 Current setup instructions are here and in the linked guides. Dated release reports
@@ -166,9 +167,8 @@ failed request pauses minute-window refresh; interrupted Bitcoin collection gets
 one automatic retry before requiring Retry. Existing bars stay visible. TradingView
 attribution moves from individual charts to a single app-footer link.
 
-The **Company information** release `67e2ba9` is committed, pushed and verified
-in Linux staging at `/home/mjm2z/stock-watch-releases/67e2ba9211a0` (not yet
-installed). It follows chart selections and shows SEC filings, annual reported
+The **Company information** release `67e2ba9` is installed from its reviewed
+stage at `/home/mjm2z/stock-watch-releases/67e2ba9211a0`. It follows chart selections and shows SEC filings, annual reported
 financials with source links, and earnings-related 8-K disclosures. Funds use an
 issuer-filings view without corporate earnings metrics. Collection is asynchronous,
 with bounded storage and reuse of existing SEC facts; it cannot submit trades or

@@ -170,7 +170,7 @@ export function ChartInspection({
             </select>
           </label>
           {system && (
-            <pre className="mt-2 max-h-48 overflow-auto text-xs">
+            <pre className="mt-2 max-h-48 overflow-y-auto whitespace-pre-wrap break-words text-xs">
               {JSON.stringify(
                 data.systems?.find((s) => s.id === system),
                 null,
@@ -225,7 +225,7 @@ export function ChartInspection({
               <summary>
                 {event.at} · {event.label}
               </summary>
-              <pre className="max-h-60 overflow-auto text-xs">
+              <pre className="max-h-60 overflow-y-auto whitespace-pre-wrap break-words text-xs">
                 {JSON.stringify(event.evidence, null, 2)}
               </pre>
             </details>
@@ -254,7 +254,7 @@ export function ChartInspection({
             <dt>As of</dt>
             <dd>{selected.asOf}</dd>
           </dl>
-          <pre className="max-h-64 overflow-auto text-xs">
+          <pre className="max-h-64 overflow-y-auto whitespace-pre-wrap break-words text-xs">
             {JSON.stringify(selected.evidence, null, 2)}
           </pre>
         </section>

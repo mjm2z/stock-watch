@@ -8,7 +8,7 @@ function Evidence({ name, value }: { name: string; value: unknown }) {
   return (
     <details className="rounded border p-3">
       <summary className="cursor-pointer font-medium">{name}</summary>
-      <pre className="text-xs whitespace-pre-wrap break-words mt-3 max-h-96 overflow-auto">
+      <pre className="text-xs whitespace-pre-wrap break-words mt-3 max-h-96 overflow-y-auto whitespace-pre-wrap break-words">
         {JSON.stringify(value, null, 2)}
       </pre>
     </details>

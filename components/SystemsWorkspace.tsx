@@ -257,7 +257,7 @@ export function SystemsWorkspace({ asset }: { asset: 'stocks' | 'bitcoin' }) {
           {dataset && (
             <details className="text-sm">
               <summary>Dataset provenance and coverage</summary>
-              <pre className="overflow-auto whitespace-pre-wrap p-2">
+              <pre className="overflow-y-auto whitespace-pre-wrap break-words whitespace-pre-wrap p-2">
                 {JSON.stringify(
                   obj(data.datasets.find((d) => d.id === dataset)?.manifest_json),
                   null,
@@ -375,7 +375,7 @@ export function SystemsWorkspace({ asset }: { asset: 'stocks' | 'bitcoin' }) {
                     <summary className="cursor-pointer text-sm">
                       Execution, benchmark, and reproducibility details
                     </summary>
-                    <pre className="max-h-96 overflow-auto whitespace-pre-wrap text-xs">
+                    <pre className="max-h-96 overflow-y-auto whitespace-pre-wrap break-words whitespace-pre-wrap text-xs">
                       {JSON.stringify(result, null, 2)}
                     </pre>
                   </details>
@@ -493,7 +493,7 @@ export function SystemsWorkspace({ asset }: { asset: 'stocks' | 'bitcoin' }) {
               <span>
                 {String(o.observed_at)} · {String(o.kind)}
               </span>
-              <pre className="max-h-64 overflow-auto whitespace-pre-wrap text-xs">
+              <pre className="max-h-64 overflow-y-auto whitespace-pre-wrap break-words whitespace-pre-wrap text-xs">
                 {JSON.stringify(obj(o.payload_json), null, 2)}
               </pre>
             </div>

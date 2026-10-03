@@ -297,7 +297,7 @@ export default function BacktestsPage() {
                   {Object.keys(run.metrics).length ? (
                     <details className="mt-5 rounded-lg bg-muted p-3 text-xs">
                       <summary className="cursor-pointer font-medium">Raw audit metrics</summary>
-                      <pre className="mt-3 max-h-64 overflow-auto">
+                      <pre className="mt-3 max-h-64 overflow-y-auto whitespace-pre-wrap break-words">
                         {JSON.stringify(run.metrics, null, 2)}
                       </pre>
                     </details>

@@ -70,7 +70,7 @@ export default function OperationsPage() {
                   </p>
                   <details className="mt-2 text-sm">
                     <summary>Discrepancy evidence</summary>
-                    <pre className="overflow-auto whitespace-pre-wrap break-all rounded-lg bg-muted p-3 text-xs">
+                    <pre className="overflow-y-auto whitespace-pre-wrap break-words whitespace-pre-wrap break-all rounded-lg bg-muted p-3 text-xs">
                       {JSON.stringify(operations.brokerReconciliation.discrepancies, null, 2)}
                     </pre>
                   </details>
@@ -88,7 +88,7 @@ export default function OperationsPage() {
                       {operations.brokerReconciliation.corporateActions.length} corporate-action
                       records
                     </summary>
-                    <pre className="overflow-auto whitespace-pre-wrap break-all rounded-lg bg-muted p-3 text-xs">
+                    <pre className="overflow-y-auto whitespace-pre-wrap break-words whitespace-pre-wrap break-all rounded-lg bg-muted p-3 text-xs">
                       {JSON.stringify(operations.brokerReconciliation.corporateActions, null, 2)}
                     </pre>
                   </details>

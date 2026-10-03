@@ -54,6 +54,7 @@ def project(submissions, facts, cik, symbol, kind, now, facts_at=None):
         rows.append({'accession': accession, 'form': form, 'filed': value('filingDate'),
                      'accepted': accepted[accession], 'period': value('reportDate'),
                      'description': str(value('primaryDocDescription'))[:200], 'url': url,
+                     'primaryDocument': str(value('primaryDocument')), 'items': str(value('items')),
                      'earningsRelated': form.removesuffix('/A') == '8-K' and
                      '2.02' in re.split(r'[,;\s]+', str(value('items')))})
     rows.sort(key=lambda r: (r['filed'], r['accession']), reverse=True)
@@ -192,16 +193,25 @@ def main():
         fcntl.flock(lock, fcntl.LOCK_EX)
         with connect(args.database) as db:
             now = datetime.now(timezone.utc)
+            # Daily timer activity also expires completed filing projections while idle.
+            with db:
+                db.execute("DELETE FROM filing_details WHERE status NOT IN ('queued','running') AND requested_at<?", (stamp(now-timedelta(days=30)),))
             # No credentials or provider calls while the queue is idle.
-            if not db.execute("SELECT 1 FROM company_context WHERE status IN ('queued','running') LIMIT 1").fetchone():
+            if not db.execute("SELECT 1 FROM company_context WHERE status IN ('queued','running') UNION ALL SELECT 1 FROM filing_details WHERE status IN ('queued','running') LIMIT 1").fetchone():
                 return
             try:
                 sec = SecClient(user_agent=os.environ.get('SEC_USER_AGENT', ''), limiter=MinimumIntervalLimiter(1))
             except ValueError:
                 with db:
                     db.execute("UPDATE company_context SET status='unavailable',error='SEC identity is not configured',retry_after=? WHERE status IN ('queued','running')", (stamp(now + timedelta(minutes=15)),))
+                    db.execute("UPDATE filing_details SET status='unavailable',error='SEC identity is not configured',retry_after=? WHERE status IN ('queued','running')", (stamp(now + timedelta(minutes=15)),))
                 return
-            run_next(db, sec, now)
+            from .filing_details import run_next as run_filing
+            oldest = db.execute("SELECT kind FROM (SELECT 'company' kind,requested_at FROM company_context WHERE status IN ('queued','running') UNION ALL SELECT 'filing',requested_at FROM filing_details WHERE status IN ('queued','running')) ORDER BY requested_at LIMIT 1").fetchone()
+            if oldest['kind'] == 'filing':
+                run_filing(db, sec, now)
+            else:
+                run_next(db, sec, now)
 
 
 if __name__ == '__main__':

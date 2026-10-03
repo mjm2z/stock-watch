@@ -179,7 +179,7 @@ export function ActivityWorkspace({
             event establishes only its recorded stage; missing input or rule evidence is
             unavailable.
           </p>
-          <pre className="mt-4 max-h-96 overflow-auto text-xs">
+          <pre className="mt-4 max-h-96 overflow-y-auto whitespace-pre-wrap break-words text-xs">
             {JSON.stringify(selected.evidence, null, 2)}
           </pre>
         </section>

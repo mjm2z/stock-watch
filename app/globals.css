@@ -178,7 +178,6 @@
   color-scheme: dark;
 }
 html {
-  scrollbar-gutter: stable;
 }
 body {
   font-size: 14px;
@@ -920,4 +919,25 @@ select:disabled {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.sw-chart-feedback button { color: hsl(var(--primary)); flex-shrink: 0; }
+.sw-chart-feedback button {
+  color: hsl(var(--primary));
+  flex-shrink: 0;
+}
+
+/* Hide vertical tracks without disabling wheel, touch or keyboard scrolling.
+   Horizontal tracks remain visible in Chromium/WebKit. */
+*::-webkit-scrollbar {
+  width: 0;
+  height: 8px;
+}
+*::-webkit-scrollbar-thumb {
+  background: hsl(var(--muted-foreground) / 0.35);
+  border-radius: 8px;
+}
+@supports (-moz-appearance: none) {
+  html,
+  .sw-sidebar,
+  .overflow-y-auto {
+    scrollbar-width: none;
+  }
+}

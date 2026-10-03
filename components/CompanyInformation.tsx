@@ -1,5 +1,6 @@
 'use client'
 import { useEffect, useState } from 'react'
+import { FilingDetails } from './FilingDetails'
 import { ExternalLink, LoaderCircle } from 'lucide-react'
 
 type Filing = {
@@ -56,6 +57,8 @@ export function CompanyInformation({ symbols }: { symbols: string[] }) {
   const [state, setState] = useState<Context>()
   const [retry, setRetry] = useState(0)
   const [filter, setFilter] = useState('all')
+  const [expanded, setExpanded] = useState<string | null>(null)
+  useEffect(() => setExpanded(null), [symbol])
   useEffect(() => {
     setSelected(symbols.at(-1) || '')
     setFilter('all')
@@ -235,33 +238,53 @@ export function CompanyInformation({ symbols }: { symbols: string[] }) {
                   <option value="earnings">Earnings disclosures</option>
                 </select>
               </div>
-              <ul className="divide-y max-h-80 overflow-auto">
+              <ul
+                className="divide-y max-h-[36rem] overflow-y-auto"
+                tabIndex={0}
+                aria-label="Recent SEC filings"
+              >
                 {filings.map((f) => (
-                  <li key={f.accession} className="py-3 flex items-start justify-between gap-3">
-                    <div>
-                      <a
-                        className="text-primary hover:underline inline-flex items-center gap-2"
-                        href={sourceURL(f.url)}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                      >
-                        {f.form}
-                        {f.earningsRelated ? ' · Earnings disclosure' : ''}
-                        <ExternalLink size={12} />
-                      </a>
-                      <p className="text-xs text-muted-foreground">
-                        {f.description || f.accession}
-                        {f.period ? ` · Period ${f.period}` : ''}
-                      </p>
-                      {f.accepted && (
+                  <li key={f.accession} className="py-3">
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <button
+                          className="text-primary hover:underline text-left"
+                          aria-expanded={expanded === f.accession}
+                          onClick={() => setExpanded(expanded === f.accession ? null : f.accession)}
+                        >
+                          {f.form}
+                          {f.earningsRelated ? ' · Earnings disclosure' : ''} ·{' '}
+                          {expanded === f.accession ? 'Hide details' : 'View details'}
+                        </button>
+                        <a
+                          className="ml-3 text-xs text-muted-foreground inline-flex items-center gap-1"
+                          href={sourceURL(f.url)}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                        >
+                          View original <ExternalLink size={12} />
+                        </a>
                         <p className="text-xs text-muted-foreground">
-                          Accepted {new Date(f.accepted).toLocaleString()}
+                          {f.description || f.accession}
+                          {f.period ? ` · Period ${f.period}` : ''}
                         </p>
-                      )}
+                        {f.accepted && (
+                          <p className="text-xs text-muted-foreground">
+                            Accepted {new Date(f.accepted).toLocaleString()}
+                          </p>
+                        )}
+                      </div>
+                      <time className="text-xs text-muted-foreground whitespace-nowrap">
+                        {f.filed}
+                      </time>
                     </div>
-                    <time className="text-xs text-muted-foreground whitespace-nowrap">
-                      {f.filed}
-                    </time>
+                    {expanded === f.accession && (
+                      <FilingDetails
+                        key={`${symbol}-${f.accession}`}
+                        symbol={symbol}
+                        accession={f.accession}
+                      />
+                    )}
                   </li>
                 ))}
               </ul>

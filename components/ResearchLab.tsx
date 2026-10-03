@@ -331,7 +331,7 @@ export function ResearchLab({
               )}
               <details>
                 <summary>Inputs, warmup, folds, data treatment and authority</summary>
-                <pre className="max-h-72 overflow-auto text-xs">
+                <pre className="max-h-72 overflow-y-auto whitespace-pre-wrap break-words text-xs">
                   {JSON.stringify(run.result.preflight, null, 2)}
                 </pre>
               </details>
@@ -366,7 +366,7 @@ export function ResearchLab({
                   />
                   <details>
                     <summary>Hypothetical fills (first 200) and costs</summary>
-                    <pre className="max-h-72 overflow-auto text-xs">
+                    <pre className="max-h-72 overflow-y-auto whitespace-pre-wrap break-words text-xs">
                       {JSON.stringify(run.result.continuous.fills, null, 2)}
                     </pre>
                   </details>
@@ -396,7 +396,7 @@ export function ResearchLab({
           {exp.plan.real_data_plan && <p>{exp.plan.real_data_plan}</p>}
           <details>
             <summary>Frozen plan and configuration differences</summary>
-            <pre className="max-h-80 overflow-auto text-xs">
+            <pre className="max-h-80 overflow-y-auto whitespace-pre-wrap break-words text-xs">
               {JSON.stringify(
                 {
                   plan: exp.plan,
@@ -518,7 +518,7 @@ export function ResearchLab({
           </form>
           <details>
             <summary>Review history</summary>
-            <pre className="max-h-64 overflow-auto text-xs">
+            <pre className="max-h-64 overflow-y-auto whitespace-pre-wrap break-words text-xs">
               {JSON.stringify(exp.reviews, null, 2)}
             </pre>
           </details>

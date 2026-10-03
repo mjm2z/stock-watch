@@ -46,7 +46,7 @@ export function MechanismInspector() {
                   ? 'Unconfigured / unavailable'
                   : 'Unavailable or stale'}
             </summary>
-            <pre className="mt-3 max-h-52 overflow-auto text-xs">
+            <pre className="mt-3 max-h-52 overflow-y-auto whitespace-pre-wrap break-words text-xs">
               {JSON.stringify(c.data, null, 2)}
             </pre>
           </details>

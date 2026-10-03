@@ -45,7 +45,7 @@ test('selects newly added ticker, ignores a late response from the old company a
   await act(async () => complete({ ok: true, json: async () => body('SPY', 'fund') }))
   expect(screen.queryByText(/SPY issuer/)).not.toBeInTheDocument()
   fireEvent.change(screen.getByLabelText('Filing filter'), { target: { value: 'earnings' } })
-  expect(screen.getByRole('link', { name: /8-K/ })).toHaveAttribute(
+  expect(screen.getByRole('link', { name: /View original/ })).toHaveAttribute(
     'href',
     expect.stringContaining('https://www.sec.gov/Archives/')
   )
@@ -53,22 +53,46 @@ test('selects newly added ticker, ignores a late response from the old company a
   expect(screen.getByText(/Add a stock/)).toBeInTheDocument()
 })
 test('fund view omits corporate financials and preserves stale filings on failure', async () => {
-  global.fetch = jest
-    .fn()
-    .mockResolvedValue({
-      ok: true,
-      json: async () => ({
-        ...body('SPY', 'fund'),
-        status: 'unavailable',
-        stale: true,
-        error: 'SEC collection unavailable',
-      }),
-    })
+  global.fetch = jest.fn().mockResolvedValue({
+    ok: true,
+    json: async () => ({
+      ...body('SPY', 'fund'),
+      status: 'unavailable',
+      stale: true,
+      error: 'SEC collection unavailable',
+    }),
+  })
   render(<CompanyInformation symbols={['SPY']} />)
   await screen.findByText(/Fund issuer filings/)
   expect(screen.queryByText('Revenue')).not.toBeInTheDocument()
   expect(screen.getByText(/Previously collected/)).toBeInTheDocument()
-  expect(screen.getByRole('link', { name: /8-K/ })).toBeInTheDocument()
+  expect(screen.getByRole('link', { name: /View original/ })).toBeInTheDocument()
   fireEvent.click(screen.getByRole('button', { name: 'Check again' }))
   await waitFor(() => expect(global.fetch).toHaveBeenCalledTimes(2))
+})
+
+test('expands SEC source text inline and collapses it', async () => {
+  global.fetch = jest
+    .fn()
+    .mockImplementation((url: string) =>
+      Promise.resolve({
+        ok: true,
+        json: async () =>
+          url.includes('/filings/')
+            ? {
+                status: 'ready',
+                data: {
+                  observedAt: '2026-10-02',
+                  metrics: [],
+                  excerpt: { label: 'Opening source excerpt', text: 'Reported source text' },
+                },
+              }
+            : body('AAPL'),
+      })
+    )
+  render(<CompanyInformation symbols={['AAPL']} />)
+  fireEvent.click(await screen.findByRole('button', { name: /View details/ }))
+  expect(await screen.findByText('Reported source text')).toBeInTheDocument()
+  fireEvent.click(screen.getByRole('button', { name: /Hide details/ }))
+  expect(screen.queryByText('Reported source text')).not.toBeInTheDocument()
 })

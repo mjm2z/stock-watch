@@ -527,7 +527,7 @@ export function ManualPaperWorkspace({
           <p className="my-3 break-all text-sm">
             {selected.id} · {selected.asset} · {selected.account_id}
           </p>
-          <pre className="max-h-64 overflow-auto text-xs">{JSON.stringify(selected, null, 2)}</pre>
+          <pre className="max-h-64 overflow-y-auto whitespace-pre-wrap break-words text-xs">{JSON.stringify(selected, null, 2)}</pre>
           {selected.record_kind === 'position' && (
             <PositionExit
               key={selected.asset + selected.symbol}

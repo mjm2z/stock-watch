@@ -1,4 +1,5 @@
 'use client'
+import { TableScrollRegion } from './TableScrollRegion'
 import { LoaderCircle } from 'lucide-react'
 import { useChartHistory } from './useChartHistory'
 import type { HistoryWindow } from '@/lib/chart-window'
@@ -355,7 +356,7 @@ export function InteractiveChart({
               Next observations
             </button>
           </div>
-          <div className="max-h-64 overflow-auto mt-3">
+          <TableScrollRegion className="max-h-64 mt-3">
             <table className="w-full">
               <thead>
                 <tr>
@@ -378,7 +379,7 @@ export function InteractiveChart({
                 ))}
               </tbody>
             </table>
-          </div>
+          </TableScrollRegion>
         </details>
       )}
     </div>

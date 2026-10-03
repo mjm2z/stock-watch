@@ -1,4 +1,5 @@
 'use client'
+import { TableScrollRegion } from './TableScrollRegion'
 import Link from 'next/link'
 import { ResearchLab } from './ResearchLab'
 import { ResearchActivity } from './ResearchActivity'
@@ -1183,7 +1184,7 @@ function Result({ run }: { run: Run }) {
       </div>
       <details className="my-4">
         <summary>Modeled fills</summary>
-        <div className="overflow-auto max-h-64">
+        <TableScrollRegion className="max-h-64 mt-3">
           <table className="w-full text-xs">
             <thead>
               <tr>
@@ -1207,12 +1208,12 @@ function Result({ run }: { run: Run }) {
                 ))}
             </tbody>
           </table>
-        </div>
+        </TableScrollRegion>
         <p className="sw-muted">First 200 fills. Complete evidence remains in the saved run.</p>
       </details>
       <details className="mt-4 text-sm">
         <summary>Result preview and limitations</summary>
-        <pre className="whitespace-pre-wrap break-words text-xs mt-3 max-h-80 overflow-auto">
+        <pre className="whitespace-pre-wrap break-words text-xs mt-3 max-h-80 overflow-y-auto whitespace-pre-wrap break-words">
           {JSON.stringify(result, null, 2)}
         </pre>
       </details>

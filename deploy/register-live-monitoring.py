@@ -14,12 +14,12 @@ import socket
 from urllib.request import urlopen
 
 
-COMPONENTS = ("market-feed", "execution", "notifications")
+COMPONENTS = ("market-feed", "execution", "notifications", "proxy")
 
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--components", nargs="+", choices=COMPONENTS, default=COMPONENTS,
+    parser.add_argument("--components", nargs="+", choices=COMPONENTS, default=COMPONENTS[:3],
                         help="Register ready components independently; default: all three")
     args = parser.parse_args()
     if socket.gethostname().split(".")[0] != "a1347-m":
@@ -30,11 +30,11 @@ def main():
     existing = {s["id"]: s for s in config["sites"]}
     added = []
     for component in dict.fromkeys(args.components):
-        url = "http://192.168.4.35:3001/api/health/" + component
+        url = "http://stockwatch.home.arpa/api/health/market-feed" if component == "proxy" else "http://192.168.4.35:3001/api/health/" + component
         with urlopen(url, timeout=5) as response:
             body = json.load(response)
             healthy = (body.get("fresh") is True and body.get("retention", {}).get("healthy") is True
-                       if component == "market-feed" else body.get("healthy") is True)
+                       if component in ("market-feed", "proxy") else body.get("healthy") is True)
             if response.status != 200 or not healthy:
                 raise RuntimeError(component + " is not ready")
         identifier = "stock-watch-" + component
@@ -43,11 +43,11 @@ def main():
         desired = {
                     "id": identifier,
                     "name": "StockWatch " + component,
-                    "machine": "a1347-m",
+                    "machine": "a1990" if component == "proxy" else "a1347-m",
                     "url": url,
                     "kind": "API",
                     "parent_site": "stock-watch",
-                    "open_url": "http://stockwatch.home.arpa:3001/crypto?view=operations",
+                    "open_url": "http://stockwatch.home.arpa/crypto?view=operations",
                 }
         if identifier not in existing:
             config["sites"].append(desired)

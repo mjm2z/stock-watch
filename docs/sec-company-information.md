@@ -123,3 +123,10 @@ A direct unauthenticated local SEC probe returned HTTP 403. This does not verify
 or invalidate the server's configured SEC identity; live collection must be checked
 after installation. No test orders, new accounts or strategy activations occurred.
 The documentation update after staging does not alter the reviewed release files.
+
+## Inline filing details (next release)
+
+Recent filing rows now expand into background-collected source excerpts and
+exact-accession figures. See [inline filing behavior, bounds and routing](inline-filings-and-routing.md)
+for migration 026, supported documents, limitations and rollout status. The original
+company-context release 67e2ba9 is installed; this extension is a separate release.
