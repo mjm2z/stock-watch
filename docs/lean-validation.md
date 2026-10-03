@@ -129,3 +129,10 @@ Five midnight equity observations remained stale. The custom mark handler now
 invalidates LEAN's native portfolio-value cache after updating the security and
 currency conversion. Sixteen local regression tests pass; the full comparison
 remains pending a container rerun, with unchanged tolerances.
+
+V4 completed at 11:09 Eastern with **zero differences** across all 144 decisions,
+11 fills and 155 equity observations, using unchanged tolerances. Its source-bound
+[fixture evidence](https://github.com/mjm2z/stockwatch-lean/blob/main/docs/fixture-verification.json)
+is committed in the runner repository. The supervised runner and scoped SSH client
+are staged for root installation; retained market-data validation and the reviewed
+StockWatch application release remain outstanding.

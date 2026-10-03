@@ -71,7 +71,8 @@ Code can be deployed while manual trading remains visibly **unconfigured**.
 A separate [LEAN runner repository](https://github.com/mjm2z/stockwatch-lean) now
 exists for independent Bitcoin trend validation on a1347-d. The pinned-image
 offline proof passed on October 3 at 10:58 Eastern, processing three exact fixture
-events with networking disabled. Strategy/accounting comparison remains unverified.
+events with networking disabled. The synthetic strategy comparison subsequently matched all decisions, fills and
+equity observations at 11:09 Eastern; retained market-data validation remains pending.
 The new Systems comparison UI, background bridge and additive migration 027 are
 committed source work, **not an operational deployment**. Production remains at
 the release above.
