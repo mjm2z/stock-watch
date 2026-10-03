@@ -169,3 +169,15 @@ After the bridge reports healthy, register the independent HomeOps endpoint with
 HomeOps user. The helper backs up configuration and refuses an unhealthy endpoint.
 The existing a1347-j watchdog remains independent of both execution hosts. This
 registration and watchdog verification remain pending until application deployment.
+
+## Historical verification prepared for the reviewed app release
+
+`deploy/run-lean-history-root.py` checks that release `992d909e0ec6` and a healthy
+bridge are installed, verifies the historical helper's content hash, and launches
+it as the `stock-watch` user with the existing protected environment. The helper
+fetches September 1–October 1, 2026 hourly BTC/USD data, retains its manifest and
+quotes, and queues the existing original SMA 20/100 version with $300 simulated
+starting cash and 50% allocation. Next-bar execution is explicitly synthetic.
+A fixed verification ID prevents duplicate comparisons; incompatible reuse fails.
+It never creates a deployment, qualifies a system or submits a broker order. The
+root launcher refuses to run before the reviewed installation finishes.
