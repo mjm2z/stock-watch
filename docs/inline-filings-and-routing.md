@@ -92,3 +92,37 @@ After activation, `deploy/register-live-monitoring.py --components proxy` regist
 an independently checked canonical-route market-feed endpoint in HomeOps. Its default
 still registers the three direct-backend component checks; no monitor is silently
 switched to depend solely on the proxy. Follow the helper's restart instructions.
+
+### October 2 verification
+
+Application source revision: `2d69d5241ee3beac061be72d4073d5f553ab6fee`.
+Local checks passed: 116 Jest tests (32 suites), 422 Python worker tests,
+53 deployment tests, eight feed tests, TypeScript checking, lint (existing warnings)
+and the production build. Chromium checks at 1440px and 390px in light/dark themes
+verified expansion, keyboard scrolling, no horizontal page overflow and no page
+errors. Firefox was not installed locally, so its scrollbar treatment still needs
+an actual Firefox smoke test. Fixtures establish rendering, not live SEC availability.
+
+The proxy helper was staged at `/home/mjm2z/activate-stockwatch-domain.py` on a1990;
+its dry run alters only the StockWatch virtual host and DNS address. Existing
+HomeOps, JobWatch, Sandbox and StockWatch upstream routes returned HTTP 200 before
+activation. No proxy or DNS configuration has been activated by staging.
+
+Linux staging completed successfully at
+`/home/mjm2z/stock-watch-releases/2d69d5241ee3`. The full frontend/feed/worker/deployment
+checks, build, wheel packaging, manifest verification and installer preflight passed
+(one platform-specific deployment test skipped). Root application installation and
+proxy activation remain pending; the installed receipt still identifies `67e2ba9`.
+
+Install from an operator terminal:
+
+```sh
+ssh -t a1347-m 'sudo systemd-run --no-block --unit=stock-watch-release-2d69d5241ee3 --property=Type=oneshot --property=TimeoutStartSec=8h /usr/bin/python3 /home/mjm2z/stock-watch-releases/2d69d5241ee3/deploy/install-reviewed-release.py /home/mjm2z/stock-watch-releases/2d69d5241ee3'
+```
+
+Monitor locally with `python3 deploy/monitor-release.py --unit stock-watch-release-2d69d5241ee3.service --watch`.
+After installation completes and its receipt/health are verified, activate routing:
+
+```sh
+ssh -t a1990 'sudo python3 /home/mjm2z/activate-stockwatch-domain.py --apply'
+```

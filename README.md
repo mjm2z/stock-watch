@@ -8,8 +8,9 @@ The verified recovery snapshot is `/var/backups/stock-watch-releases/20261002T22
 
 The next source change adds inline SEC filing excerpts, exact-accession financial
 facts, hidden vertical scrollbar tracks and a reviewed port-free routing helper.
-**These additions require a new application installation and a separate proxy
-activation; they are not yet verified live.** See [inline filings and LAN routing](docs/inline-filings-and-routing.md).
+**Source `2d69d52` is pushed and fully verified in Linux staging. These additions
+require a new application installation and a separate proxy activation; they are
+not yet verified live.** See [inline filings and LAN routing](docs/inline-filings-and-routing.md).
 
 Completed cleanup reclaimed about **201 GiB** from old builds, abandoned backups
 and redundant recovery databases. Storage maintenance subsequently reduced the
