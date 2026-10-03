@@ -160,7 +160,8 @@ protected Telegram transport. It checks each minute, requires three failures and
 two successes, preserves 22:00–11:00 Eastern quiet hours, and records uncertain
 sends without automatic retry. `deploy/install-lean-watchdog-root.py` verifies its
 source hash and healthy baseline before installation. This does not change the
-HomeOps watchdog target. Monitor installation and real delivery are still pending.
+HomeOps watchdog target. The monitor is now installed with a healthy baseline; real delivery remains pending.
+See the [operational verification report](lean-operational-verification.md) for current evidence.
 
 Runner `deploy/verify-operations.py` provides isolated `restart`, `timeout` and
 `outage` exercises on a1347-d, with journal progress and an empty-queue prerequisite.

@@ -70,7 +70,7 @@ Code can be deployed while manual trading remains visibly **unconfigured**.
 
 The separate [LEAN runner](https://github.com/mjm2z/stockwatch-lean) runs on
 a1347-d at `0aef431`; StockWatch's background bridge and **Crypto → Systems**
-comparison engine are deployed at `992d909e0ec6`. Browser verification found the
+comparison engine is deployed at `992d909e0ec6`. Browser verification found the
 card is currently reachable only at `/systems?asset=bitcoin&legacy=1`; its normal
 Systems-library mount and mobile sizing fix are prepared for the next release. Preview and queue supported
 original Bitcoin hourly trend comparisons, inspect metrics/equity/differences,
@@ -83,7 +83,8 @@ equity observations. Starting from $300, both ended at $300.94564011 with
 $2.25873657 in modeled fees. These are synthetic next-bar fills, not executable
 historical quotes; agreement does not qualify a strategy or establish profitability.
 Installed synthetic baseline, gap and minute-risk fixtures also passed.
-See [architecture, workflow, evidence, limits and operations](docs/lean-validation.md).
+See [architecture, workflow, evidence, limits and operations](docs/lean-validation.md)
+and the [ongoing operational checks](docs/lean-operational-verification.md).
 
 ## Find your way around
 
