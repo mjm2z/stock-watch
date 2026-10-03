@@ -10,7 +10,8 @@ is `/var/lib/stockwatch-lean-proof/verified.json`. The initial custom-data bindi
 failure and retry-guard issue were corrected; earlier outputs are preserved.
 
 Actual strategy/portfolio comparison remains unverified. A separate 144-bar
-synthetic adapter test is staged and requires an operator start. Migration 027,
+synthetic adapter test ran and exposed a float/Decimal sizing error at its first
+buy decision. The correction and numeric regression tests are staged for retry. Migration 027,
 the bridge and the Systems interface are source changes awaiting end-to-end
 verification and a reviewed release.
 
@@ -107,7 +108,7 @@ not proof of success: inspect its exit status and verified result before proceed
 
 The October 3 source checkpoint passed the production build, TypeScript, lint
 (with existing unrelated warnings), 121 JavaScript tests, 428 worker tests and
-eleven runner unit tests. These checks do not exercise the LEAN container API.
+thirteen runner unit tests. These checks do not exercise the LEAN container API.
 The first container run exposed a subscription overload problem that local tests
 could not detect. The corrected call supplies the raw-data UTC timezone explicitly;
 see [LEAN's Python AddData overloads](https://github.com/QuantConnect/Lean/blob/master/Algorithm/QCAlgorithm.Python.cs).
