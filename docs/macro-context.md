@@ -2,9 +2,10 @@
 
 ## Setup status
 
-Source implementation is complete and under release validation. The separate
+Source implementation passed release validation. The separate
 private [stockwatch-macro](https://github.com/mjm2z/stockwatch-macro) repository has
-been created. Neither the service nor the dashboard is installed yet. The operator
+been created. Service `f0469ac74e53d8757692b1ab66163028db7b90f4` and application
+`4875c7a4f2f4` are staged and verified. Neither is installed yet. The operator
 has not created a FRED API key; no live provider observations have been verified.
 The remaining LEAN authenticated-browser validation is explicitly deferred until
 these integration setups are complete.
@@ -75,3 +76,17 @@ quoted in previous notes should not substitute for current terms. AI-related
 restrictions and per-series ownership remain relevant. The UI displays the API
 endorsement disclaimer, source attribution and terms link. Reassess usage before
 adding AI features, redistribution or historical research retention.
+
+## Pre-install verification — October 4
+
+Nine macro-service tests passed locally and on Linux, including a real loopback
+HTTP check for unconfigured status; the systemd unit passed validation. StockWatch
+Linux staging passed 125 JavaScript tests, 430 worker tests and 58 deployment tests
+(one platform skip), type checking, lint with existing warnings and production build.
+Synthetic-data browser checks passed at 1440px and 390px with no page errors or
+horizontal overflow. These checks do not establish FRED access or real values.
+
+Staged service: `/home/mjm2z/stockwatch-macro-releases/f0469ac`.
+Staged application: `/home/mjm2z/stock-watch-releases/4875c7a4f2f4`.
+Service installation awaits the operator's sudo command. After installation,
+credential configuration, live provider checks and dashboard deployment remain.
