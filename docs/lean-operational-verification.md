@@ -15,7 +15,7 @@ failure exercises below must not be inferred from local test results.
 | Independent monitor | Installed on a1347-j; active alongside unchanged HomeOps watchdog; two healthy observations, no incident |
 | Runner restart | Passed October 3 at 13:10:33 Eastern; same container and exact retained fixture result |
 | Bridge restart | Passed at 13:18:48 Eastern; resumed stable job and completed with zero differences |
-| Full 30-minute timeout | Helper staged; not started |
+| Full 30-minute timeout | Passed October 3 at 13:51:17 Eastern; repeat passed at 14:32:22; both included successful follow-up fixtures |
 | Real outage/recovery delivery | Authorized; not exercised yet |
 | Authenticated browser queue/cancel | Not yet verified end to end |
 
@@ -67,3 +67,15 @@ research; the comparison completed at 13:18:47 with zero differences and the
 verification helper exited successfully at 13:18:48. A prior separate invocation
 created `ef15b967-7768-466f-bc3c-45420cbdaeaf`, also completed; these are distinct
 operator verification requests, not a restarted job receiving a new identity.
+
+## October 4 continuation
+
+Confirmed both timeout exercises succeeded. The first used job
+`8b99fe73-a363-4995-a4f1-ec1d9707d188` and follow-up
+`e3520c41-228d-46d2-afcd-84d9f93daf55`. The repeat used
+`bed67007-d125-46dc-84f0-2c3ac6976214` and follow-up
+`9b7310a4-2f7c-4456-b3c1-a6464879d39f`. Both enforced the unchanged 30-minute
+limit, required container removal, and compared subsequent fixture output with
+the verified reference. At 11:13 Eastern on October 4 the runner and bridge were
+healthy, the research queue empty, and the independent monitor had no incidents.
+Actual outage/recovery delivery remains the next check.
