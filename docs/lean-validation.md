@@ -127,7 +127,7 @@ comparison through the installed application.
 Live supervisor and bridge restart recovery, the full 30-minute timeout, and real
 outage/recovery notification delivery have passed. Desktop/mobile read-only browser
 inspection passed after the Systems mount correction. Authenticated browser
-submission/cancellation remains pending. Storage/result limits have deterministic
+submission/cancellation is deferred until the remaining integrations are set up. Storage/result limits have deterministic
 boundary tests; actual host resource exhaustion was not induced. Earlier failed fixture runs and their corrections are
 preserved in [historical implementation notes](lean-implementation-checkpoints.md).
 The engine proof and synthetic fixtures do not replace market-data limitations.
@@ -180,4 +180,4 @@ The live runner restart passed on October 3 at 13:10:33 Eastern with the same
 container and exact retained fixture result. The bridge restart also passed at 13:18:48 with zero comparison differences.
 The full timeout test and a repeat passed on October 3, including container
 cleanup and matching follow-up work. Real notification delivery passed on October 4; authenticated browser submission
-and cancellation remain the final acceptance check.
+and cancellation are deferred until the remaining integrations are set up.

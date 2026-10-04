@@ -17,7 +17,7 @@ failure exercises below must not be inferred from local test results.
 | Bridge restart | Passed at 13:18:48 Eastern; resumed stable job and completed with zero differences |
 | Full 30-minute timeout | Passed October 3 at 13:51:17 Eastern; repeat passed at 14:32:22; both included successful follow-up fixtures |
 | Real outage/recovery delivery | Passed October 4: Telegram accepted outage message 1060 and recovery message 1061 |
-| Authenticated browser queue/cancel | Not yet verified end to end |
+| Authenticated browser queue/cancel | Deferred by operator on October 4 until the remaining integrations are set up; not yet verified |
 
 Run research checks sequentially with no unrelated research queued. The runner
 helper refuses to begin with unfinished jobs. It requires installed runtime
@@ -90,6 +90,10 @@ The test service finished successfully at 11:24:51. At 11:29, bridge/runner heal
 execution, manual ownership, Coinbase freshness and notification health passed.
 The queue was empty. No trading service was stopped for this exercise.
 
-The remaining acceptance check is an authenticated browser preview, research
+The deferred acceptance check is an authenticated browser preview, research
 submission and cancellation. The operator has been asked to use original trend
 `e664521e` and retained hourly dataset `0d791984`. No token is requested in chat.
+
+On October 4 the operator explicitly deferred the authenticated browser check
+until other service/integration setups are complete. This is a follow-up validation
+item, not a blocker for beginning macroeconomic integration setup.

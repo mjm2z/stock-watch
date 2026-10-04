@@ -77,7 +77,8 @@ normal `/systems?asset=bitcoin` library; desktop/mobile verification passed with
 no horizontal overflow or page errors. Live supervisor and bridge restart checks passed, as did the full 30-minute
 timeout with successful follow-up work. Independent a1347-j monitoring delivered
 real outage/recovery alerts on October 4 (Telegram accepted both messages).
-Authenticated browser submission/cancellation remains the final acceptance check.
+Authenticated browser submission/cancellation is deferred until the remaining
+integrations are set up, at the operator’s request on October 4.
 Preview and queue supported
 original Bitcoin hourly trend comparisons, inspect metrics/equity/differences,
 cancel research work or download full evidence. The scoped runner has no broker
