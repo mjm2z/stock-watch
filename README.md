@@ -93,6 +93,17 @@ Installed synthetic baseline, gap and minute-risk fixtures also passed.
 See [architecture, workflow, evidence, limits and operations](docs/lean-validation.md)
 and the [ongoing operational checks](docs/lean-operational-verification.md).
 
+## Economic context setup
+
+The next integration is a **read-only macro dashboard** for inflation, unemployment,
+policy rates and real GDP, shared by stocks and crypto. The separate private
+[stockwatch-macro service](https://github.com/mjm2z/stockwatch-macro) and StockWatch
+workspace are implemented in source and undergoing release validation; **not yet
+installed or connected to FRED**. A private API key is still required. The service
+keeps a small separate snapshot and has no trading authority or AI data path.
+ALFRED point-in-time backtest integration is deferred. See
+[setup, architecture, storage, terms and validation](docs/macro-context.md).
+
 ## Find your way around
 
 Choose **Stocks** or **Crypto** in the sidebar. Navigation retains the selected

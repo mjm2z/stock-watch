@@ -10,6 +10,7 @@ import {
   Search,
   ServerCog,
   ChartNoAxesCombined,
+  Globe,
   Moon,
   Sun,
   Menu,
@@ -25,6 +26,7 @@ const sections = [
   ['activity', 'Activity', ListOrdered],
   ['signals', 'Signals', Radar],
   ['research', 'Research', Search],
+  ['macro', 'Economic context', Globe],
   ['operations', 'Operations', ServerCog],
 ] as const
 export function Navigation() {
@@ -36,25 +38,28 @@ export function Navigation() {
     path === '/bitcoin' ||
     params.get('asset') === 'bitcoin' ||
     params.get('asset') === 'crypto'
-  const section = path.startsWith('/systems/runs/')
-    ? 'backtesting'
-    : path.startsWith('/systems')
-      ? 'systems'
-      : path === '/backtesting' || path === '/backtests'
+  const section =
+    path === '/macro'
+      ? 'macro'
+      : path.startsWith('/systems/runs/')
         ? 'backtesting'
-        : path === '/portfolio' || path === '/manual-paper'
-          ? 'paper'
-          : path === '/activity'
-            ? 'activity'
-            : path === '/signals'
-              ? 'signals'
-              : path === '/operations'
-                ? 'operations'
-                : path === '/research' || path === '/watchlist' || path.startsWith('/stock/')
-                  ? 'research'
-                  : params.get('view') === 'blockchain'
-                    ? 'research'
-                    : params.get('view') || 'overview'
+        : path.startsWith('/systems')
+          ? 'systems'
+          : path === '/backtesting' || path === '/backtests'
+            ? 'backtesting'
+            : path === '/portfolio' || path === '/manual-paper'
+              ? 'paper'
+              : path === '/activity'
+                ? 'activity'
+                : path === '/signals'
+                  ? 'signals'
+                  : path === '/operations'
+                    ? 'operations'
+                    : path === '/research' || path === '/watchlist' || path.startsWith('/stock/')
+                      ? 'research'
+                      : params.get('view') === 'blockchain'
+                        ? 'research'
+                        : params.get('view') || 'overview'
   const [open, setOpen] = useState(false),
     [theme, setTheme] = useState('dark')
   useEffect(() => {
@@ -93,6 +98,7 @@ export function Navigation() {
     }
   }, [open])
   function href(key: string, isCrypto = crypto) {
+    if (key === 'macro') return '/macro' + (isCrypto ? '?asset=bitcoin' : '')
     if (key === 'systems' || key === 'backtesting')
       return '/' + key + (isCrypto ? '?asset=bitcoin' : '')
     if (key === 'activity') return '/activity' + (isCrypto ? '?asset=bitcoin' : '')
