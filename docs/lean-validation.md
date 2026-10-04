@@ -124,9 +124,11 @@ The historical run additionally verified dataset acquisition/registration, durab
 StockWatch queueing, background baseline, scoped submission, result retrieval and
 comparison through the installed application.
 
-An active-job supervisor restart, timeout/resource-exhaustion exercise, monitoring
-outage delivery and a fresh interactive browser walkthrough are not claimed as
-verified by this release. Earlier failed fixture runs and their corrections are
+Live supervisor and bridge restart recovery, the full 30-minute timeout, and real
+outage/recovery notification delivery have passed. Desktop/mobile read-only browser
+inspection passed after the Systems mount correction. Authenticated browser
+submission/cancellation remains pending. Storage/result limits have deterministic
+boundary tests; actual host resource exhaustion was not induced. Earlier failed fixture runs and their corrections are
 preserved in [historical implementation notes](lean-implementation-checkpoints.md).
 The engine proof and synthetic fixtures do not replace market-data limitations.
 
@@ -161,7 +163,8 @@ protected Telegram transport. It checks each minute, requires three failures and
 two successes, preserves 22:00–11:00 Eastern quiet hours, and records uncertain
 sends without automatic retry. `deploy/install-lean-watchdog-root.py` verifies its
 source hash and healthy baseline before installation. This does not change the
-HomeOps watchdog target. The monitor is now installed with a healthy baseline; real delivery remains pending.
+HomeOps watchdog target. The monitor is installed; real outage/recovery delivery passed on October 4
+with accepted Telegram receipts 1060 and 1061.
 See the [operational verification report](lean-operational-verification.md) for current evidence.
 
 Runner `deploy/verify-operations.py` provides isolated `restart`, `timeout` and
@@ -176,4 +179,5 @@ historical replay and restarts only the bridge while it is awaiting LEAN.
 The live runner restart passed on October 3 at 13:10:33 Eastern with the same
 container and exact retained fixture result. The bridge restart also passed at 13:18:48 with zero comparison differences.
 The full timeout test and a repeat passed on October 3, including container
-cleanup and matching follow-up work. Real notification delivery remains pending.
+cleanup and matching follow-up work. Real notification delivery passed on October 4; authenticated browser submission
+and cancellation remain the final acceptance check.

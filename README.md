@@ -74,8 +74,10 @@ The separate [LEAN runner](https://github.com/mjm2z/stockwatch-lean) runs on
 a1347-d at `0aef431`; StockWatch's background bridge and **Crypto → Systems**
 comparison interface is deployed at `7f4f4ef4bcd2`. It is now accessible in the
 normal `/systems?asset=bitcoin` library; desktop/mobile verification passed with
-no horizontal overflow or page errors. The live supervisor restart check also
-passed, retaining the same container and exact fixture result.
+no horizontal overflow or page errors. Live supervisor and bridge restart checks passed, as did the full 30-minute
+timeout with successful follow-up work. Independent a1347-j monitoring delivered
+real outage/recovery alerts on October 4 (Telegram accepted both messages).
+Authenticated browser submission/cancellation remains the final acceptance check.
 Preview and queue supported
 original Bitcoin hourly trend comparisons, inspect metrics/equity/differences,
 cancel research work or download full evidence. The scoped runner has no broker

@@ -16,7 +16,7 @@ failure exercises below must not be inferred from local test results.
 | Runner restart | Passed October 3 at 13:10:33 Eastern; same container and exact retained fixture result |
 | Bridge restart | Passed at 13:18:48 Eastern; resumed stable job and completed with zero differences |
 | Full 30-minute timeout | Passed October 3 at 13:51:17 Eastern; repeat passed at 14:32:22; both included successful follow-up fixtures |
-| Real outage/recovery delivery | Authorized; not exercised yet |
+| Real outage/recovery delivery | Passed October 4: Telegram accepted outage message 1060 and recovery message 1061 |
 | Authenticated browser queue/cancel | Not yet verified end to end |
 
 Run research checks sequentially with no unrelated research queued. The runner
@@ -78,4 +78,18 @@ Confirmed both timeout exercises succeeded. The first used job
 limit, required container removal, and compared subsequent fixture output with
 the verified reference. At 11:13 Eastern on October 4 the runner and bridge were
 healthy, the research queue empty, and the independent monitor had no incidents.
-Actual outage/recovery delivery remains the next check.
+Actual outage/recovery delivery subsequently passed as recorded below.
+
+## October 4 outage and delivery result
+
+The runner stopped at 11:16:50 Eastern and automatically restarted at 11:21:51.
+The independent a1347-j monitor recorded one incident with an outage receipt
+(message 1060) and recovery receipt (1061), both marked `sent`. Telegram acceptance
+is verified; this does not establish whether the recipient read either message.
+The test service finished successfully at 11:24:51. At 11:29, bridge/runner health,
+execution, manual ownership, Coinbase freshness and notification health passed.
+The queue was empty. No trading service was stopped for this exercise.
+
+The remaining acceptance check is an authenticated browser preview, research
+submission and cancellation. The operator has been asked to use original trend
+`e664521e` and retained hourly dataset `0d791984`. No token is requested in chat.
