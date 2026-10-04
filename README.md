@@ -98,8 +98,10 @@ and the [ongoing operational checks](docs/lean-operational-verification.md).
 The next integration is a **read-only macro dashboard** for inflation, unemployment,
 policy rates and real GDP, shared by stocks and crypto. The separate private
 [stockwatch-macro service](https://github.com/mjm2z/stockwatch-macro) and StockWatch
-workspace passed release validation and are staged for installation; **not yet
-installed or connected to FRED**. A private API key is still required. The service
+workspace passed release validation. The macro service is **installed but
+unconfigured**; dashboard release `4875c7a4f2f4` is staged for installation.
+Private API-key setup and live-data validation are saved follow-ups, deferred
+until after the remaining setup work. The service
 keeps a small separate snapshot and has no trading authority or AI data path.
 ALFRED point-in-time backtest integration is deferred. See
 [setup, architecture, storage, terms and validation](docs/macro-context.md).

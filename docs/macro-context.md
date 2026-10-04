@@ -5,8 +5,10 @@
 Source implementation passed release validation. The separate
 private [stockwatch-macro](https://github.com/mjm2z/stockwatch-macro) repository has
 been created. Service `f0469ac74e53d8757692b1ab66163028db7b90f4` and application
-`4875c7a4f2f4` are staged and verified. Neither is installed yet. The operator
-has not created a FRED API key; no live provider observations have been verified.
+`4875c7a4f2f4` passed staging verification. The macro service is installed and
+running at `f0469ac`; the dashboard is staged but not installed. API-key setup
+and live-data validation are explicitly deferred by the operator; the service
+correctly reports unconfigured and no live observations have been verified.
 The remaining LEAN authenticated-browser validation is explicitly deferred until
 these integration setups are complete.
 
@@ -88,5 +90,19 @@ horizontal overflow. These checks do not establish FRED access or real values.
 
 Staged service: `/home/mjm2z/stockwatch-macro-releases/f0469ac`.
 Staged application: `/home/mjm2z/stock-watch-releases/4875c7a4f2f4`.
-Service installation awaits the operator's sudo command. After installation,
-credential configuration, live provider checks and dashboard deployment remain.
+Service installation is complete. Dashboard deployment is the next independent
+step; credential configuration and live provider checks remain deferred.
+
+## Saved follow-up: credentials and final validation
+
+At the operator's request, complete these after the remaining setup work:
+
+1. Create a FRED API key and save it privately using
+   `ssh -t a1347-m 'sudoedit /etc/stockwatch-macro/provider.env'`.
+2. Set `FRED_API_KEY` and restart only `stockwatch-macro.service`.
+3. Verify all four live series, provenance, units, observation dates and freshness.
+4. Register the macro health check only after it is configured and healthy.
+5. Perform the deferred LEAN authenticated browser preview, queue and cancel check.
+
+Do not treat key setup as a prerequisite for deploying the dashboard's explicit
+unconfigured state. No ALFRED backtest or paid QuantConnect expansion is implied.
