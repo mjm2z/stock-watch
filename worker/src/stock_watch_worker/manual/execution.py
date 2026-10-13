@@ -2,6 +2,7 @@
 
 from decimal import Decimal as D
 import json
+from .messages import order_event
 from .store import TERMINAL, canonical, notify, transaction
 
 
@@ -108,7 +109,7 @@ def reconcile(manual, assets=("stocks", "bitcoin")):
                         notify(
                             db,
                             f"order:{row['id']}:{status}:{qty}",
-                            f"Manual {row['asset']} {row['symbol']} {row['side']}: {status}; filled {qty} at {price}",
+                            order_event(row, status, qty, price),
                             now,
                         )
                 if status not in TERMINAL and (
@@ -131,9 +132,9 @@ def reconcile(manual, assets=("stocks", "bitcoin")):
                     notify(
                         db,
                         "uncertain:" + row["id"],
-                        "Uncertain manual order "
+                        "StockWatch · Paper · Order status uncertain\nOrder: "
                         + row["id"]
-                        + "; reservation retained; reconcile at Alpaca before retrying.",
+                        + "\nFunds remain reserved. Reconcile at Alpaca before retrying.",
                         now,
                     )
                 continue
@@ -157,7 +158,7 @@ def reconcile(manual, assets=("stocks", "bitcoin")):
                     with transaction(db):
                         manual.unchanged(state_revision)
                         db.execute("UPDATE instructions SET status='rejected',reserved_cash='0',reserved_qty='0',updated=? WHERE id=?", (now, row["id"]))
-                        notify(db, "session-closed:" + row["id"], "Market instruction rejected before dispatch: regular session closed; preview again.", now)
+                        notify(db, "session-closed:" + row["id"], "StockWatch · Paper · Order rejected\nMarket closed before submission. Request a new preview.", now)
                 continue
             # Capability/eligibility can change between confirmation and dispatch.
             if row["asset"] == "stocks":
@@ -305,9 +306,9 @@ def reconcile(manual, assets=("stocks", "bitcoin")):
                     notify(
                         db,
                         "uncertain:" + row["id"],
-                        "Uncertain manual order "
+                        "StockWatch · Paper · Order status uncertain\nOrder: "
                         + row["id"]
-                        + "; lookup required before any retry.",
+                        + "\nReconcile at Alpaca before retrying; funds remain reserved.",
                         manual.now(),
                     )
             with db:

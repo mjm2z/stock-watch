@@ -195,7 +195,7 @@ def manage(manual, assets):
                     notify(
                         db,
                         "protection-dust:" + plan["id"],
-                        "Protective residual below broker minimum; manual review required.",
+                        "StockWatch · Paper · Protection needs attention\n" + parent["symbol"] + ": remaining quantity is below the broker minimum. Review in StockWatch.",
                         manual.now(),
                     )
                 continue
@@ -252,11 +252,11 @@ def manage(manual, assets):
                 notify(
                     db,
                     "protective:" + identifier,
-                    "Protective paper exit queued for "
+                    "StockWatch · Paper · Protective exit queued\n"
                     + parent["symbol"]
-                    + "; limit "
+                    + " · Limit $"
                     + str(limit)
-                    + "; not guaranteed to fill.",
+                    + "\nNot filled yet; a fill is not guaranteed.",
                     manual.now(),
                 )
         except Exception as error:

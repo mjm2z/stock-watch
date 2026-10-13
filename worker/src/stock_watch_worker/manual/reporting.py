@@ -5,6 +5,7 @@ from decimal import Decimal
 import os
 from zoneinfo import ZoneInfo
 from .store import canonical, notify
+from .messages import digest, system_event
 
 
 def refresh(manual):
@@ -81,9 +82,8 @@ def refresh(manual):
                     + row["asset"]
                     + ":"
                     + datetime.fromtimestamp(now, ZoneInfo("UTC")).date().isoformat(),
-                    "Manual "
-                    + row["asset"]
-                    + " account unavailable; pending reservations remain. Check StockWatch health.",
+                    "StockWatch · Paper · " + row["asset"].capitalize()
+                    + " account unavailable\nReserved funds remain held. Check StockWatch health.",
                     now,
                 )
     local = datetime.fromtimestamp(now, ZoneInfo("America/New_York"))
@@ -97,7 +97,9 @@ def refresh(manual):
             notify(
                 db,
                 "digest:" + local.date().isoformat(),
-                "StockWatch daily paper digest\n" + canonical(snapshots)[:3400],
+                digest(snapshots,
+                       [dict(r) for r in db.execute("SELECT status FROM instructions")],
+                       [dict(r) for r in db.execute("SELECT * FROM health")], now),
                 now,
             )
 
@@ -136,12 +138,7 @@ def collect_system_events(manual):
                         notify(
                             manual.db,
                             "system-audit:" + str(row["id"]),
-                            "StockWatch system "
-                            + row["action"]
-                            + " · "
-                            + row["entity_id"]
-                            + "\n"
-                            + canonical(json.loads(row["payload_json"]))[:2000],
+                            system_event(row["action"], row["entity_id"], json.loads(row["payload_json"])),
                             manual.now(),
                         )
                     manual.db.execute(

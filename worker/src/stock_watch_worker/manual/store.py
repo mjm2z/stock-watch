@@ -661,10 +661,11 @@ class Manual:
                 "UPDATE drafts SET state='confirmed',result=? WHERE id=?",
                 (canonical(result), identity),
             )
+            from .messages import confirmation
             notify(
                 self.db,
                 "confirmed:" + identity,
-                "Manual paper confirmation: " + canonical(result),
+                confirmation(result),
                 now,
             )
             return result
