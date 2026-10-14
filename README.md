@@ -1,5 +1,10 @@
 # StockWatch
 
+Intraday paper experiments add reviewed batches, isolated strategy allocations,
+shared account execution, captured evidence, replay and combined Telegram activity.
+See the [implementation and activation runbook](docs/paper-experiments.md).
+Installing this feature does not approve an experiment batch.
+
 As verified on **October 3, 2026 at 11:53 Eastern**, production on a1347-m runs
 LEAN integration release **`992d909e0ec6`**, installed at 11:50 Eastern with migration
 **027**. Web, feed, execution, manual-paper and LEAN bridge services are active;

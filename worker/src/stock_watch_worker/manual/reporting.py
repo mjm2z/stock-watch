@@ -86,22 +86,12 @@ def refresh(manual):
                     + " account unavailable\nReserved funds remain held. Check StockWatch health.",
                     now,
                 )
-    local = datetime.fromtimestamp(now, ZoneInfo("America/New_York"))
-    scheduled = os.environ.get("STOCK_WATCH_DIGEST_TIME", "20:00")
-    if local.strftime("%H:%M") == scheduled:
-        snapshots = [
-            __import__("json").loads(r["payload"])
-            for r in db.execute("SELECT * FROM snapshots")
-        ]
+    try:
+        from ..experiments.reporting import daily_digest
+        daily_digest(manual)
+    except Exception as error:
         with db:
-            notify(
-                db,
-                "digest:" + local.date().isoformat(),
-                digest(snapshots,
-                       [dict(r) for r in db.execute("SELECT status FROM instructions")],
-                       [dict(r) for r in db.execute("SELECT * FROM health")], now),
-                now,
-            )
+            db.execute("INSERT OR REPLACE INTO health VALUES ('daily_digest',?,?)", (now,str(error)[:200]))
 
 
 def collect_system_events(manual):
@@ -133,7 +123,7 @@ def collect_system_events(manual):
                 for row in rows:
                     if any(
                         word in row["action"]
-                        for word in ("order", "fill", "exit", "reject", "pause")
+                        for word in ("reject", "pause", "failed", "uncertain")
                     ):
                         notify(
                             manual.db,

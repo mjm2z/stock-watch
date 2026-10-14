@@ -17,6 +17,7 @@ def capture(db,broker,account,now):
     latest=db.execute('SELECT MAX(at) FROM btc_fills').fetchone()[0]
     after=max(instant(account['created_at']),instant(latest)-timedelta(days=3)).isoformat() if latest else account['created_at']
     for fill in broker.fills(after):
+        if db.execute("SELECT 1 FROM sqlite_master WHERE name='experiment_orders'").fetchone() and db.execute('SELECT 1 FROM experiment_orders WHERE broker_id=?',(fill['order_id'],)).fetchone(): continue
         order=db.execute('SELECT * FROM btc_orders WHERE broker_id=?',(fill['order_id'],)).fetchone()
         if not order or str(fill.get('symbol','')).replace('/','')!='BTCUSD' or fill['side']!=order['side']:
             raise ValueError('Unowned fill activity; account reconciliation required')
@@ -26,6 +27,9 @@ def capture(db,broker,account,now):
     latest=db.execute('SELECT MAX(captured_at) FROM btc_fees').fetchone()[0]
     after=max(instant(account['created_at']),instant(latest)-timedelta(days=3)).isoformat() if latest else account['created_at']
     for fee in broker.fees(after):
+        if db.execute("SELECT 1 FROM sqlite_master WHERE name='experiment_batches'").fetchone():
+            batch=db.execute("SELECT created FROM experiment_batches WHERE account_id=? AND approved IS NOT NULL ORDER BY created DESC LIMIT 1",(account['id'],)).fetchone()
+            if batch and (str(fee.get('date',''))[:10]>=batch['created'][:10] or db.execute('SELECT 1 FROM experiment_fee_receipts WHERE account_id=? AND id=?',(account['id'],fee['id'])).fetchone()): continue
         with db: db.execute('INSERT OR IGNORE INTO btc_fees VALUES (?,?,NULL,?,\'unattributed\',?)',(fee['id'],account['id'],canonical(fee),now.isoformat()))
     # An incomplete fill activity feed cannot redistribute fees to wrong sleeves.
     complete=True
@@ -63,7 +67,7 @@ def capture(db,broker,account,now):
 
 def reconcile_provisions(db,now,exact_account_match):
     """Charge higher actual fees immediately; release reserves after settlement."""
-    for order in db.execute('SELECT * FROM btc_orders').fetchall():
+    for order in db.execute('SELECT * FROM btc_orders WHERE id IN (SELECT order_id FROM btc_fee_allocations)').fetchall():
         fees=db.execute('SELECT cash_fee,quantity_fee FROM btc_fee_allocations WHERE order_id=?',(order['id'],)).fetchall()
         if not fees: continue
         actual_cash=sum((D(f[0]) for f in fees),D(0)); actual_qty=sum((D(f[1]) for f in fees),D(0))

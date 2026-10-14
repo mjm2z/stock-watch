@@ -17,6 +17,9 @@ from .runtime import activate, start_shadow, tick
 
 
 def process_commands(db, broker, asset='bitcoin'):
+    from ..experiments.ownership import allowed
+    if asset=='stocks' and not allowed(db,asset): return
+
     for row in db.execute("SELECT c.* FROM system_commands c JOIN system_deployments d ON d.id=c.deployment_id JOIN system_versions v ON v.id=d.version_id WHERE c.status='queued' AND v.asset=? ORDER BY c.created_at,c.id",(asset,)).fetchall():
         try:
             deployment = db.execute('SELECT * FROM system_deployments WHERE id=?',(row['deployment_id'],)).fetchone()

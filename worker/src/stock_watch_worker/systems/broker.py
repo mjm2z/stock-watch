@@ -9,7 +9,10 @@ from ..http import UrllibTransport, require_success
 from .engine import instant, positive
 
 
-class CryptoBroker:
+from ..paper_transport import PaperTransport
+
+
+class CryptoBroker(PaperTransport):
     def __init__(self, transport=None, key=None, secret=None):
         self.transport = transport or UrllibTransport()
         key = key or os.environ.get('BITCOIN_ALPACA_API_KEY_ID','')
@@ -19,16 +22,6 @@ class CryptoBroker:
         if key == os.environ.get('ALPACA_API_KEY_ID'):
             raise ValueError('Bitcoin must use a separate paper account')
         self.headers = {'APCA-API-KEY-ID':key,'APCA-API-SECRET-KEY':secret,'Content-Type':'application/json'}
-
-    def request(self, method, path, body=None, *, data=False, missing_ok=False):
-        base = 'https://data.alpaca.markets' if data else 'https://paper-api.alpaca.markets'
-        response = self.transport.request(method, base+path, headers=self.headers,
-                                          body=json.dumps(body).encode() if body is not None else None, timeout=10)
-        if missing_ok and response.status == 404:
-            return None
-        if method == 'DELETE' and response.status == 204:
-            return None
-        return require_success('alpaca-crypto-paper',response)
 
     def account(self):
         account = self.request('GET','/v2/account')

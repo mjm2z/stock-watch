@@ -68,6 +68,8 @@ def check_entry(connection, order_id, broker, now):
         if spread>policy.get('maximum_spread_fraction',.01): return _record(connection,row,'defer','spread_too_wide',details,checked)
         if gap>policy.get('maximum_price_change_fraction',.05): return _record(connection,row,'reject','entry_price_moved',details,checked)
         commitment=connection.execute("SELECT COALESCE(SUM(notional_usd),0) FROM paper_orders WHERE id!=? AND status IN ('pending','submitted','accepted','partially_filled')",(order_id,)).fetchone()[0]
+        if connection.execute("SELECT 1 FROM sqlite_master WHERE name='experiment_orders'").fetchone():
+            commitment += sum(float(r[0]) for r in connection.execute("SELECT reserved FROM experiment_orders WHERE account_id=? AND status NOT IN ('filled','canceled','expired','rejected')",(account.get('id',''),)))
         available=min(float(account['cash']),float(account['buying_power']))
         if not math.isfinite(available) or available-commitment<float(row['notional_usd']):return _record(connection,row,'reject','insufficient_unreserved_cash',details,checked)
         event=connection.execute('SELECT earnings_at,captured_at FROM instrument_context WHERE instrument_id=?',(row['instrument_id'],)).fetchone()

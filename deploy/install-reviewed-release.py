@@ -65,6 +65,7 @@ def counts(db):
 # observed health/research activity out of this list; preserve actual authority,
 # immutable definitions, and all owned cash/share/fill/reservation records.
 PRESERVED_TABLES = (
+    'experiment_versions','experiment_batches','experiment_instances','experiment_positions','experiment_orders','experiment_fills','experiment_fees','execution_authority',
     'strategy_versions', 'system_versions', 'system_deployments',
     'system_stock_control', 'system_orders', 'paper_orders', 'paper_fills',
     'paper_trade_lots', 'paper_exit_orders', 'paper_exit_fills',
@@ -145,6 +146,8 @@ def recovery_inputs(database):
     databases = [database]
     history = database.with_name(database.name + '.bitcoin-history.db')
     if history.exists(): databases.append(history)
+    evidence = database.with_name(database.name + '.experiment-evidence.db')
+    if evidence.exists(): databases.append(evidence)
     for name in ('manual-paper.db','market-data.db'):
         auxiliary=database.with_name(name)
         if auxiliary.exists(): databases.append(auxiliary)
@@ -306,7 +309,7 @@ def main():
     (recovery / 'enabled-timers.json').write_text(json.dumps(enabled, indent=2))
     if timers:
         run('systemctl', 'stop', *timers)
-    persistent = [line.split()[0] for line in units if line.split()[0] in ('stock-watch-market-data.service','stock-watch-manual-paper.service','stock-watch-execution.service','stock-watch-lean.service')]
+    persistent = [line.split()[0] for line in units if line.split()[0] in ('stock-watch-market-data.service','stock-watch-manual-paper.service','stock-watch-execution.service','stock-watch-lean.service','stock-watch-stock-owner.service','stock-watch-experiment-feed.service','stock-watch-experiment-collection.service')]
     if persistent: run('systemctl','stop',*persistent)
     services = drain_services(units)
     deadline = time.monotonic() + 600
@@ -358,7 +361,7 @@ def main():
         if any(authority_after.get(key)!=value for key,value in authority_before.items()):
             raise RuntimeError('Existing trading authority changed during migration; services remain stopped')
     run('bash', str(runtime / 'deploy/install-systems-root.sh'), '--skip-init')
-    for name in ('market-data','manual-paper','execution','lean'):
+    for name in ('market-data','manual-paper','execution','lean','stock-owner','experiment-feed','experiment-collection'):
         run('install','-o','root','-g','root','-m','0644',str(runtime / ('deploy/systemd/stock-watch-'+name+'.service')),'/etc/systemd/system/')
     for name in ('stock-watch-storage-cleanup.service', 'stock-watch-storage-cleanup.timer'):
         run('install', '-o', 'root', '-g', 'root', '-m', '0644',
@@ -369,6 +372,7 @@ def main():
         run('systemctl','disable','--now','stock-watch-bitcoin-automation.timer')
         enabled.pop('stock-watch-bitcoin-automation.timer',None)
         run('systemctl','enable','--now','stock-watch-execution.service')
+    run('systemctl','enable','--now','stock-watch-stock-owner.service','stock-watch-experiment-feed.service','stock-watch-experiment-collection.service')
     run('systemctl','enable','--now','stock-watch-market-data.service','stock-watch-manual-paper.service','stock-watch-lean.service')
     run('systemctl','is-active','--quiet','stock-watch-market-data.service','stock-watch-manual-paper.service')
     if coordinator_enabled: run('systemctl','is-active','--quiet','stock-watch-execution.service')
@@ -376,7 +380,7 @@ def main():
         selected = [unit for unit, state in enabled.items() if state == mode]
         if selected:
             run('systemctl', 'enable', *(['--runtime'] if mode == 'enabled-runtime' else []), '--now', *selected)
-    for route in ('/api/health', '/api/systems?asset=stocks', '/api/systems?asset=bitcoin', '/api/bitcoin', '/api/systems/workspace?asset=stocks', '/api/systems/workspace?asset=bitcoin', '/api/systems/control?asset=bitcoin', '/api/systems/activity?asset=bitcoin', '/crypto', '/manual-paper', '/api/health/market-feed', '/favicon.ico'):
+    for route in ('/api/health', '/api/systems?asset=stocks', '/api/systems?asset=bitcoin', '/api/bitcoin', '/api/systems/workspace?asset=stocks', '/api/systems/workspace?asset=bitcoin', '/api/systems/control?asset=bitcoin', '/api/systems/activity?asset=bitcoin', '/crypto', '/manual-paper', '/api/health/market-feed', '/api/health/experiments', '/api/systems/experiments?asset=stocks', '/favicon.ico'):
         for attempt in range(30):
             try:
                 with urllib.request.urlopen('http://127.0.0.1:3001' + route, timeout=10) as response:

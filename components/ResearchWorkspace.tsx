@@ -503,6 +503,7 @@ export function ResearchWorkspace({
     disabled = !session.authenticated || busy
   return (
     <main className="space-y-6">
+      <Link className="sw-button" href={'/systems?tab=experiments&asset='+asset}>Paper experiments</Link>
       <PageHeader
         title={mode === 'systems' ? 'Systems library' : 'Backtesting'}
         description={

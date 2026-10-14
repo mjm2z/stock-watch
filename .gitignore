@@ -53,3 +53,6 @@ __pycache__/
 
 # Compiled background read worker (built before dev/build)
 .signal-worker/
+
+# Also ignore a shared dependency symlink in isolated release worktrees.
+/node_modules

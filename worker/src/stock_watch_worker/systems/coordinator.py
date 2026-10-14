@@ -43,6 +43,9 @@ def eligible(db,version,now):
 
 
 def fund(db,broker,versions,now):
+    if db.execute("SELECT 1 FROM sqlite_master WHERE name='experiment_batches'").fetchone() and db.execute("SELECT 1 FROM experiment_batches WHERE asset='bitcoin' AND status IN ('active','paused','expired','exiting')").fetchone():
+        raise ValueError('Existing experiment pool must complete before new legacy funding')
+
     if not 1<=len(versions)<=5 or len(set(versions))!=len(versions): raise ValueError('Select one to five distinct versions')
     for version in versions:
         config_for(db,version)
@@ -167,34 +170,35 @@ def reconcile(db,broker,account,now):
     unmatched=db.execute("SELECT 1 FROM btc_fees WHERE status='unattributed' LIMIT 1").fetchone()
     # Match gross fill totals minus actual activities. Ledger provisions remain
     # conservative for unposted fees; attributed fees are shown separately.
-    orders=db.execute('SELECT * FROM btc_orders WHERE account_id=?',(account['id'],)).fetchall()
-    gross_qty=sum((D(o['filled_qty'])*(1 if o['side']=='buy' else -1) for o in orders),D(0))
-    gross_cash=D(local['initial_cash'])+sum((D(o['filled_notional'])*(1 if o['side']=='sell' else -1) for o in orders),D(0))
-    actual_qty=D(0); actual_cash=D(0)
-    for r in db.execute('SELECT payload_json FROM btc_fees WHERE account_id=?',(account['id'],)):
-        f=json.loads(r[0]); actual_cash+=D(str(f.get('net_amount') or 0))
-        if str(f.get('symbol','')).replace('/','') in ('BTC','BTCUSD'): actual_qty+=abs(D(str(f.get('qty') or 0)))
+    from ..experiments.legacy_totals import totals, experimental_delta
+    summary=totals(db,account['id'])
+    gross_qty=summary['gross_qty']; gross_cash=D(local['initial_cash'])+summary['cash_delta']
+    actual_qty=summary['actual_qty']; actual_cash=summary['actual_cash']
+    extra_qty,extra_cash,extra_provision,extra_known=experimental_delta(db,account['id'])
+    orders=db.execute('SELECT * FROM btc_orders WHERE account_id=? AND updated_at>=?',(account['id'],(now-timedelta(hours=48)).isoformat())).fetchall()
     positions=broker.positions()
     if any(str(p.get('symbol','')).replace('/','')!='BTCUSD' for p in positions): return False
     broker_qty=sum((D(p['qty']) for p in positions),D(0))
-    expected_qty=gross_qty-actual_qty; expected_cash=gross_cash+actual_cash
+    expected_qty=gross_qty-actual_qty+extra_qty; expected_cash=gross_cash+actual_cash+extra_cash
     exact=abs(broker_qty-expected_qty)<=D('.00000001') and abs(D(account['cash'])-expected_cash)<=D('.02')
     # Fees may debit before their activity is published. Only a bounded, recent
     # fee provision can explain that temporary difference.
-    pending_qty=sum((D(o['filled_qty'])*FEE for o in orders if o['side']=='buy' and (now-instant(o['updated_at'])).total_seconds()<48*3600),D(0))
+    pending_qty=extra_provision+sum((D(o['filled_qty'])*FEE for o in orders if o['side']=='buy' and (now-instant(o['updated_at'])).total_seconds()<48*3600),D(0))
     pending_cash=sum((D(o['filled_notional'])*FEE for o in orders if o['side']=='sell' and (now-instant(o['updated_at'])).total_seconds()<48*3600),D(0))
+    pending_cash+=sum((D(r[0])*FEE for r in db.execute("""SELECT o.filled_notional FROM experiment_orders o WHERE o.account_id=? AND o.side='sell'
+        AND o.updated>=? AND NOT EXISTS(SELECT 1 FROM experiment_fees f WHERE f.order_id=o.id AND f.applied=1)""",
+        (account['id'],(now-timedelta(hours=48)).isoformat()))),D(0))
     if not expected_qty-pending_qty-D('.00000001')<=broker_qty<=expected_qty+D('.00000001'): return False
     if not expected_cash-pending_cash-D('.02')<=D(account['cash'])<=expected_cash+D('.02'): return False
     reconcile_provisions(db,now,exact)
     allocations=db.execute('SELECT * FROM btc_allocations').fetchall()
-    adjusted=db.execute('SELECT * FROM btc_orders WHERE account_id=?',(account['id'],)).fetchall()
-    modeled_qty=gross_qty-sum((D(o['filled_qty'])*FEE if o['side']=='buy' else D(0) for o in adjusted),D(0))-sum((D(o['fee_quantity_adjustment']) for o in adjusted),D(0))
-    modeled_cash=gross_cash-sum((D(o['filled_notional'])*FEE if o['side']=='sell' else D(0) for o in adjusted),D(0))-sum((D(o['fee_cash_adjustment']) for o in adjusted),D(0))
+    summary=totals(db,account['id'])
+    modeled_qty=gross_qty-summary['modeled_qty_fee']
+    modeled_cash=gross_cash-summary['modeled_cash_fee']
     if abs(sum((D(a['quantity']) for a in allocations),D(0))-modeled_qty)>D('.000000001'): return False
     if abs(D(local['cash'])+sum((D(a['cash']) for a in allocations),D(0))-modeled_cash)>D('.01'): return False
-    known={o['broker_id'] for o in orders if o['broker_id']}
-    if any(o['id'] not in known for o in broker.open_orders()): return False
-    if any(o['status']=='submitting' for o in orders): return False
+    if any(o['id'] not in extra_known and not db.execute('SELECT 1 FROM btc_orders WHERE broker_id=?',(o['id'],)).fetchone() for o in broker.open_orders()): return False
+    if db.execute("SELECT 1 FROM btc_orders WHERE account_id=? AND status='submitting' LIMIT 1",(account['id'],)).fetchone(): return False
     # Additional unallocated quantities/cash are never available to a sleeve.
     return not unmatched and all(D(a['cash'])>=0 and D(a['quantity'])>=0 for a in allocations)
 

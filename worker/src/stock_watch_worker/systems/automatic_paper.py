@@ -32,6 +32,9 @@ def eligible(db,version,now):
     return row['trial_id']
 
 def prepare(db,broker,now):
+    if db.execute("SELECT 1 FROM sqlite_master WHERE name='experiment_batches'").fetchone() and db.execute("SELECT 1 FROM experiment_batches WHERE asset='bitcoin' AND status IN ('active','paused','expired','exiting')").fetchone():
+        return  # Frozen experiment capital cannot be reallocated by discovery.
+
     if not available(db):return
     p=policy(db)
     if not p['enabled']:return

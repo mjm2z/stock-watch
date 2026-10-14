@@ -238,6 +238,9 @@ def _expected_positions(connection: sqlite3.Connection) -> dict[str, float]:
     from .systems.stocks import system_positions
     for symbol, quantity in system_positions(connection).items():
         result[symbol] = result.get(symbol, 0.0) + quantity
+    from .experiments.ownership import experimental_positions
+    for symbol, quantity in experimental_positions(connection, 'stocks').items():
+        result[symbol] = result.get(symbol, 0.0) + float(quantity)
     return result
 
 

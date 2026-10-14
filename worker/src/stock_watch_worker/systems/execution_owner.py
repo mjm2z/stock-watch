@@ -56,8 +56,15 @@ def run(path):
         db = connect(path)
         history = connect_history(str(path) + ".bitcoin-history.db")
         broker = ExecutionBroker()
+        from ..experiments.evidence import connect as evidence_connect
+        from ..experiments.owner import experiment_tick
+        market = evidence_connect(str(path) + '.experiment-evidence.db')
+        with db:
+            db.execute("UPDATE execution_authority SET enabled=1 WHERE asset='bitcoin'")
         wake = threading.Event()
         stop = threading.Event()
+        from ..experiments.owner import start_preflight_worker
+        preflights = start_preflight_worker(path, 'bitcoin', stop)
         latest = {}
         threading.Thread(
             target=feed_wake, args=(wake, latest, stop), daemon=True
@@ -100,14 +107,21 @@ def run(path):
                     health(db, "execution_owner", now)
                 except Exception as error:
                     health(db, "execution_owner", now, str(error)[:300])
+                try:
+                    experiment_tick(db, market, 'bitcoin', now)
+                except Exception as error:
+                    from ..experiments.store import health as experiment_health
+                    experiment_health(db, 'bitcoin-experiment-owner', now, error)
                 last_dispatch = time.monotonic()
                 next_periodic = last_dispatch + 10
                 if decisions:
                     next_decision = last_dispatch + 30
         finally:
             stop.set()
+            preflights.join(timeout=2)
             db.close()
             history.close()
+            market.close()
 
 
 if __name__ == "__main__":

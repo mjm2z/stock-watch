@@ -99,7 +99,7 @@ def activate_stock(db, identifier, broker, confirmation, now=None):
 
 def reconcile(db, deployment, broker, *, allow_entries=True, now=None):
     now=now or datetime.now(timezone.utc)
-    for order in db.execute('SELECT * FROM system_orders WHERE deployment_id=?',(deployment,)).fetchall():
+    for order in db.execute("SELECT * FROM system_orders WHERE deployment_id=? AND status NOT IN ('filled','canceled','expired','rejected')",(deployment,)).fetchall():
         if order['status'] in TERMINAL: continue
         found = broker.lookup(order['id'])
         expired=(now-instant(order['created_at'])).total_seconds()>900
@@ -107,6 +107,8 @@ def reconcile(db, deployment, broker, *, allow_entries=True, now=None):
             with db: db.execute("UPDATE system_orders SET status='canceled',updated_at=? WHERE id=?",(now_iso(),order['id']))
             continue
         if found is None:
+            from ..experiments.ownership import baseline_block, allowed
+            if not allowed(db,'stocks') or baseline_block(db,order['symbol']): continue
             request=json.loads(order['request_json'])
             if order['side']=='buy':
                 context=broker.quote(order['symbol'])
@@ -119,6 +121,12 @@ def reconcile(db, deployment, broker, *, allow_entries=True, now=None):
                 if reference<=0 or abs(float(quote['ap'])/reference-1)>.05:
                     with db: db.execute("UPDATE system_orders SET status='rejected',updated_at=? WHERE id=?",(now.isoformat(),order['id']))
                     continue
+            from ..experiments.ownership import shares_account, baseline_capacity
+            if order['side']=='buy' and shares_account(db):
+                snapshot=broker.account()
+                with db:
+                    db.execute('BEGIN IMMEDIATE')
+                    if not baseline_capacity(db,snapshot,request['notional'],order['id']): continue
             found = broker.submit(order['id'],order['symbol'],order['side'],request)
         with db:
             db.execute('UPDATE system_orders SET broker_id=?,status=?,filled_qty=?,filled_price=?,updated_at=?,response_json=? WHERE id=?',
@@ -126,6 +134,9 @@ def reconcile(db, deployment, broker, *, allow_entries=True, now=None):
 
 
 def stock_tick(db, broker, now=None):
+    from ..experiments.ownership import allowed
+    if not allowed(db, 'stocks'): return
+
     from ..broker_reconciliation import _expected_positions
     now = now or datetime.now(timezone.utc)
     at = now.isoformat()

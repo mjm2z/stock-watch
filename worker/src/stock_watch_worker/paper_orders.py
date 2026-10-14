@@ -281,6 +281,10 @@ def submit_or_reconcile_order(
     if row["status"] in {"canceled", "rejected", "error"}:
         raise ValueError(f"paper order in terminal status {row['status']}")
 
+    from .experiments.ownership import allowed, baseline_block
+    if not allowed(connection, 'stocks') or baseline_block(connection, str(row['symbol'])):
+        return ReconciledOrder(order_id, str(row['client_order_id']), '', 'pending', 'account_owner_pending')
+
     client_order_id = str(row["client_order_id"])
     try:
         response = broker.get_order_by_client_order_id(client_order_id)
@@ -292,8 +296,14 @@ def submit_or_reconcile_order(
         decision, reason = check_entry(connection, order_id, broker, now)
         if decision != 'allow':
             return ReconciledOrder(order_id, client_order_id, '', 'pending' if decision=='defer' else 'rejected', reason)
+        from .experiments.ownership import shares_account, baseline_capacity
+        snapshot = broker.get_account().raw if shares_account(connection) else None
         timestamp = utc_iso(now)
         with connection:
+            if snapshot is not None:
+                if not connection.in_transaction: connection.execute('BEGIN IMMEDIATE')
+                if not baseline_capacity(connection,snapshot,row['notional_usd'],order_id):
+                    return ReconciledOrder(order_id,client_order_id,'','pending','waiting_for_account_cash')
             connection.execute(
                 """
                 UPDATE paper_orders

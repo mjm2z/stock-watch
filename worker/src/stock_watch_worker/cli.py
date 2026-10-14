@@ -859,6 +859,8 @@ def _run_command(args: argparse.Namespace, operation: OperationMonitor) -> int:
             args.destination,
             keep=args.keep,
         )
+        from .experiments.backup import auxiliary_backups
+        auxiliary_backups(args.database,args.destination,args.keep)
         print(f"backup={result.path} removed={len(result.removed)}")
         operation.result(
             "verified SQLite backup completed",

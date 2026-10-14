@@ -149,6 +149,10 @@ def submit_or_reconcile_exit(
     if row["status"] in {"canceled", "rejected", "error"}:
         raise ValueError(f"paper exit order in terminal status {row['status']}")
 
+    from .experiments.ownership import allowed, baseline_block
+    if not allowed(connection, 'stocks') or baseline_block(connection, str(row['symbol'])):
+        return None
+
     client_order_id = str(row["client_order_id"])
     try:
         response = broker.get_order_by_client_order_id(client_order_id)
