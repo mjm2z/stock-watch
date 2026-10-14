@@ -90,10 +90,14 @@ def tick(db,evidence_db,broker,asset,now):
     cal=session(db,now); valid=trade_session(asset,now,cal)
     for order in active(db,account['id']): sync(db,broker,order,now,can_submit=valid and order['side']=='sell')
     release_settlement(db,now)
-    try: fees_ok=capture_fees(db,broker,batch,now)
+    try:
+        fees_ok=capture_fees(db,broker,batch,now)
+        health(db,'fees:'+asset,now,None if fees_ok else 'fee_attribution_pending')
     except Exception as error:
         fees_ok=False; health(db,'fees:'+asset,now,error)
-    try: okay,block=reconciled(db,broker,asset,account)
+    try:
+        okay,block=reconciled(db,broker,asset,account)
+        health(db,'reconciliation:'+asset,now,block)
     except Exception as error: okay,block=False,'account_reconciliation_unavailable'; health(db,'reconciliation:'+asset,now,error)
     if not fees_ok: okay,block=False,'fee_attribution_pending'
     from .accounting import cash_matches

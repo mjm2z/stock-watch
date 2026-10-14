@@ -48,7 +48,9 @@ def capture(db,broker,batch,now):
         # including orders omitted by an incomplete/late upstream FILL feed.
         day=str(fee.get('date',''))[:10]
         if not fee.get('order_id'):
-            for row in db.execute("SELECT o.broker_id,o.filled_qty FROM experiment_orders o WHERE o.account_id=? AND o.side=? AND substr(o.updated,1,10)=? AND CAST(o.filled_qty AS REAL)>0",(batch['account_id'],side,day)):
+            for row in db.execute("""SELECT o.broker_id FROM experiment_orders o WHERE o.account_id=? AND o.side=? AND substr(o.updated,1,10)=? AND CAST(o.filled_qty AS REAL)>0
+                UNION ALL SELECT o.broker_id FROM btc_orders o WHERE o.account_id=? AND o.side=? AND substr(o.updated_at,1,10)=? AND CAST(o.filled_qty AS REAL)>0""",
+                (batch['account_id'],side,day,batch['account_id'],side,day)):
                 if row['broker_id'] not in weights: valid=False
         if not valid: continue
         total=sum(weights.values(),money(0)); remaining_cash=cash; remaining_qty=qty

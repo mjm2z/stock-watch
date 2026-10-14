@@ -221,6 +221,10 @@ class ExperimentsTests(unittest.TestCase):
         tick(self.db,self.market,self.broker,'stocks',now)
         self.assertEqual(self.broker.posts,1)
         self.assertEqual(self.db.execute("SELECT count(*) FROM experiment_orders WHERE side='sell'").fetchone()[0],1)
+        self.assertIsNotNone(self.db.execute("SELECT error FROM experiment_health WHERE component='fees:stocks'").fetchone()[0])
+        self.broker.activities=lambda after:[]
+        tick(self.db,self.market,self.broker,'stocks',now+timedelta(seconds=1))
+        self.assertIsNone(self.db.execute("SELECT error FROM experiment_health WHERE component='fees:stocks'").fetchone()[0])
 
     def test_daily_aggregate_fees_use_complete_fill_weights_once(self):
         from stock_watch_worker.experiments.fees import capture
@@ -244,6 +248,29 @@ class ExperimentsTests(unittest.TestCase):
         controls(self.db,{'instance_id':self.instance},'pause',NOW)
         sync(self.db,self.broker,self.row(key),NOW,force_cancel=True)
         self.assertEqual(self.row(key)['status'],'canceled')
+
+    def test_aggregate_fee_waits_for_missing_legacy_fill_evidence(self):
+        from stock_watch_worker.experiments.fees import capture
+        from stock_watch_worker.systems.research import register_version
+        from stock_watch_worker.systems.automation_config import BitcoinConfig
+        broker,p=self.seed_bitcoin()
+        instance=self.db.execute('SELECT id FROM experiment_instances WHERE batch_id=? LIMIT 1',(p['id'],)).fetchone()[0]
+        key=reserve(self.db,instance,'BTC/USD','buy',self.q,self.meta,NOW,'test',account_cash='1000'); response=self.fill(key)
+        version=register_version(self.db,BitcoinConfig('bitcoin'))
+        with self.db:
+            self.db.execute("INSERT INTO btc_accounts(id,created_at) VALUES ('bitcoin-paper',?)",(stamp(NOW),))
+            self.db.execute("INSERT INTO btc_orders(id,version_id,account_id,side,quantity,filled_qty,filled_notional,broker_id,status,reference_price,created_at,updated_at,reason) VALUES ('old-order',?,'bitcoin-paper','buy','.1','.1','10','old-broker-order','filled','100',?,?,'test')",(version,stamp(NOW),stamp(NOW)))
+        fee=(money(response['filled_qty'])+money('.1'))*money('.0025')
+        events=[{'activity_type':'FILL','id':'new-fill','order_id':response['id'],'transaction_time':stamp(NOW),'side':'buy','qty':response['filled_qty'],'price':'100'},
+            {'activity_type':'CFEE','id':'shared-fee','date':NOW.date().isoformat(),'symbol':'BTC','qty':str(fee),'net_amount':'0'}]
+        broker.activities=lambda after:events
+        batch=self.db.execute('SELECT * FROM experiment_batches WHERE id=?',(p['id'],)).fetchone()
+        self.assertFalse(capture(self.db,broker,batch,NOW+timedelta(days=1)))
+        self.assertEqual(self.db.execute('SELECT count(*) FROM experiment_fees').fetchone()[0],0)
+        events.append({'activity_type':'FILL','id':'old-fill','order_id':'old-broker-order','transaction_time':stamp(NOW),'side':'buy','qty':'.1','price':'100'})
+        self.assertTrue(capture(self.db,broker,batch,NOW+timedelta(days=1)))
+        self.assertEqual(money(self.db.execute('SELECT quantity FROM experiment_fees').fetchone()[0]),money(response['filled_qty'])*money('.0025'))
+        self.assertEqual(money(self.db.execute('SELECT quantity_fee FROM btc_fee_allocations').fetchone()[0]),money('.00025'))
 
     def test_primary_source_context_parser_is_bounded_and_links_official_sources(self):
         from stock_watch_worker.experiments.context import parse

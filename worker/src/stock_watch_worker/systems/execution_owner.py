@@ -109,6 +109,8 @@ def run(path):
                     health(db, "execution_owner", now, str(error)[:300])
                 try:
                     experiment_tick(db, market, 'bitcoin', now)
+                    from ..experiments.store import health as experiment_health
+                    experiment_health(db, 'bitcoin-experiment-owner', now)
                 except Exception as error:
                     from ..experiments.store import health as experiment_health
                     experiment_health(db, 'bitcoin-experiment-owner', now, error)
