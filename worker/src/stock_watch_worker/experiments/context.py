@@ -42,7 +42,11 @@ def collect(db,now):
             health(db,component,now,detail={'articles':len(rows)})
         except Exception as error: health(db,component,now,error)
     # Reuse cached SEC accession provenance; avoid a second EDGAR collector.
-    for row in db.execute("SELECT symbol,payload_json FROM company_context WHERE status='ready' AND payload_json IS NOT NULL"):
+    # Finish the read before writing. An open cursor retains a WAL snapshot;
+    # another writer's commit makes upgrading it fail with SQLITE_BUSY_SNAPSHOT,
+    # which cannot be resolved by the connection's busy timeout.
+    cached=db.execute("SELECT symbol,payload_json FROM company_context WHERE status='ready' AND payload_json IS NOT NULL").fetchall()
+    for row in cached:
         if row['symbol'] not in UNIVERSE: continue
         document=json.loads(row['payload_json'])
         with db:

@@ -278,6 +278,35 @@ class ExperimentsTests(unittest.TestCase):
         rows=parse(raw,'BLS employment',NOW);self.assertEqual(len(rows),1);self.assertEqual(rows[0][1],'BLS employment')
         with self.assertRaises(ValueError): parse(b'<!DOCTYPE x>'+raw,'BLS',NOW)
 
+    def test_sec_context_refresh_tolerates_a_concurrent_writer(self):
+        from unittest.mock import patch
+        from stock_watch_worker.experiments import context
+        other=connect(Path(self.temp.name)/'state.db'); self.addCleanup(other.close)
+        with self.db:
+            for symbol in ('AAPL','MSFT'):
+                document={'observedAt':stamp(NOW),'filings':[{
+                    'accession':symbol+'-filing','form':'10-Q','accepted':stamp(NOW),
+                    'url':'https://www.sec.gov/Archives/'+symbol,
+                }]}
+                self.db.execute("INSERT INTO company_context(symbol,status,requested_at,payload_json) VALUES (?,'ready',?,?)",
+                    (symbol,stamp(NOW),canonical(document)))
+        loads=json.loads
+        writes=[]
+        def concurrent_write(raw):
+            # An execution/collection writer can commit after the SEC read
+            # begins but before its first display-projection insert.
+            with other:
+                other.execute('UPDATE experiment_stock_revision SET revision=revision+1 WHERE id=1')
+            writes.append(True)
+            return loads(raw)
+        with patch.dict(context.FEEDS,{},clear=True), patch.object(context.json,'loads',side_effect=concurrent_write):
+            context.collect(self.db,NOW)
+            context.collect(self.db,NOW+timedelta(minutes=1))
+        self.assertEqual(len(writes),4)
+        rows=self.db.execute("SELECT symbol FROM experiment_context WHERE source='SEC EDGAR' ORDER BY symbol").fetchall()
+        self.assertEqual([r['symbol'] for r in rows],['AAPL','MSFT'])
+        self.assertFalse(self.db.in_transaction)
+
     def test_crypto_fee_reserve_does_not_prevent_the_next_entry(self):
         broker,p=self.seed_bitcoin()
         instance=self.db.execute("SELECT i.id FROM experiment_instances i JOIN experiment_versions v ON v.id=i.version_id WHERE i.batch_id=? AND v.family='trend'",(p['id'],)).fetchone()[0]
