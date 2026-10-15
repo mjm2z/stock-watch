@@ -4,6 +4,7 @@ import { BacktestCurve } from './BacktestCurve'
 import { useState } from 'react'
 import { ResearchActivity, pct, rate, money, color, outcome } from './ResearchActivity'
 import { useOperator } from './OperatorSession'
+import { generateId } from '@/lib/utils'
 function Evidence({ name, value }: { name: string; value: unknown }) {
   return (
     <details className="rounded border p-3">
@@ -27,7 +28,7 @@ export function SystemEvidence({ data: d }: { data: any }) {
           body: JSON.stringify({
             action: 'evaluate',
             version: d.id,
-            requestId: crypto.randomUUID(),
+            requestId: generateId(),
           }),
         }),
         v = await r.json()

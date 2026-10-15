@@ -4,7 +4,35 @@ import {
   formatPercent,
   formatLargeNumber,
   formatVolume,
+  generateId,
 } from '@/lib/utils'
+
+describe('generateId', () => {
+  afterEach(() => jest.restoreAllMocks())
+
+  it('uses the native UUID generator when available', () => {
+    const id = '021c13b9-9040-4e34-b231-5168ee1173e9'
+    const native = jest.spyOn(crypto, 'randomUUID').mockReturnValue(id)
+    expect(generateId()).toBe(id)
+    expect(native).toHaveBeenCalledTimes(1)
+  })
+
+  it('generates distinct UUID v4 IDs without randomUUID on HTTP', () => {
+    jest.replaceProperty(globalThis, 'crypto', {
+      getRandomValues: crypto.getRandomValues,
+    } as Crypto)
+    const ids = Array.from({ length: 100 }, () => generateId())
+    expect(new Set(ids).size).toBe(ids.length)
+    for (const id of ids) {
+      expect(id).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/)
+    }
+  })
+
+  it('reports unavailable browser randomness instead of generating a weak ID', () => {
+    jest.replaceProperty(globalThis, 'crypto', undefined as unknown as Crypto)
+    expect(() => generateId()).toThrow('Your browser cannot generate request IDs')
+  })
+})
 
 describe('cn (className merge)', () => {
   it('should merge class names', () => {

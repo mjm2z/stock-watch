@@ -2,6 +2,7 @@
 
 import { atom } from 'jotai'
 import { atomWithStorage } from 'jotai/utils'
+import { generateId } from './utils'
 import type {
   WatchlistItem,
   PaperTrade,
@@ -196,7 +197,7 @@ export const addPaperTradeAtom = atom(
     const trades = get(paperTradesAtom)
     const newTrade: PaperTrade = {
       ...trade,
-      id: crypto.randomUUID(),
+      id: generateId(),
     }
     set(paperTradesAtom, [...trades, newTrade])
     return newTrade.id

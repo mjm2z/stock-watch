@@ -13,6 +13,7 @@ import { useOperator } from './OperatorSession'
 import { SystemEquityChart } from './dashboard/SystemEquityChart'
 import { BitcoinSystemResearch } from './BitcoinSystemResearch'
 import bitcoinStudy from '@/lib/research/bitcoin-study-summary.json'
+import { generateId } from '@/lib/utils'
 type Operand = { kind: string; period?: number; value?: number }
 type Condition = { op: string; left: Operand; right: Operand }
 type Group = { op: 'all' | 'any'; conditions: (Condition | Group)[] }
@@ -428,7 +429,7 @@ export function ResearchWorkspace({
       const r = await fetch('/api/systems/commands', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ asset, requestId: crypto.randomUUID(), ...body }),
+        body: JSON.stringify({ asset, requestId: generateId(), ...body }),
       })
       const d = await r.json()
       if (!r.ok) throw Error(d.error)

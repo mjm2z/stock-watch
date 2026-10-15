@@ -2,6 +2,7 @@
 import Link from 'next/link'
 import { useCallback, useEffect, useState } from 'react'
 import { Check, FlaskConical, Loader2, Pause, Play } from 'lucide-react'
+import { generateId } from '@/lib/utils'
 import { useOperator } from './OperatorSession'
 import { CompactDisclosure, PagedRows, StatusBadge } from './experiments/CompactDisclosure'
 import { ExperimentCard } from './experiments/ExperimentCard'
@@ -59,7 +60,7 @@ export function ExperimentsWorkspace({ asset }: { asset: Asset }) {
       const response = await fetch('/api/systems/experiments', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action, asset, requestId: crypto.randomUUID(), ...extra }),
+        body: JSON.stringify({ action, asset, requestId: generateId(), ...extra }),
       })
       const body = await response.json()
       if (!response.ok) throw Error(body.error || 'Request failed.')

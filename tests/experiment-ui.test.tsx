@@ -65,7 +65,30 @@ beforeEach(() => {
 })
 afterEach(() => {
   global.fetch = previous
+  jest.restoreAllMocks()
 })
+
+test.each(['stocks', 'bitcoin'] as const)(
+  'preparing a %s batch works without randomUUID on HTTP',
+  async (asset) => {
+    jest.replaceProperty(globalThis, 'crypto', { getRandomValues: crypto.getRandomValues } as Crypto)
+    ;(useOperator as jest.Mock).mockReturnValue({ authenticated: true, configured: true })
+    data.batches = []
+    const user = userEvent.setup()
+    render(<ExperimentsWorkspace asset={asset} />)
+    await user.click(await screen.findByRole('button', { name: 'Prepare batch preview' }))
+    const requests = fetchMock.mock.calls.filter((call) => call[1]?.method === 'POST')
+    expect(requests).toHaveLength(1)
+    expect(JSON.parse(requests[0][1].body)).toEqual({
+      action: 'preview',
+      asset,
+      requestId: expect.stringMatching(
+        /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/
+      ),
+    })
+    expect(screen.getByRole('button', { name: 'Preparing preview…' })).toBeDisabled()
+  }
+)
 
 test('a frozen preview is presented as cards and remains read-only until operator approval', async () => {
   render(<ExperimentsWorkspace asset="stocks" />)
@@ -101,6 +124,7 @@ test('research expands by keyboard, is paged in small groups and can be filtered
 })
 
 test('approval explicitly sends the frozen batch revision and prevents duplicate requests', async () => {
+  jest.replaceProperty(globalThis, 'crypto', { getRandomValues: crypto.getRandomValues } as Crypto)
   ;(useOperator as jest.Mock).mockReturnValue({ authenticated: true, configured: true })
   const user = userEvent.setup()
   render(<ExperimentsWorkspace asset="bitcoin" />)

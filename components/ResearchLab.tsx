@@ -2,6 +2,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useOperator } from './OperatorSession'
 import { InteractiveChart, ChartBar } from './MarketChart'
+import { generateId } from '@/lib/utils'
 type Row = Record<string, any>
 const pretty = (n: any) =>
   typeof n === 'number' && Number.isFinite(n) ? (n * 100).toFixed(2) + '%' : 'Unavailable'
@@ -83,7 +84,7 @@ export function ResearchLab({
       const r = await fetch('/api/systems/lab', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ asset, action, requestId: crypto.randomUUID(), ...body }),
+        body: JSON.stringify({ asset, action, requestId: generateId(), ...body }),
       })
       const result = await r.json()
       if (!r.ok) throw Error(result.error)

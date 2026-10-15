@@ -1,4 +1,5 @@
 import { TextEncoder } from 'node:util'
+import { webcrypto } from 'node:crypto'
 Object.assign(globalThis, { TextEncoder })
 import '@testing-library/jest-dom'
 
@@ -28,10 +29,13 @@ Object.defineProperty(window, 'localStorage', {
   value: localStorageMock,
 })
 
-// Mock crypto.randomUUID
+// Browser crypto defaults; HTTP compatibility tests can remove randomUUID.
 Object.defineProperty(global, 'crypto', {
+  configurable: true,
+  writable: true,
   value: {
-    randomUUID: () => 'test-uuid-' + Math.random().toString(36).substr(2, 9),
+    randomUUID: webcrypto.randomUUID.bind(webcrypto),
+    getRandomValues: webcrypto.getRandomValues.bind(webcrypto),
   },
 })
 
