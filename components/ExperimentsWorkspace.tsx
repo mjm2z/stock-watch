@@ -1,463 +1,450 @@
 'use client'
 import Link from 'next/link'
 import { useCallback, useEffect, useState } from 'react'
+import { Check, FlaskConical, Loader2, Pause, Play } from 'lucide-react'
 import { useOperator } from './OperatorSession'
+import { CompactDisclosure, PagedRows, StatusBadge } from './experiments/CompactDisclosure'
+import { ExperimentCard } from './experiments/ExperimentCard'
+import { ResearchPanels } from './experiments/ResearchPanels'
+import {
+  amount,
+  date,
+  families,
+  parsed,
+  reason,
+  when,
+  type Asset,
+  type ExperimentData,
+} from './experiments/presentation'
 
-type Batch = {
-  id: string
-  revision: string
-  status: string
-  equity: string
-  expires: string
-  risk_reason: string | null
-  plan: {
-    versions: {
-      family: string
-      universe: string[]
-      holding_minutes: number
-      stop: string
-      take: string
-      trend_fast?: number
-      breakout_period?: number
-      rsi_entry?: number
-    }[]
-  }
-}
-type Instance = {
-  id: string
-  batch_id: string
-  family: string
-  budget: string
-  cash: string
-  state: string
-  reason: string | null
-  last_decision: string | null
-}
-type Data = {
-  context: {
-    id: string
-    source: string
-    symbol: string | null
-    title: string
-    url: string
-    published: string
-    observed: string
-  }[]
-  proposals: { id: string; family: string; variant: number; week: string }[]
-  batches: Batch[]
-  instances: Instance[]
-  health: { component: string; at: string; error: string | null }[]
-  commands: { id: string; action: string; status: string; result_json: string | null }[]
-  research: { id: string; status: string; result_json: string | null; error: string | null }[]
-}
-type Decision = {
-  id: string
-  symbol: string
-  cutoff: string
-  outcome: string
-  reason: string
-  evidence: {
-    conditions?: { left: number; op: string; right: number }[]
-    bars: number[]
-    news?: unknown[]
-  }
-}
-type Detail = {
-  gaps: { start: string; end: string; reason: string }[]
-  decisions: Decision[]
-  next: string | null
-  positions: { symbol: string; quantity: string; cost: string; exit_due: string | null }[]
-  orders: {
-    id: string
-    symbol: string
-    side: string
-    status: string
-    filled_qty: string
-    error: string | null
-  }[]
-}
-const human = (value: string | null) => value?.replaceAll('_', ' ') || '—'
-function rules(version: Batch['plan']['versions'][number]) {
-  if (version.family === 'trend')
-    return `Enter when EMA${version.trend_fast || 20} is above EMA50 and price is above EMA${version.trend_fast || 20}. Exit below EMA${version.trend_fast || 20}.`
-  if (version.family === 'reversal')
-    return `Enter when RSI14 crosses above ${version.rsi_entry || 35} and price is above EMA50. Exit at RSI55 or below EMA50.`
-  if (version.family === 'control')
-    return 'One daily entry at 10:05 ET, only within five minutes of that time. Hold at most 15 minutes.'
-  return (
-    `Enter above the previous ${version.breakout_period || 20} bars’ high. Exit below the previous 10 bars’ low.` +
-    (version.family === 'news_breakout'
-      ? ' Requires symbol-linked news published and first seen within one hour.'
-      : '')
-  )
-}
-const amount = (value: string) =>
-  Number(value).toLocaleString('en-US', { style: 'currency', currency: 'USD' })
-const when = (value: string | null) => (value ? new Date(value).toLocaleString() : 'Not yet')
-
-export function ExperimentsWorkspace({ asset }: { asset: 'stocks' | 'bitcoin' }) {
-  const session = useOperator(),
-    [data, setData] = useState<Data | null>(null),
-    [error, setError] = useState(''),
-    [notice, setNotice] = useState(''),
-    [busy, setBusy] = useState(false),
-    [selected, setSelected] = useState(''),
-    [detail, setDetail] = useState<Detail | null>(null)
+export function ExperimentsWorkspace({ asset }: { asset: Asset }) {
+  const session = useOperator()
+  const [data, setData] = useState<ExperimentData | null>(null),
+    [loadError, setLoadError] = useState(''),
+    [error, setError] = useState('')
+  const [busy, setBusy] = useState(''),
+    [submitted, setSubmitted] = useState<{ id: string; action: string } | null>(null)
   const endpoint = '/api/systems/experiments?asset=' + asset
-  const refresh = useCallback(async () => {
-    const response = await fetch(endpoint, { cache: 'no-store' }),
-      body = await response.json()
-    if (!response.ok) throw Error(body.error)
-    setData(body)
-  }, [endpoint])
+  const refresh = useCallback(
+    async (signal?: AbortSignal) => {
+      try {
+        const response = await fetch(endpoint, { cache: 'no-store', signal }),
+          body = await response.json()
+        if (!response.ok) throw Error(body.error || 'Experiments are unavailable.')
+        if (!signal?.aborted) {
+          setData(body)
+          setLoadError('')
+        }
+      } catch (e) {
+        if (!signal?.aborted)
+          setLoadError(e instanceof Error ? e.message : 'Experiments are unavailable.')
+      }
+    },
+    [endpoint]
+  )
   useEffect(() => {
-    const update = () => void refresh().catch((e) => setError(e.message))
-    update()
-    const timer = setInterval(update, 10000)
-    return () => clearInterval(timer)
-  }, [refresh])
-  async function inspect(id: string, before?: string) {
-    try {
-      const r = await fetch(
-          endpoint + '&instance=' + id + (before ? '&before=' + encodeURIComponent(before) : ''),
-          { cache: 'no-store' }
-        ),
-        body = await r.json()
-      if (!r.ok) throw Error(body.error)
-      setSelected(id)
-      setDetail((old) =>
-        before && old ? { ...body, decisions: [...old.decisions, ...body.decisions] } : body
-      )
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Inspection unavailable')
+    const controller = new AbortController()
+    void refresh(controller.signal)
+    const timer = setInterval(() => void refresh(controller.signal), 10000)
+    return () => {
+      controller.abort()
+      clearInterval(timer)
     }
-  }
+  }, [refresh])
   async function command(action: string, extra: Record<string, string> = {}) {
-    setBusy(true)
+    setBusy(action)
     setError('')
+    setSubmitted(null)
     try {
-      const r = await fetch('/api/systems/experiments', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ action, asset, requestId: crypto.randomUUID(), ...extra }),
-        }),
-        body = await r.json()
-      if (!r.ok) throw Error(body.error)
-      setNotice('Request queued. Its result appears below.')
+      const response = await fetch('/api/systems/experiments', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action, asset, requestId: crypto.randomUUID(), ...extra }),
+      })
+      const body = await response.json()
+      if (!response.ok) throw Error(body.error || 'Request failed.')
+      setSubmitted({ id: body.id, action })
       await refresh()
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Request failed')
+      setError(e instanceof Error ? e.message : 'Request failed.')
     } finally {
-      setBusy(false)
+      setBusy('')
     }
   }
-  const disabled = busy || !session.authenticated,
-    batch = data?.batches.find((b) =>
-      ['active', 'paused', 'expired', 'exiting'].includes(b.status)
-    ),
-    preview = data?.batches.find((b) => b.status === 'preview')
+  const batch = data?.batches.find((item) =>
+    ['active', 'paused', 'expired', 'exiting'].includes(item.status)
+  )
+  const preview = data?.batches.find((item) => item.status === 'preview')
+  const current = batch || preview
+  const instances = data?.instances.filter((item) => item.batch_id === batch?.id) || []
+  const pending = data?.commands.find((item) => item.status === 'pending')
+  const submittedResult =
+    data?.commands.find((item) => item.id === submitted?.id) ||
+    data?.research.find((item) => item.id === submitted?.id)
+  const submittedPending = Boolean(submitted && !submittedResult && submitted.action !== 'replay')
+  const disabled = Boolean(busy || loadError || !session.authenticated || !data)
+  const authorizationDisabled = disabled || Boolean(pending) || submittedPending
+  const preparing =
+    busy === 'preview' ||
+    pending?.action === 'preview' ||
+    (submittedPending && submitted?.action === 'preview')
+  const approving =
+    busy === 'approve' ||
+    pending?.action === 'approve' ||
+    (submittedPending && submitted?.action === 'approve')
+  const previewExpired = Boolean(
+    preview?.created && Date.now() >= Date.parse(preview.created) + 30 * 60000
+  )
+  const paused =
+    instances.length > 0 && instances.every((item) => item.paused || item.state === 'paused')
+  const riskBlocked = Boolean(
+    batch?.risk_reason || ['expired', 'exiting'].includes(batch?.status || '')
+  )
+  const resultError =
+    submittedResult?.status === 'failed'
+      ? parsed<{ error?: string }>(submittedResult.result_json, {}).error ||
+        ('error' in submittedResult ? submittedResult.error : '') ||
+        'The request could not be completed.'
+      : ''
+  const completed = data?.batches.filter((item) => item.status === 'completed') || []
   return (
     <main className="space-y-6">
-      <nav className="flex gap-4" aria-label="Systems views">
-        <Link href={'/systems?asset=' + asset}>Systems library</Link>
-        <span aria-current="page">Experiments</span>
-        <Link
-          href={'/systems?tab=experiments&asset=' + (asset === 'stocks' ? 'bitcoin' : 'stocks')}
-        >
-          {asset === 'stocks' ? 'Bitcoin' : 'Stocks'}
-        </Link>
+      <nav
+        aria-label="Systems views"
+        className="flex flex-wrap items-center justify-between gap-3 border-b border-border pb-4 text-xs"
+      >
+        <div className="flex items-center gap-5">
+          <Link
+            className="text-muted-foreground hover:text-foreground"
+            href={'/systems?asset=' + asset}
+          >
+            Systems library
+          </Link>
+          <span aria-current="page" className="font-medium text-primary">
+            Paper experiments
+          </span>
+        </div>
+        <div className="inline-flex rounded-lg border border-border bg-card p-1">
+          {(['stocks', 'bitcoin'] as const).map((name) => (
+            <Link
+              key={name}
+              href={'/systems?tab=experiments&asset=' + name}
+              aria-current={asset === name ? 'page' : undefined}
+              className={`rounded-md px-3 py-1.5 ${asset === name ? 'bg-muted font-medium text-foreground' : 'text-muted-foreground hover:text-foreground'}`}
+            >
+              {name === 'stocks' ? 'Stocks' : 'Bitcoin'}
+            </Link>
+          ))}
+        </div>
       </nav>
-      <header>
-        <h1 className="text-2xl font-semibold">
-          {asset === 'stocks' ? 'Stock' : 'Bitcoin'} paper experiments
-        </h1>
-        <p>Small, unvalidated trials with fixed rules. Review each batch before it can trade.</p>
-      </header>
-      {error && (
-        <p role="alert" className="sw-notice sw-error">
-          {error}
-        </p>
-      )}
-      {notice && (
-        <p role="status" className="sw-notice">
-          {notice}
-        </p>
-      )}
-      {!session.authenticated && (
-        <p className="sw-notice">Sign in with Operator access to approve or control experiments.</p>
-      )}
-      {batch ? (
-        <section className="sw-card space-y-3">
-          <h2>Current pool: {amount(batch.equity)}</h2>
-          <p>
-            Expires {when(batch.expires)}
-            {batch.risk_reason ? ' · Entries paused: ' + human(batch.risk_reason) : ''}
-          </p>
-          <div className="flex flex-wrap gap-2">
-            {['pause', 'resume', 'exit', 'exit_and_pause'].map((action) => (
-              <button
-                key={action}
-                className="sw-button"
-                disabled={disabled}
-                onClick={() => void command(action, { batch_id: batch.id })}
-              >
-                {human(action)}
-              </button>
-            ))}
+      <header className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <div className="mb-2 flex items-center gap-2 text-[10px] uppercase tracking-[0.16em] text-muted-foreground">
+            <FlaskConical size={13} aria-hidden="true" />
+            {asset === 'stocks' ? 'Stocks & ETFs' : 'Bitcoin'} · Paper only
           </div>
-          <button
-            className="sw-button"
-            disabled={disabled}
-            onClick={() =>
-              void command('replay', {
-                batch_id: batch.id,
-                start: new Date(Date.now() - 7 * 86400000).toISOString(),
-                end: new Date().toISOString(),
-              })
-            }
-          >
-            Replay the last 7 days
-          </button>
-        </section>
-      ) : (
-        <section className="sw-card">
-          <p>No active batch. Collection and research can continue while trading is disabled.</p>
-          <button
-            className="sw-button primary"
-            disabled={disabled}
-            onClick={() => void command('preview')}
-          >
-            Prepare batch preview
-          </button>
-        </section>
+          <h1>Paper experiments</h1>
+          <p className="mt-2 text-sm text-muted-foreground">
+            Small trials. Fixed rules. You approve each batch.
+          </p>
+        </div>
+        <StatusBadge tone={batch && !riskBlocked && !paused ? 'good' : 'neutral'}>
+          {batch
+            ? riskBlocked
+              ? 'Entries stopped'
+              : paused
+                ? 'Entries paused'
+                : 'Batch active'
+            : preview && !previewExpired
+              ? 'Ready for review'
+              : 'Trading not started'}
+        </StatusBadge>
+      </header>
+      {(error || loadError || resultError) && (
+        <p
+          role="alert"
+          className="rounded-lg border border-loss/20 bg-loss/5 px-4 py-3 text-sm text-loss"
+        >
+          {error || loadError || resultError}
+        </p>
       )}
-      {preview && !batch && (
-        <section className="sw-card space-y-3">
-          <h2>Review this batch</h2>
-          <p>$1,000 pool · Four $200 strategies · $50 control · $150 unallocated</p>
-          <p>
-            Up to $50 per entry, including allowances. Daily $10 control. Entries pause at 2% daily
-            loss or 10% drawdown.
-          </p>
-          <p>{preview.plan.versions[0].universe.join(', ')}</p>
-          <ul className="space-y-2">
-            {preview.plan.versions.map((v) => (
-              <li key={v.family}>
-                <strong>{human(v.family)}:</strong> {rules(v)} Maximum hold {v.holding_minutes}{' '}
-                minutes; stop {Number(v.stop) * 100}%, take profit {Number(v.take) * 100}%.
-              </li>
-            ))}
-          </ul>
-          <p>
-            At most four entries per strategy each Eastern day. Long positions only. Limit entries
-            expire after 60 seconds. Exits may use a market order after cancellation is confirmed.
-          </p>
-          <p>
-            Expires {when(preview.expires)}.{' '}
-            {asset === 'stocks'
-              ? 'Stock sale proceeds wait for settlement.'
-              : 'Bitcoin holds last at most four hours.'}
-          </p>
-          <button
-            className="sw-button primary"
-            disabled={disabled}
-            onClick={() =>
-              void command('approve', { batch_id: preview.id, revision: preview.revision })
-            }
-          >
-            Approve this paper batch
-          </button>
-          <details>
-            <summary>Rules and execution settings</summary>
-            <pre className="overflow-auto text-xs">{JSON.stringify(preview.plan, null, 2)}</pre>
-          </details>
-        </section>
+      {submitted && !resultError && (
+        <p
+          role="status"
+          className="flex items-center gap-2 rounded-lg border border-primary/20 bg-primary/5 px-4 py-3 text-xs text-primary"
+        >
+          {submittedResult?.status === 'succeeded' ? (
+            <Check size={14} aria-hidden="true" />
+          ) : (
+            <Loader2
+              size={14}
+              className="animate-spin motion-reduce:animate-none"
+              aria-hidden="true"
+            />
+          )}
+          {submittedResult?.status === 'succeeded'
+            ? 'Request completed.'
+            : submitted.action === 'preview'
+              ? 'Preparing your batch. Account checks may take a moment.'
+              : submitted.action === 'approve'
+                ? 'Checking your approval. Trading starts only after the checks pass.'
+                : submitted.action === 'replay'
+                  ? 'Replay queued. Results will appear in Recent activity.'
+                  : 'Request queued. The status updates automatically.'}
+        </p>
       )}
-      <section className="overflow-auto">
-        <table className="w-full text-left">
-          <thead>
-            <tr>
-              <th>Experiment</th>
-              <th>Allocation</th>
-              <th>Status</th>
-              <th>Last decision</th>
-              <th>Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {data?.instances
-              .filter((i) => !batch || i.batch_id === batch.id)
-              .map((i) => (
-                <tr key={i.id}>
-                  <td>
-                    <button className="underline" onClick={() => void inspect(i.id)}>
-                      {human(i.family)}
+      {!data && !loadError && (
+        <div
+          role="status"
+          className="rounded-xl border border-border bg-card p-6 text-sm text-muted-foreground"
+        >
+          Loading experiments…
+        </div>
+      )}
+      {data && (
+        <>
+          <section
+            aria-label="Batch approval and controls"
+            className="overflow-hidden rounded-xl border border-border bg-card shadow-sm"
+          >
+            <div className="flex flex-wrap items-center justify-between gap-5 p-5 sm:p-6">
+              <div>
+                <p className="text-xs text-muted-foreground">
+                  {batch ? 'Current paper pool' : 'Planned paper pool'}
+                </p>
+                <p className="mt-1 text-3xl font-medium tracking-tight tabular-nums">
+                  {amount(batch?.equity || '1000')}
+                </p>
+              </div>
+              <dl className="flex flex-wrap gap-5 text-xs sm:gap-8">
+                <div>
+                  <dt className="text-muted-foreground">Entry cap</dt>
+                  <dd className="mt-1.5 font-medium">$50</dd>
+                </div>
+                <div>
+                  <dt className="text-muted-foreground">Experiments</dt>
+                  <dd className="mt-1.5 font-medium">4 + daily control</dd>
+                </div>
+                <div>
+                  <dt className="text-muted-foreground">{current ? 'Ends' : 'Duration'}</dt>
+                  <dd className="mt-1.5 font-medium">
+                    {current ? date(current.expires) : '30 days'}
+                  </dd>
+                </div>
+              </dl>
+              <div className="flex flex-wrap gap-2">
+                {batch ? (
+                  <>
+                    <button
+                      className="sw-button primary"
+                      disabled={disabled || (paused && riskBlocked) || batch.status === 'expired'}
+                      onClick={() =>
+                        void command(paused ? 'resume' : 'pause', { batch_id: batch.id })
+                      }
+                    >
+                      {paused ? (
+                        <Play size={14} aria-hidden="true" />
+                      ) : (
+                        <Pause size={14} aria-hidden="true" />
+                      )}
+                      {paused ? 'Resume batch' : 'Pause batch'}
                     </button>
-                  </td>
-                  <td>{amount(i.budget)}</td>
-                  <td>
-                    {human(i.state)}
-                    <p className="text-sm opacity-75">{human(i.reason)}</p>
-                  </td>
-                  <td>{when(i.last_decision)}</td>
-                  <td>
                     <button
                       className="sw-button"
                       disabled={disabled}
-                      onClick={() =>
-                        void command(i.state === 'paused' ? 'resume' : 'pause', {
-                          instance_id: i.id,
-                        })
-                      }
+                      onClick={() => void command('exit_and_pause', { batch_id: batch.id })}
                     >
-                      {i.state === 'paused' ? 'Resume' : 'Pause'}
+                      Exit & pause all
                     </button>
-                  </td>
-                </tr>
-              ))}
-          </tbody>
-        </table>
-        <p className="text-sm mt-3">
-          New signal decisions run 35 seconds after each completed five-minute bar. Closed sessions,
-          missing evidence and risk limits can prevent entries.
-        </p>
-      </section>
-      {detail && (
-        <section className="sw-card space-y-3">
-          <h2>Decision evidence</h2>
-          {detail.gaps?.map((g) => (
-            <p className="sw-notice" key={g.start}>
-              Decision gap: {when(g.start)} to {when(g.end)}. {g.reason}
-            </p>
-          ))}
-          <p>
-            {detail.positions
-              .filter((p) => Number(p.quantity) > 0)
-              .map((p) => `${p.symbol}: ${p.quantity} shares/units, exit by ${when(p.exit_due)}`)
-              .join(' · ') || 'No open positions.'}
-          </p>
-          <div className="flex gap-2">
-            <button className="sw-button" onClick={() => void inspect(selected)}>
-              Refresh details
-            </button>
-            <button
-              className="sw-button"
-              disabled={disabled}
-              onClick={() => void command('exit_and_pause', { instance_id: selected })}
-            >
-              Exit and pause
-            </button>
-          </div>
-          {detail.orders
-            .filter((o) => o.error)
-            .map((o) => (
-              <p role="alert" key={o.id}>
-                {o.symbol}: {o.error}
-              </p>
-            ))}
-          {detail.decisions.map((d) => (
-            <details key={d.id}>
-              <summary>
-                {d.symbol} · {when(d.cutoff)} · {human(d.outcome)} · {human(d.reason)}
-              </summary>
-              <p>
-                {d.evidence.bars.length} recorded bars · {d.evidence.news?.length || 0} timely
-                articles
-              </p>
-              <pre className="overflow-auto text-xs">
-                {JSON.stringify(d.evidence.conditions || [], null, 2)}
-              </pre>
-              <a href={endpoint + '&decision=' + d.id} target="_blank" rel="noreferrer">
-                Open full evidence
-              </a>
-            </details>
-          ))}
-          {detail.next && (
-            <button className="sw-button" onClick={() => void inspect(selected, detail.next!)}>
-              Earlier decisions
-            </button>
-          )}
-        </section>
-      )}
-      <details className="sw-card">
-        <summary>Research context</summary>
-        <p>
-          SEC filings and official Federal Reserve and BLS releases inform review. They do not
-          generate directional trades.
-        </p>
-        {data?.context.map((c) => (
-          <p key={c.id}>
-            <a className="underline" href={c.url} target="_blank" rel="noreferrer">
-              {c.title}
-            </a>{' '}
-            · {c.source}
-            {c.symbol ? ' · ' + c.symbol : ''} · published {when(c.published)} · first seen{' '}
-            {when(c.observed)}
-          </p>
-        ))}
-      </details>
-      <details className="sw-card">
-        <summary>Research proposals</summary>
-        <p>
-          At most two predefined changes per family each week. A proposal only trades after a new
-          batch is reviewed and approved.
-        </p>
-        {data?.proposals.slice(0, 8).map((p) => (
-          <p key={p.id}>
-            {human(p.family)} · variant {p.variant} · {p.week}{' '}
-            <button
-              className="sw-button"
-              disabled={disabled || Boolean(batch)}
-              onClick={() => void command('preview', { proposal_id: p.id })}
-            >
-              Preview a batch with this change
-            </button>
-          </p>
-        ))}
-      </details>
-      <details className="sw-card">
-        <summary>Recent requests and research</summary>
-        {data?.commands.map((c) => (
-          <p key={c.id}>
-            {human(c.action)} · {c.status}
-            {c.result_json && JSON.parse(c.result_json).error
-              ? ' · ' + JSON.parse(c.result_json).error
-              : ''}
-          </p>
-        ))}
-        {data?.research.map((r) => (
-          <details key={r.id}>
-            <summary>
-              Replay · {r.status}
-              {r.error ? ' · ' + r.error : ''}
-            </summary>
-            {r.status === 'succeeded' && (
-              <div className="flex gap-4">
-                {['summary', 'evidence', 'replay'].map((kind) => (
-                  <a
-                    key={kind}
-                    className="underline"
-                    href={'/api/systems/experiments/artifact?job=' + r.id + '&kind=' + kind}
+                  </>
+                ) : (
+                  <button
+                    className="sw-button primary"
+                    disabled={authorizationDisabled}
+                    onClick={() =>
+                      void command(
+                        preview && !previewExpired ? 'approve' : 'preview',
+                        preview && !previewExpired
+                          ? { batch_id: preview.id, revision: preview.revision }
+                          : {}
+                      )
+                    }
                   >
-                    Download {kind}
-                  </a>
-                ))}
+                    {preparing || approving ? (
+                      <Loader2
+                        size={14}
+                        className="animate-spin motion-reduce:animate-none"
+                        aria-hidden="true"
+                      />
+                    ) : preview && !previewExpired ? (
+                      <Check size={14} aria-hidden="true" />
+                    ) : (
+                      <FlaskConical size={14} aria-hidden="true" />
+                    )}
+                    {preparing
+                      ? 'Preparing preview…'
+                      : approving
+                        ? 'Approving…'
+                        : previewExpired
+                          ? 'Refresh preview'
+                          : preview
+                            ? 'Approve batch'
+                            : 'Prepare batch preview'}
+                  </button>
+                )}
               </div>
-            )}
-            <pre className="overflow-auto text-xs">
-              {JSON.stringify(JSON.parse(r.result_json || '{}'), null, 2)}
-            </pre>
-          </details>
-        ))}
-      </details>
-      <details className="sw-card">
-        <summary>Collection and execution health</summary>
-        {data?.health.map((h) => (
-          <p key={h.component}>
-            {human(h.component)} · {h.error || 'OK'} · {when(h.at)}
-          </p>
-        ))}
-      </details>
+            </div>
+            <div className="flex flex-wrap justify-between gap-2 border-t border-border bg-muted/25 px-5 py-3 text-[11px] leading-relaxed text-muted-foreground sm:px-6">
+              <p>Entries pause at 2% daily loss or 10% drawdown.</p>
+              <p>
+                {!session.authenticated
+                  ? 'Sign in with Operator access to approve or control a batch.'
+                  : batch
+                    ? `Approved rules stay fixed through ${date(batch.expires)}.`
+                    : previewExpired
+                      ? 'This preview expired. Refresh it before approving.'
+                      : preview
+                        ? 'Approval starts all experiments below.'
+                        : 'Preparing a preview does not start trading.'}
+              </p>
+            </div>
+          </section>
+          {batch?.risk_reason && (
+            <p className="rounded-lg border border-amber-500/20 bg-amber-500/5 p-4 text-xs leading-relaxed text-amber-700 dark:text-amber-300">
+              {reason(batch.risk_reason)} Existing exits remain monitored. Resume cannot reset this
+              limit.
+            </p>
+          )}
+          <section aria-label="Experiments" className="space-y-4">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <h2 className="text-base font-semibold">
+                {batch
+                  ? 'Your experiments'
+                  : preview
+                    ? 'Review your experiments'
+                    : 'The experiment lineup'}
+              </h2>
+              <p className="text-xs text-muted-foreground">
+                Four $200 strategies · $50 control · $150 reserve
+              </p>
+            </div>
+            <div className="grid items-start gap-4 md:grid-cols-2 xl:grid-cols-3">
+              {(current ? current.plan.versions.map((version) => version.family) : families).map(
+                (name) => (
+                  <ExperimentCard
+                    key={`${current?.id || 'planned'}:${name}`}
+                    name={name}
+                    asset={asset}
+                    version={current?.plan.versions.find((version) => version.family === name)}
+                    instance={instances.find((item) => item.family === name)}
+                    preview={Boolean(preview && !batch && !previewExpired)}
+                    riskBlocked={riskBlocked}
+                    disabled={disabled}
+                    command={command}
+                  />
+                )
+              )}
+            </div>
+          </section>
+          {current && (
+            <CompactDisclosure
+              title="Batch settings"
+              summary={`${asset === 'stocks' ? 'Stocks & ETFs' : 'Bitcoin'} · Fixed rules and execution limits`}
+            >
+              <div className="grid gap-5 text-xs sm:grid-cols-2">
+                <div>
+                  <h3 className="mb-2 font-medium">Trading limits</h3>
+                  <p className="leading-relaxed text-muted-foreground">
+                    Up to four entries per strategy each Eastern day. Long positions only. Limit
+                    entries expire after 60 seconds. Exits may use a market order after cancellation
+                    is confirmed.
+                  </p>
+                </div>
+                <div>
+                  <h3 className="mb-2 font-medium">Timing & cash</h3>
+                  <p className="leading-relaxed text-muted-foreground">
+                    Decisions follow each completed five-minute bar.{' '}
+                    {asset === 'stocks'
+                      ? 'Stock sale proceeds wait for settlement.'
+                      : 'Bitcoin holds last at most four hours.'}{' '}
+                    Batch ends {when(current.expires)}.
+                  </p>
+                </div>
+              </div>
+              {batch && (
+                <div className="mt-4 flex flex-wrap gap-3 border-t border-border pt-4">
+                  <button
+                    className="sw-button !min-h-8 !py-1.5 !text-xs"
+                    disabled={disabled}
+                    onClick={() =>
+                      void command('replay', {
+                        batch_id: batch.id,
+                        start: new Date(Date.now() - 7 * 86400000).toISOString(),
+                        end: new Date().toISOString(),
+                      })
+                    }
+                  >
+                    Replay last 7 days
+                  </button>
+                  <button
+                    className="sw-button !min-h-8 !py-1.5 !text-xs"
+                    disabled={disabled}
+                    onClick={() => void command('exit', { batch_id: batch.id })}
+                  >
+                    Exit positions only
+                  </button>
+                </div>
+              )}
+            </CompactDisclosure>
+          )}
+          <section aria-label="Research and activity" className="space-y-3">
+            <h2 className="text-base font-semibold">Research & activity</h2>
+            <ResearchPanels
+              data={data}
+              disabled={authorizationDisabled}
+              active={Boolean(batch)}
+              command={command}
+            />
+          </section>
+          {completed.length > 0 && (
+            <CompactDisclosure
+              title="Past batches"
+              summary="Completed experiments and their saved decisions."
+            >
+              <PagedRows
+                items={completed}
+                pageSize={1}
+                label="Past batches"
+                render={(old) => (
+                  <div key={old.id}>
+                    <p className="mb-3 text-xs text-muted-foreground">
+                      Ended {date(old.expires)} · Final pool {amount(old.equity)}
+                    </p>
+                    <div className="grid items-start gap-4 md:grid-cols-2 xl:grid-cols-3">
+                      {data.instances
+                        .filter((item) => item.batch_id === old.id)
+                        .map((item) => (
+                          <ExperimentCard
+                            key={item.id}
+                            name={item.family}
+                            asset={asset}
+                            instance={item}
+                            version={old.plan.versions.find(
+                              (version) => version.family === item.family
+                            )}
+                            archived
+                            disabled
+                            command={command}
+                          />
+                        ))}
+                    </div>
+                  </div>
+                )}
+              />
+            </CompactDisclosure>
+          )}
+        </>
+      )}
     </main>
   )
 }
