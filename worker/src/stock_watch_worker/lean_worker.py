@@ -6,6 +6,10 @@ from .database import connect
 from .lean_contract import CONTRACT,MAX_INPUT,canonical,compare,validate
 from .systems.engine import replay,SystemConfig
 
+ACTIVE_POLL_SECONDS=10
+# Leave headroom within the dashboard/watchdog's existing 60-second freshness window.
+IDLE_HEALTH_SECONDS=30
+
 def now():return datetime.now(timezone.utc).isoformat()
 def settings():
     path=Path('/etc/stock-watch-lean/lean-runner.json')
@@ -25,16 +29,38 @@ def remote(config,message):
 def save(path,value):
     temporary=path.with_suffix('.tmp');temporary.write_text(canonical(value));temporary.replace(path)
 
-def tick(db,folder,config):
-    if not config:
-        health={'configured':False,'healthy':False,'error':'LEAN runner is not configured'}
-    else:
-        try:
-            health=remote(config,{'action':'health'})
-            if config.get('expected_image') and health.get('image')!=config['expected_image']:health={'configured':True,'healthy':False,'error':'Runner image differs from the reviewed pin'}
-        except Exception:health={'configured':True,'healthy':False,'error':'LEAN runner unreachable; queued work retained'}
-    with db:db.execute('INSERT OR REPLACE INTO lean_runner_health VALUES (1,?,?)',(now(),canonical(health)))
+class HealthPoller:
+    """Keep idle SSH checks sparse without delaying the local work queue."""
+    def __init__(self):
+        self.configuration=None
+        self.checked_at=None
+        self.health=None
+
+    def check(self,db,config,*,active=False):
+        configuration=canonical(config)
+        at=time.monotonic()
+        interval=ACTIVE_POLL_SECONDS if active else IDLE_HEALTH_SECONDS
+        if (self.health is not None and configuration==self.configuration
+                and 0 <= at-self.checked_at < interval):
+            # Reusing evidence must not make its persisted observation look fresh.
+            return self.health
+        if not config:
+            health={'configured':False,'healthy':False,'error':'LEAN runner is not configured'}
+        else:
+            try:
+                health=remote(config,{'action':'health'})
+                if config.get('expected_image') and health.get('image')!=config['expected_image']:health={'configured':True,'healthy':False,'error':'Runner image differs from the reviewed pin'}
+            except Exception:health={'configured':True,'healthy':False,'error':'LEAN runner unreachable; queued work retained'}
+        with db:db.execute('INSERT OR REPLACE INTO lean_runner_health VALUES (1,?,?)',(now(),canonical(health)))
+        self.configuration=configuration
+        # Measure from completion: a slow or failed probe cannot trigger rapid retries.
+        self.checked_at=time.monotonic()
+        self.health=health
+        return health
+
+def tick(db,folder,config,health_poller=None):
     row=db.execute("SELECT * FROM lean_comparisons WHERE status NOT IN ('complete','failed','canceled') ORDER BY created_at LIMIT 1").fetchone()
+    health=(health_poller or HealthPoller()).check(db,config,active=row is not None)
     if not row:return
     job=row['id']
     def change(status,**fields):
@@ -122,10 +148,11 @@ def main():
     with open(args.database+'.lean-owner.lock','a') as lock:
         fcntl.flock(lock,fcntl.LOCK_EX|fcntl.LOCK_NB)
         with connect(args.database) as db:
+            health_poller=HealthPoller()
             while True:
                 try:
                     prune(db,folder)
-                    tick(db,folder,settings())
+                    tick(db,folder,settings(),health_poller)
                 except Exception as error:print('LEAN bridge error:',type(error).__name__,flush=True)
-                time.sleep(10)
+                time.sleep(ACTIVE_POLL_SECONDS)
 if __name__=='__main__':main()
