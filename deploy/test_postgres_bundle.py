@@ -12,9 +12,14 @@ spec.loader.exec_module(backups)
 
 
 class PostgresBundleTests(unittest.TestCase):
+    def setUp(self):
+        clock=patch.object(backups,'datetime',wraps=datetime)
+        self.clock=clock.start();self.addCleanup(clock.stop)
+        self.clock.now.return_value=datetime(2026,11,1,12,tzinfo=timezone.utc)
+
     def history(self, root, count=40):
         for offset in range(count):
-            captured=datetime.now(timezone.utc)-timedelta(days=offset)
+            captured=backups.datetime.now(timezone.utc)-timedelta(days=offset)
             folder=root/captured.strftime('%Y%m%dT%H%M%S%fZ');folder.mkdir()
             metadata=self.bundle(folder);metadata['recovery_point_at']=captured.isoformat()
             (folder/'bundle.json').write_text(json.dumps(metadata))
@@ -36,6 +41,13 @@ class PostgresBundleTests(unittest.TestCase):
             with patch.object(backups.subprocess,'run'):
                 backups.retention(root,policy,True)
             self.assertEqual(len(list(root.iterdir())),11)
+
+    def test_weekly_overlap_on_monday(self):
+        self.clock.now.return_value=datetime(2026,11,2,12,tzinfo=timezone.utc)
+        with tempfile.TemporaryDirectory() as folder:
+            root=Path(folder);self.history(root)
+            policy=self.policy();policy['pins']=[min(p.name for p in root.iterdir())]
+            self.assertEqual(backups.retention(root,policy)['retained_count'],10)
 
     def test_corruption_blocks_cleanup_before_first_deletion(self):
         with tempfile.TemporaryDirectory() as folder:
@@ -75,6 +87,14 @@ class PostgresBundleTests(unittest.TestCase):
             p.name: backups.checksum(p) for p in directory.iterdir()})
         (directory/'bundle.json').write_text(json.dumps(metadata))
         return metadata
+
+    def test_expired_verification_budget_stops_before_archive_read(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root=Path(folder);self.bundle(root)
+            with patch.object(backups.subprocess,'run') as archive:
+                with self.assertRaisesRegex(TimeoutError,'deadline'):
+                    backups.verify_bundle(root,deadline=backups.time.monotonic()-1)
+                archive.assert_not_called()
 
     def test_checksum_corruption_rejected_before_archive_tool(self):
         with tempfile.TemporaryDirectory() as root:

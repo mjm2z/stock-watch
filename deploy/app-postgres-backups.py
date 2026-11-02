@@ -61,10 +61,12 @@ def retention(root, policy, apply=False):
             raise RuntimeError('Retention requires an approved isolated restore receipt')
         if not dates or not 0 <= (datetime.now(timezone.utc)-max(t for _,t in dates)).total_seconds() <= 30*3600:
             raise RuntimeError('Retention requires a fresh recovery bundle')
+        # One budget for the entire validation pass, not one hour per bundle.
+        deadline = time.monotonic()+3600
         # Validate both retained coverage and deletion candidates before deleting anything.
         for item in items:
             if not item['reason'].startswith('unrecognized'):
-                verify_bundle(root/item['name'])
+                verify_bundle(root/item['name'], deadline)
         if retention(root,policy)['items'] != items:
             raise RuntimeError('Bundle inventory changed after dry run')
         for item in items:
@@ -81,22 +83,26 @@ def now():
     return datetime.now(timezone.utc).isoformat()
 
 
-def checksum(path):
+def checksum(path, deadline=None):
+    deadline = time.monotonic()+3600 if deadline is None else deadline
     digest = hashlib.sha256()
     with path.open('rb') as stream:
         for chunk in iter(lambda: stream.read(8*1024*1024), b''):
+            if time.monotonic() >= deadline:
+                raise TimeoutError('Backup checksum verification exceeded its deadline')
             digest.update(chunk)
     return digest.hexdigest()
 
 
-def verify_bundle(directory):
+def verify_bundle(directory, deadline=None):
+    deadline = time.monotonic()+3600 if deadline is None else deadline
     metadata = json.loads((directory/'bundle.json').read_text())
     if metadata.get('format') != 1 or set(metadata['files']) != {
             'jobwatch.dump', 'jobwatch.json', 'radar.dump', 'radar.json'}:
         raise ValueError('Incomplete backup bundle')
     for name, digest in metadata['files'].items():
         path = directory/name
-        if path.is_symlink() or checksum(path) != digest:
+        if path.is_symlink() or checksum(path, deadline) != digest:
             raise ValueError('Backup checksum mismatch: '+name)
     for app, required in [('jobwatch', 'jobs'), ('radar', 'raw_posts')]:
         manifest = json.loads((directory/(app+'.json')).read_text())
@@ -105,7 +111,7 @@ def verify_bundle(directory):
         if manifest['dump_sha256'] != metadata['files'][app+'.dump']:
             raise ValueError('Dump does not match snapshot manifest')
         subprocess.run(['/usr/lib/postgresql/16/bin/pg_restore', '--list',
-                        str(directory/(app+'.dump'))], check=True, stdout=subprocess.DEVNULL, timeout=60)
+                        str(directory/(app+'.dump'))], check=True, stdout=subprocess.DEVNULL, timeout=max(.01,min(60,deadline-time.monotonic())))
     return metadata
 
 
