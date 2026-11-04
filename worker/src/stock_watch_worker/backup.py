@@ -79,11 +79,13 @@ def _copy(source_path, destination_path, temporary_path, final_path, keep, reser
     def report(phase, **details):
         print(json.dumps(dict(timestamp=datetime.now(timezone.utc).isoformat(), level='info',
                               event='backup_progress', message=f'SQLite backup: {phase}',
-                              phase=phase, elapsed_seconds=round(time.monotonic() - started, 1),
+                              phase=phase, source=str(source_path), destination=str(final_path),
+                              elapsed_seconds=round(time.monotonic() - started, 1),
                               **details)), flush=True)
 
     source_uri = f"{source_path.as_uri()}?mode=ro"
     source = sqlite3.connect(source_uri, uri=True)
+    source.execute('PRAGMA cache_size=-65536')
     target = None
     completed = False
     try:
@@ -100,6 +102,7 @@ def _copy(source_path, destination_path, temporary_path, final_path, keep, reser
         if free < size + reserve_bytes:
             raise RuntimeError(f'destination_capacity: need {size + reserve_bytes} bytes including reserve; {free} available. Previous backup preserved.')
         target = sqlite3.connect(temporary_path)
+        target.execute('PRAGMA cache_size=-65536')
 
         def progress(status, remaining, total):
             nonlocal last_report
