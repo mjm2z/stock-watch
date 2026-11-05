@@ -40,7 +40,12 @@ def preflight(stage):
     for name in ('backup.py','backup_ssd.py'):compile((stage/name).read_text(),name,'exec')
     for base in ('worker/src/stock_watch_worker','.venv/lib/python3.12/site-packages/stock_watch_worker'):
         if digest(ROOT/base/'backup.py')!=BASELINE or (ROOT/base/'backup_ssd.py').exists():raise RuntimeError('Unknown installed module')
-    if PRESERVE.read_text()!=PRESERVE_TEXT or DROPIN.exists() or CONFIG.exists():raise RuntimeError('Unknown configuration')
+    if PRESERVE.read_text()!=PRESERVE_TEXT or DROPIN.exists():raise RuntimeError('Unknown configuration')
+    try:
+        if CONFIG.exists():raise RuntimeError('Unknown verifier configuration')
+    except PermissionError:
+        if os.geteuid()==0:raise
+        print('Protected credential-directory check deferred to root installation.',flush=True)
     config=json.loads((stage/'config.json').read_text())
     if config!=dict(host='mjm2z@192.168.4.36',key=str(CONFIG/'id_ed25519'),known_hosts=str(CONFIG/'known_hosts')):
         raise RuntimeError('Unexpected verifier configuration')
@@ -110,6 +115,18 @@ def install(stage):
                 write(CONFIG/name,(stage/name).read_bytes(),0o640,0,account.pw_gid)
             write(DROPIN,b'[Service]\nEnvironment=STOCK_WATCH_BACKUP_SSD_CONFIG=/etc/stock-watch/backup-ssd/config.json\n',0o644)
             run('systemctl','daemon-reload')
+            # Verify service-user credential access and transport before starting
+            # any live database copy. The fixture is removed on success/failure.
+            smoke = '''import pathlib,sqlite3,tempfile,time,json
+from stock_watch_worker.backup_ssd import remote_verify
+with tempfile.TemporaryDirectory(prefix='.ssd-fixture-',dir='/var/backups/stock-watch') as stage:
+ p=pathlib.Path(stage)/'fixture.db'
+ with sqlite3.connect(p) as db:db.execute('CREATE TABLE fixture(value TEXT)')
+ receipt=remote_verify(p,'/etc/stock-watch/backup-ssd/config.json',time.monotonic()+20,lambda *a,**kw:None)
+ print(json.dumps(receipt))
+'''
+            receipt=run('runuser','-u','stock-watch','--',str(ROOT/'.venv/bin/python3.12'),'-c',smoke)
+            (archive/'service-user-fixture-receipt.json').write_text(receipt+'\n')
         except Exception:
             rollback(archive)
             raise
