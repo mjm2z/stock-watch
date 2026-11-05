@@ -14,6 +14,24 @@ from stock_watch_worker.backup import create_sqlite_backup
 
 
 class BackupTests(unittest.TestCase):
+    def test_recovery_override_preserves_all_previous_exports_after_success(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            database = root / 'source.db'
+            with sqlite3.connect(database) as connection:
+                connection.execute('CREATE TABLE evidence(value TEXT)')
+                connection.execute("INSERT INTO evidence VALUES ('recoverable')")
+            for destination in (root / 'primary', root / 'auxiliary' / 'sample.db'):
+                destination.mkdir(parents=True)
+                old = destination / 'stock-watch-20200101T000000000000Z.db'
+                old.write_bytes(b'unverified history must survive')
+                with patch.dict(os.environ, {'STOCK_WATCH_BACKUP_PRESERVE_HISTORY': '1'}):
+                    result = create_sqlite_backup(database, destination, keep=1, reserve_bytes=0)
+                self.assertEqual(old.read_bytes(), b'unverified history must survive')
+                self.assertEqual(result.removed, ())
+                with sqlite3.connect(result.path) as restored:
+                    self.assertEqual(restored.execute('SELECT value FROM evidence').fetchone()[0], 'recoverable')
+
     def test_sigterm_removes_partial_copy_and_restores_handler(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

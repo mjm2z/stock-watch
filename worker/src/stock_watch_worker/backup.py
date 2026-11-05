@@ -161,8 +161,12 @@ def _copy(source_path, destination_path, temporary_path, final_path, keep, reser
     temporary_path.replace(final_path)
     backups = sorted(destination_path.glob("stock-watch-*.db"), reverse=True)
     removed: list[Path] = []
-    for expired in backups[keep:]:
+    # Recovery validation must retain older exports until independent replicas
+    # are accepted. Auxiliary datasets use this same function/environment.
+    preserve_history = os.environ.get('STOCK_WATCH_BACKUP_PRESERVE_HISTORY') == '1'
+    for expired in ([] if preserve_history else backups[keep:]):
         expired.unlink()
         removed.append(expired)
-    report('completed', backup_path=str(final_path), removed=len(removed))
+    report('completed', backup_path=str(final_path), removed=len(removed),
+           history_preserved=preserve_history)
     return BackupResult(path=final_path, removed=tuple(removed))
