@@ -88,6 +88,8 @@ def _copy(source_path, destination_path, temporary_path, final_path, keep, reser
     source.execute('PRAGMA cache_size=-65536')
     target = None
     completed = False
+    receipt = None
+    ssd_config = os.environ.get("STOCK_WATCH_BACKUP_SSD_CONFIG")
     try:
         # Pin one WAL read snapshot. Without this transaction, unrelated writers
         # can restart the incremental backup on every page batch indefinitely.
@@ -107,7 +109,7 @@ def _copy(source_path, destination_path, temporary_path, final_path, keep, reser
         def progress(status, remaining, total):
             nonlocal last_report
             clock = time.monotonic()
-            if clock - started > timeout_seconds:
+            if clock - started > (min(timeout_seconds, 3600) if ssd_config else timeout_seconds):
                 raise TimeoutError('backup timeout during copying; previous backup preserved')
             if clock - last_report >= 30 or remaining == 0:
                 free = shutil.disk_usage(destination_path).free
@@ -121,29 +123,38 @@ def _copy(source_path, destination_path, temporary_path, final_path, keep, reser
         # the online backup while other connections are writing to that database.
         source.backup(target, pages=4096, progress=progress)
         source.rollback()
-        report('verifying')
-        last_report = time.monotonic()
-        timed_out = False
-
-        def verifying():
-            nonlocal last_report, timed_out
-            clock = time.monotonic()
-            if clock - last_report >= 30:
-                report('verifying')
-                last_report = clock
-            timed_out = clock - started > timeout_seconds
-            return int(timed_out)
-
-        target.set_progress_handler(verifying, 100000)
-        try:
-            result = target.execute("PRAGMA quick_check").fetchall()
-        except sqlite3.OperationalError as exc:
-            if timed_out:
-                raise TimeoutError('backup timeout during verification; previous backup preserved') from exc
-            raise
-        if result != [("ok",)]:
-            raise RuntimeError("backup failed SQLite integrity verification")
-        target.set_progress_handler(None, 0)
+        if ssd_config:
+            # Release both SQLite handles before sending the closed export.
+            target.close()
+            target = None
+            source.close()
+            from .backup_ssd import remote_verify
+            receipt = remote_verify(temporary_path, ssd_config,
+                                    started + timeout_seconds, report)
+        else:
+            report('verifying')
+            last_report = time.monotonic()
+            timed_out = False
+    
+            def verifying():
+                nonlocal last_report, timed_out
+                clock = time.monotonic()
+                if clock - last_report >= 30:
+                    report('verifying')
+                    last_report = clock
+                timed_out = clock - started > timeout_seconds
+                return int(timed_out)
+    
+            target.set_progress_handler(verifying, 100000)
+            try:
+                result = target.execute("PRAGMA quick_check").fetchall()
+            except sqlite3.OperationalError as exc:
+                if timed_out:
+                    raise TimeoutError('backup timeout during verification; previous backup preserved') from exc
+                raise
+            if result != [("ok",)]:
+                raise RuntimeError("backup failed SQLite integrity verification")
+            target.set_progress_handler(None, 0)
         os.chmod(temporary_path, 0o600)
         reader = os.environ.get('STOCK_WATCH_BACKUP_READER')
         if reader:
@@ -158,6 +169,14 @@ def _copy(source_path, destination_path, temporary_path, final_path, keep, reser
             for suffix in ('-wal', '-shm', '-journal'):
                 Path(str(temporary_path) + suffix).unlink(missing_ok=True)
 
+    if receipt is not None:
+        # A receipt alone cannot publish an export; only the final DB filename
+        # is consumable, and its contents must match the receipt's SHA-256.
+        receipt_path = final_path.with_suffix('.db.verification.json')
+        receipt_path.write_text(json.dumps(receipt) + '\n')
+        receipt_path.chmod(0o600)
+        if reader:
+            subprocess.run(['setfacl', '-m', f'u:{reader}:r--', str(receipt_path)], check=True)
     temporary_path.replace(final_path)
     backups = sorted(destination_path.glob("stock-watch-*.db"), reverse=True)
     removed: list[Path] = []
