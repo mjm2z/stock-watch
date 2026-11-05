@@ -135,7 +135,7 @@ def _copy(source_path, destination_path, temporary_path, final_path, keep, reser
             report('verifying')
             last_report = time.monotonic()
             timed_out = False
-    
+
             def verifying():
                 nonlocal last_report, timed_out
                 clock = time.monotonic()
@@ -144,7 +144,7 @@ def _copy(source_path, destination_path, temporary_path, final_path, keep, reser
                     last_report = clock
                 timed_out = clock - started > timeout_seconds
                 return int(timed_out)
-    
+
             target.set_progress_handler(verifying, 100000)
             try:
                 result = target.execute("PRAGMA quick_check").fetchall()
